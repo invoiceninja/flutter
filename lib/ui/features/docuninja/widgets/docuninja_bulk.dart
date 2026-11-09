@@ -174,8 +174,9 @@ Future<void> runDnBulkAction<T>(
 
 /// The selection header that replaces a DocuNinja list's search row while
 /// selecting: Cancel, "N selected", Select all visible, and the bulk
-/// actions (spread inline when [wide], one `⋮` otherwise), as the entity
-/// lists' selection row has.
+/// actions (spread inline when [wide]; narrower, icon buttons when
+/// [inlineActions], one `⋮` otherwise), as the entity lists' selection row
+/// has.
 class DnSelectionBar<T> extends StatelessWidget {
   const DnSelectionBar({
     super.key,
@@ -183,6 +184,7 @@ class DnSelectionBar<T> extends StatelessWidget {
     required this.actions,
     required this.wide,
     this.onDone,
+    this.inlineActions = false,
   });
 
   final DnListViewModel<T> vm;
@@ -191,6 +193,11 @@ class DnSelectionBar<T> extends StatelessWidget {
 
   /// Runs once a bulk request has been answered.
   final VoidCallback? onDone;
+
+  /// On a narrow bar, each action as an icon button with its tooltip
+  /// instead of behind a `⋮`: the three lifecycle actions fit beside the
+  /// count on a phone, and a second `⋮` there read as the app bar's.
+  final bool inlineActions;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -226,6 +233,15 @@ class DnSelectionBar<T> extends StatelessWidget {
                   child: EntityOverflowActionBar<String>(items: items),
                 ),
               )
+            else if (inlineActions)
+              for (final item in items)
+                IconButton(
+                  icon: Icon(item.icon),
+                  tooltip: item.label,
+                  onPressed: item.enabled
+                      ? guardedOnTap<String>(context, item)
+                      : null,
+                )
             else if (items.isNotEmpty)
               EntityActionsPopupButton<String>(items: items),
           ],

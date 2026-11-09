@@ -1738,5 +1738,15 @@
   "welcome_lets_go": "Kom ons begin",
   "checklist_retry": "Probeer Weer",
   "switch_company": "Wissel Maatskappy",
-  "setup_choose_file_instead": "Kies eerder 'n lêer"
+  "setup_choose_file_instead": "Kies eerder 'n lêer",
+  "docuninja_empty_upload": "Laai 'n PDF op om dit vir ondertekening te stuur",
+  "docuninja_name_and_upload": "Benoem en Laai Op…",
+  "edit_in_browser": "Wysig in blaaier",
+  "docuninja_place_fields": "Plaas handtekeningvelde",
+  "docuninja_place_fields_help": "Maak in jou blaaier oop. Werk die beste op 'n rekenaar.",
+  "docuninja_waiting_for_earlier_signer": "Wag vir 'n vroeëre ondertekenaar",
+  "sign_here_hint": "Teken hier",
+  "docuninja_seats_used": ":count van :total plekke gebruik",
+  "docuninja_company_setup_help_touch": "Jou rekening bestaan, maar hierdie maatskappy is nog nie opgestel nie. Tik asseblief op die knoppie hieronder om dit op te stel.",
+  "sign_in_browser": "Teken in blaaier"
 }

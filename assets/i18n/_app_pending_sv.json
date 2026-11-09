@@ -1808,5 +1808,15 @@
   "welcome_lets_go": "Sätt igång",
   "checklist_retry": "Försök igen",
   "switch_company": "Byt företag",
-  "setup_choose_file_instead": "Välj en fil i stället"
+  "setup_choose_file_instead": "Välj en fil i stället",
+  "docuninja_empty_upload": "Ladda upp en PDF för att skicka den för underskrift",
+  "docuninja_name_and_upload": "Namnge och ladda upp…",
+  "edit_in_browser": "Redigera i webbläsaren",
+  "docuninja_place_fields": "Placera signaturfält",
+  "docuninja_place_fields_help": "Öppnas i din webbläsare. Fungerar bäst på en dator.",
+  "docuninja_waiting_for_earlier_signer": "Väntar på en tidigare undertecknare",
+  "sign_here_hint": "Skriv under här",
+  "docuninja_seats_used": ":count av :total platser används",
+  "docuninja_company_setup_help_touch": "Ditt konto finns, men det här företaget är inte konfigurerat ännu. Tryck på knappen nedan för att konfigurera det.",
+  "sign_in_browser": "Skriv under i webbläsaren"
 }

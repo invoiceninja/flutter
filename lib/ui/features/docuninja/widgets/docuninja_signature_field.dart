@@ -9,9 +9,12 @@ import 'package:image/image.dart' as img;
 import 'package:logging/logging.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/docuninja/docuninja_signature.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/widgets/document_capture.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
@@ -95,6 +98,8 @@ class _DnSignatureFieldState extends State<DnSignatureField> {
 
   Future<void> _upload(List<UploadSource> files) async {
     if (files.isEmpty) return;
+    // Read now: the editor may be gone by the time the photo is read.
+    final intake = intakeOf(context);
     try {
       final source = files.first;
       final bytes = await source.readRange(0, await source.length());
@@ -103,15 +108,30 @@ class _DnSignatureFieldState extends State<DnSignatureField> {
     } on Object catch (e, st) {
       _log.info('Reading the uploaded signature failed', e, st);
       if (mounted) Notify.error(context, context.tr('invalid_file'));
+    } finally {
+      // A camera or gallery photo was copied into the app's folder; what is
+      // kept is the data URL, so the photo of a signature goes now.
+      await releaseCapturedPhotos(intake, files);
     }
   }
 
-  Future<void> _draw() async => _changed(
-    await showDialog<String>(
-      context: context,
-      builder: (_) => _DrawDialog(title: widget.label, kind: widget.kind),
-    ),
-  );
+  Future<void> _draw() async {
+    // A phone draws on a full-screen pad: in a dialog the pad was about
+    // 265 × 88, too small for a finger.
+    final fullScreen = Breakpoints.isPhone(context);
+    _changed(
+      await showDialog<String>(
+        context: context,
+        // The full-screen page's AppBar and body take the insets themselves.
+        useSafeArea: !fullScreen,
+        builder: (_) => _DrawDialog(
+          title: widget.label,
+          kind: widget.kind,
+          fullScreen: fullScreen,
+        ),
+      ),
+    );
+  }
 
   Future<void> _generate() async => _changed(
     await showDialog<String>(
@@ -131,30 +151,45 @@ class _DnSignatureFieldState extends State<DnSignatureField> {
     // Something is stored even when it is no image the app can show (a URL
     // another client saved): it can still be cleared.
     final stored = widget.value.isNotEmpty;
+    final preview = has
+        ? Container(
+            constraints: const BoxConstraints(maxHeight: 112),
+            // The ink is dark on white in either theme.
+            color: Colors.white,
+            padding: const EdgeInsets.all(InSpacing.sm),
+            child: Image.memory(
+              bytes,
+              fit: BoxFit.contain,
+              gaplessPlayback: true,
+              semanticLabel: label,
+              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+            ),
+          )
+        : null;
+    // On a phone or tablet the zone is Camera / Photos / Files (a scanned
+    // signature lives in Photos), which draws no preview: it sits above.
+    final tiles = Env.isMobile;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(label, style: TextStyle(color: tokens.ink3, fontSize: 12)),
         const SizedBox(height: 4),
+        if (tiles && preview != null) ...[
+          DecoratedBox(
+            position: DecorationPosition.foreground,
+            decoration: BoxDecoration(border: Border.all(color: tokens.border)),
+            child: preview,
+          ),
+          const SizedBox(height: InSpacing.sm),
+        ],
         FileDropZone(
           allowedExtensions: _kImageExtensions,
           onFiles: _upload,
           enabled: enabled,
-          preview: has
-              ? Container(
-                  constraints: const BoxConstraints(maxHeight: 112),
-                  // The ink is dark on white in either theme.
-                  color: Colors.white,
-                  padding: const EdgeInsets.all(InSpacing.sm),
-                  child: Image.memory(
-                    bytes,
-                    fit: BoxFit.contain,
-                    gaplessPlayback: true,
-                    semanticLabel: label,
-                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                  ),
-                )
-              : null,
+          allowPhotos: true,
+          // A touch browser still draws the box: nothing there is clicked.
+          idleLabelKey: Env.isTouchPrimary ? 'upload_file' : null,
+          preview: tiles ? null : preview,
         ),
         const SizedBox(height: InSpacing.sm),
         Wrap(
@@ -248,46 +283,113 @@ Future<img.Image> _render(
   }
 }
 
-/// The pad's shape for [kind]: a signature is wide, initials are boxy.
+/// The pad's shape for [kind] in the desktop dialog: a signature is wide,
+/// initials are boxy.
 double _aspect(DnSignatureKind kind) =>
     kind == DnSignatureKind.signature ? 3 : 4 / 3;
 
-/// React's signature pad, in a dialog so a stroke never scrolls the page.
+/// A stroke's width on the pad, in logical pixels.
+const double _kPadStroke = 2.5;
+
+/// How much larger than on the pad a drawing is rendered for storage: 2.5 px
+/// on screen is 6 px in the render, as when the pad was drawn at 1200 wide.
+const double _kRenderScale = 2.4;
+
+/// The render's longest side at most, before the trim and the scale-down
+/// to what React stores.
+const double _kMaxRenderSide = 3000;
+
+/// Where strokes drawn on the pad (in its logical pixels) land when they
+/// are rendered for storage: [scale] on **both** axes, so a stroke keeps the
+/// shape it was drawn in whatever shape the pad had (a phone's tall pad, a
+/// desktop's 3:1), [origin] the ink's top-start corner on the pad, and
+/// [size] the ink at that scale with the trim's margin around it.
+/// `dnTrimToInk` then crops to the ink and `dnSignatureDataUrl` fits it into
+/// what React stores, both keeping the aspect.
+@visibleForTesting
+({Size size, Offset origin, double scale, double margin}) dnStrokeCanvas(
+  List<List<Offset>> strokes,
+) {
+  var minX = double.infinity, minY = double.infinity;
+  var maxX = double.negativeInfinity, maxY = double.negativeInfinity;
+  for (final stroke in strokes) {
+    for (final p in stroke) {
+      minX = math.min(minX, p.dx);
+      minY = math.min(minY, p.dy);
+      maxX = math.max(maxX, p.dx);
+      maxY = math.max(maxY, p.dy);
+    }
+  }
+  if (minX > maxX) {
+    return (size: const Size(1, 1), origin: Offset.zero, scale: 1, margin: 0);
+  }
+  final inkW = maxX - minX;
+  final inkH = maxY - minY;
+  var scale = _kRenderScale;
+  const roomFor = _kMaxRenderSide - 2 * (kDnSignaturePadding + 16);
+  if (math.max(inkW, inkH) * scale > roomFor) {
+    scale = roomFor / math.max(inkW, inkH);
+  }
+  // The trim keeps 40 px around the ink; the stroke's own width sits
+  // outside its centre line.
+  final margin = kDnSignaturePadding + _kPadStroke * scale;
+  return (
+    size: Size(inkW * scale + margin * 2, inkH * scale + margin * 2),
+    origin: Offset(minX, minY),
+    scale: scale,
+    margin: margin,
+  );
+}
+
+/// React's signature pad, in a dialog so a stroke never scrolls the page; on
+/// a phone ([fullScreen]) a full-screen page with a pad a finger can use.
 class _DrawDialog extends StatefulWidget {
-  const _DrawDialog({required this.title, required this.kind});
+  const _DrawDialog({
+    required this.title,
+    required this.kind,
+    this.fullScreen = false,
+  });
 
   final String title;
   final DnSignatureKind kind;
+  final bool fullScreen;
 
   @override
   State<_DrawDialog> createState() => _DrawDialogState();
 }
 
 class _DrawDialogState extends State<_DrawDialog> {
-  /// Each stroke's points, as fractions of the pad, so a resize keeps them.
+  /// Each stroke's points, in the pad's logical pixels: one scale for both
+  /// axes, so the render never stretches a stroke to another shape. A pad
+  /// that changes size (a rotation) clips what no longer fits on screen,
+  /// but the render still has all of it.
   final _strokes = <List<Offset>>[];
   bool _saving = false;
 
   /// The pointer drawing the current stroke.
   int? _pointer;
 
-  Offset _norm(Offset p, Size size) =>
-      Offset((p.dx / size.width).clamp(0, 1), (p.dy / size.height).clamp(0, 1));
+  Offset _clamp(Offset p, Size size) => Offset(
+    p.dx.clamp(0, size.width).toDouble(),
+    p.dy.clamp(0, size.height).toDouble(),
+  );
 
   Future<void> _use() async {
     if (_strokes.isEmpty || _saving) return;
     setState(() => _saving = true);
     try {
       // Drawn large, then trimmed and scaled down to what React stores.
-      const width = 1200.0;
-      final height = width / _aspect(widget.kind);
+      final canvas = dnStrokeCanvas(_strokes);
       final pixels = await _render(
-        width.round(),
-        height.round(),
-        (canvas) => _SignaturePainter(
+        canvas.size.width.ceil(),
+        canvas.size.height.ceil(),
+        (c) => _SignaturePainter(
           _strokes,
-          strokeWidth: 6,
-        ).paint(canvas, Size(width, height)),
+          strokeWidth: _kPadStroke * canvas.scale,
+          scale: canvas.scale,
+          origin: canvas.origin,
+          margin: canvas.margin,
+        ).paint(c, canvas.size),
       );
       if (!mounted) return;
       Navigator.of(
@@ -302,13 +404,200 @@ class _DrawDialogState extends State<_DrawDialog> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  /// The pad itself: white paper with the strokes, drawn from raw pointer
+  /// events. [guide] adds the full-screen pad's baseline and "Sign here",
+  /// and Clear in its top-end corner.
+  Widget _pad(BuildContext context, {bool guide = false}) {
     final tokens = context.inTheme;
+    return LayoutBuilder(
+      builder: (context, c) {
+        final size = c.biggest;
+        final pad = Semantics(
+          label: widget.title,
+          // Raw pointers, not a pan: a pan starts only once a finger has
+          // moved past the touch slop (36 px), which clipped the start of
+          // every stroke and never recorded a dot.
+          child: Listener(
+            key: const ValueKey('dn-signature-pad'),
+            behavior: HitTestBehavior.opaque,
+            // One pointer draws at a time: a second finger (a palm on a
+            // tablet) and a mouse's other buttons draw nothing.
+            onPointerDown: (e) {
+              if (_pointer != null || _saving) return;
+              if (e.kind == PointerDeviceKind.mouse &&
+                  e.buttons != kPrimaryButton) {
+                return;
+              }
+              _pointer = e.pointer;
+              setState(() => _strokes.add([_clamp(e.localPosition, size)]));
+            },
+            onPointerMove: (e) {
+              if (e.pointer != _pointer || _strokes.isEmpty) return;
+              setState(() => _strokes.last.add(_clamp(e.localPosition, size)));
+            },
+            onPointerUp: (e) {
+              if (e.pointer == _pointer) _pointer = null;
+            },
+            onPointerCancel: (e) {
+              if (e.pointer == _pointer) _pointer = null;
+            },
+            child: DecoratedBox(
+              // Paper is white in either theme: the ink is black.
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: tokens.border),
+                borderRadius: BorderRadius.circular(InRadii.r1),
+              ),
+              child: ClipRect(
+                child: Stack(
+                  children: [
+                    if (guide) ..._guide(context, size),
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _SignaturePainter(
+                          _strokes,
+                          strokeWidth: _kPadStroke,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        if (!guide) return pad;
+        // Over the pad's corner but outside its drawing Listener: the Stack
+        // hit-tests Clear first, so a tap on it never leaves a dot.
+        return Stack(
+          children: [
+            Positioned.fill(child: pad),
+            PositionedDirectional(
+              top: 0,
+              end: 0,
+              child: IconButton(
+                key: const ValueKey('dn-signature-clear'),
+                tooltip: context.tr('clear'),
+                icon: const Icon(Icons.delete_outline),
+                // The paper is white in either theme.
+                style: IconButton.styleFrom(
+                  foregroundColor: Colors.black87,
+                  disabledForegroundColor: Colors.black26,
+                ),
+                onPressed: _strokes.isEmpty || _saving
+                    ? null
+                    : () => setState(_strokes.clear),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// A faint baseline a third of the way up, with "Sign here" under it.
+  /// Not part of the drawing: the render has only the strokes.
+  List<Widget> _guide(BuildContext context, Size size) {
+    const inset = 24.0;
+    final y = size.height * 0.68;
+    return [
+      PositionedDirectional(
+        start: inset,
+        end: inset,
+        top: y,
+        child: const IgnorePointer(
+          child: Divider(height: 1, thickness: 1, color: Colors.black26),
+        ),
+      ),
+      PositionedDirectional(
+        start: inset,
+        end: inset,
+        top: y + 6,
+        child: IgnorePointer(
+          child: Text(
+            context.tr('sign_here_hint'),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.black54, fontSize: 13),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      widget.fullScreen ? _buildFullScreen(context) : _buildDialog(context);
+
+  /// A phone's pad: the whole width, and tall (2:1, or 40% of the height
+  /// where that is more); landscape takes the height there is.
+  Widget _buildFullScreen(BuildContext context) {
+    final done = _strokes.isNotEmpty && !_saving;
+    return Dialog.fullscreen(
+      child: Scaffold(
+        appBar: AppBar(
+          // Cancel and Back stay live while it renders: a render that
+          // finishes after the page has gone hands nothing back.
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: context.tr('cancel'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          title: Text(widget.title),
+          actions: [
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: InSpacing.sm),
+              child: _saving
+                  ? Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: InSpacing.md(context),
+                      ),
+                      child: const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : TextButton(
+                      onPressed: done ? _use : null,
+                      child: Text(context.tr('done')),
+                    ),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          top: false,
+          child: LayoutBuilder(
+            builder: (context, c) {
+              const gutter = 16.0;
+              final width = math.max(0.0, c.maxWidth - gutter * 2);
+              final room = math.max(0.0, c.maxHeight - gutter * 2);
+              final wanted = widget.kind == DnSignatureKind.signature
+                  ? math.max(width / 2, c.maxHeight * 0.4)
+                  : width * 3 / 4;
+              final height = math.min(wanted, room);
+              return Padding(
+                padding: const EdgeInsets.all(gutter),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: SizedBox(
+                    width: width,
+                    height: height,
+                    child: _pad(context, guide: true),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDialog(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
-    // Sized from the height too: on a landscape phone a pad as wide as the
-    // dialog would be squeezed out of its shape, and the strokes (stored
-    // per axis) would stretch when drawn at the stored shape.
+    // Sized from the height too: on a landscape window a pad as wide as the
+    // dialog would be squeezed out of its shape.
     final width = [
       520.0,
       screen.width - 96,
@@ -322,58 +611,7 @@ class _DrawDialogState extends State<_DrawDialog> {
         width: width,
         child: AspectRatio(
           aspectRatio: _aspect(widget.kind),
-          child: LayoutBuilder(
-            builder: (context, c) {
-              final size = c.biggest;
-              return Semantics(
-                label: widget.title,
-                // Raw pointers, not a pan: a pan starts only once a finger
-                // has moved past the touch slop (36 px), which clipped the
-                // start of every stroke and never recorded a dot.
-                child: Listener(
-                  key: const ValueKey('dn-signature-pad'),
-                  behavior: HitTestBehavior.opaque,
-                  // One pointer draws at a time: a second finger (a palm on
-                  // a tablet) and a mouse's other buttons draw nothing.
-                  onPointerDown: (e) {
-                    if (_pointer != null) return;
-                    if (e.kind == PointerDeviceKind.mouse &&
-                        e.buttons != kPrimaryButton) {
-                      return;
-                    }
-                    _pointer = e.pointer;
-                    setState(
-                      () => _strokes.add([_norm(e.localPosition, size)]),
-                    );
-                  },
-                  onPointerMove: (e) {
-                    if (e.pointer != _pointer || _strokes.isEmpty) return;
-                    setState(
-                      () => _strokes.last.add(_norm(e.localPosition, size)),
-                    );
-                  },
-                  onPointerUp: (e) {
-                    if (e.pointer == _pointer) _pointer = null;
-                  },
-                  onPointerCancel: (e) {
-                    if (e.pointer == _pointer) _pointer = null;
-                  },
-                  child: DecoratedBox(
-                    // Paper is white in either theme: the ink is black.
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: tokens.border),
-                      borderRadius: BorderRadius.circular(InRadii.r1),
-                    ),
-                    child: CustomPaint(
-                      painter: _SignaturePainter(_strokes, strokeWidth: 2.5),
-                      size: Size.infinite,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+          child: _pad(context),
         ),
       ),
       actions: [
@@ -400,11 +638,22 @@ class _DrawDialogState extends State<_DrawDialog> {
   }
 }
 
+/// Strokes in the pad's logical pixels, drawn at [scale] from [origin] with
+/// [margin] around them: the pad itself is scale 1 from its corner.
 class _SignaturePainter extends CustomPainter {
-  _SignaturePainter(this.strokes, {required this.strokeWidth});
+  _SignaturePainter(
+    this.strokes, {
+    required this.strokeWidth,
+    this.scale = 1,
+    this.origin = Offset.zero,
+    this.margin = 0,
+  });
 
   final List<List<Offset>> strokes;
   final double strokeWidth;
+  final double scale;
+  final Offset origin;
+  final double margin;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -414,7 +663,7 @@ class _SignaturePainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke;
-    Offset at(Offset f) => Offset(f.dx * size.width, f.dy * size.height);
+    Offset at(Offset p) => (p - origin) * scale + Offset(margin, margin);
     for (final stroke in strokes) {
       if (stroke.length == 1) {
         canvas.drawCircle(

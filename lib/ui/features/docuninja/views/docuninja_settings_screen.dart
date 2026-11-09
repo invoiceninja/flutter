@@ -8,6 +8,7 @@ import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
@@ -24,7 +25,6 @@ import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/property_inputs.dart';
-import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_states.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_table.dart';
@@ -694,6 +694,15 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
   bool _failed = false;
   bool _saving = false;
 
+  /// The subject and body fields, so a variable chip can put its token at
+  /// the caret of the one last edited (docs/template-variables.md).
+  final _subjectFocus = FocusNode(debugLabel: 'dn-template-subject');
+  final _bodyFocus = FocusNode(debugLabel: 'dn-template-body');
+
+  /// The field a variable goes into: the one that last had focus, the body
+  /// until either has.
+  bool _targetsSubject = false;
+
   /// Bumped on every change, so the unsaved-changes guard re-asks; merged
   /// with the text fields once they exist.
   final _revision = ValueNotifier<int>(0);
@@ -734,8 +743,40 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
   @override
   void initState() {
     super.initState();
+    _subjectFocus.addListener(_onFieldFocus);
+    _bodyFocus.addListener(_onFieldFocus);
     _publishSave();
     _load();
+  }
+
+  void _onFieldFocus() {
+    if (_subjectFocus.hasFocus) _targetsSubject = true;
+    if (_bodyFocus.hasFocus) _targetsSubject = false;
+  }
+
+  /// Puts [token] at the caret (over the selection) of the field last
+  /// edited — the end of the body when neither has been — and puts the
+  /// caret after it, back in that field.
+  void _insertVariable(DnEmailTemplate template, String token) {
+    final controller = (_targetsSubject ? _subjects : _bodies)[template.id];
+    if (controller == null) return;
+    final focus = _targetsSubject ? _subjectFocus : _bodyFocus;
+    final value = controller.value;
+    final length = value.text.length;
+    final selection = value.selection.isValid
+        ? value.selection
+        : TextSelection.collapsed(offset: length);
+    final start = selection.start.clamp(0, length);
+    final end = selection.end.clamp(0, length);
+    final text = value.text.replaceRange(start, end, token);
+    final caret = TextSelection.collapsed(offset: start + token.length);
+    controller.value = TextEditingValue(text: text, selection: caret);
+    focus.requestFocus();
+    // A single-line field selects everything when it regains focus on
+    // desktop and web: put the caret back once it has.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && controller.text == text) controller.selection = caret;
+    });
   }
 
   @override
@@ -743,6 +784,8 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
     for (final c in [..._subjects.values, ..._bodies.values]) {
       c.dispose();
     }
+    _subjectFocus.dispose();
+    _bodyFocus.dispose();
     _revision.dispose();
     super.dispose();
   }
@@ -832,16 +875,27 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
           children: [
             DropdownButtonFormField<int>(
               initialValue: _selected.clamp(0, templates.length - 1),
+              // Fills the field, so a long name ellipsizes on a phone at a
+              // large text size instead of overflowing it.
+              isExpanded: true,
               decoration: InputDecoration(labelText: context.tr('template')),
               items: [
                 for (var i = 0; i < templates.length; i++)
-                  DropdownMenuItem(value: i, child: Text(templates[i].name)),
+                  DropdownMenuItem(
+                    value: i,
+                    child: Text(
+                      templates[i].name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
               ],
               onChanged: (i) => setState(() => _selected = i ?? 0),
             ),
             TextField(
               key: ValueKey('subject:${current.id}'),
               controller: _subjects[current.id],
+              focusNode: _subjectFocus,
               textCapitalization: TextCapitalization.sentences,
               textInputAction: TextInputAction.done,
               decoration: InputDecoration(labelText: context.tr('subject')),
@@ -850,6 +904,7 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
             TextField(
               key: ValueKey('body:${current.id}'),
               controller: _bodies[current.id],
+              focusNode: _bodyFocus,
               minLines: 6,
               maxLines: 16,
               textCapitalization: TextCapitalization.sentences,
@@ -861,7 +916,8 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
           ],
         ),
         SizedBox(height: InSpacing.lg(context)),
-        // React's variables card: the Twig tokens the server fills in.
+        // React's variables card: the Twig tokens the server fills in. A
+        // chip puts its token at the caret of the subject or the body.
         FormSection(
           title: context.tr('variables'),
           children: [
@@ -878,7 +934,11 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
                     spacing: InSpacing.sm,
                     runSpacing: InSpacing.sm,
                     children: [
-                      for (final t in tokens) _VariableChip(token: '{{ $t }}'),
+                      for (final t in tokens)
+                        _VariableChip(
+                          token: '{{ $t }}',
+                          onInsert: (token) => _insertVariable(current, token),
+                        ),
                     ],
                   ),
                 ],
@@ -890,19 +950,33 @@ class _EmailTemplatesTabState extends State<_EmailTemplatesTab>
   }
 }
 
-/// React's variable (`Variable.tsx`): a chip that copies its token on a
-/// tap, and says so.
+/// React's variable (`Variable.tsx`): a chip for one token. Where React's
+/// copies the token, this one puts it at the caret of the field being
+/// edited, as the app's other template-variable chips do
+/// (docs/template-variables.md). The token wraps rather than overflow a
+/// phone at a large text size, and the chip is a touch target on touch.
+/// [token] for display: a break allowed only after `.` or `_`, never
+/// inside a name, and `}}` kept to the word before it — a 2x chip wrapped
+/// mid-identifier ("first_nam / e") and stranded a lone "}". Display only:
+/// the token inserted is the plain one.
+String _breakable(String token) => token
+    .replaceAll('.', '.\u200B')
+    .replaceAll('_', '_\u200B')
+    .replaceAll(' }}', '\u00A0}}')
+    .replaceAll('{{ ', '{{\u00A0');
+
 class _VariableChip extends StatelessWidget {
-  const _VariableChip({required this.token});
+  const _VariableChip({required this.token, required this.onInsert});
 
   final String token;
+  final ValueChanged<String> onInsert;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final radius = BorderRadius.circular(InRadii.r1);
     return Tooltip(
-      message: context.tr('copy'),
+      message: context.tr('insert_variable'),
       waitDuration: const Duration(milliseconds: 400),
       child: Material(
         color: tokens.surfaceAlt,
@@ -912,25 +986,33 @@ class _VariableChip extends StatelessWidget {
         ),
         child: InkWell(
           borderRadius: radius,
-          onTap: () => copyToClipboard(context, token),
+          onTap: () => onInsert(token),
           child: Semantics(
             button: true,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  LtrText(
-                    token,
-                    style: TextStyle(
-                      color: tokens.ink2,
-                      fontSize: 12,
-                      fontFamily: kMonoFontFamily,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: Env.isTouchPrimary ? InSizes.touchTarget : 0,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: LtrText(
+                        _breakable(token),
+                        softWrap: true,
+                        style: TextStyle(
+                          color: tokens.ink2,
+                          fontSize: 12,
+                          fontFamily: kMonoFontFamily,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Icon(Icons.content_copy, size: 12, color: tokens.ink3),
-                ],
+                    const SizedBox(width: 6),
+                    Icon(Icons.add, size: 14, color: tokens.ink3),
+                  ],
+                ),
               ),
             ),
           ),

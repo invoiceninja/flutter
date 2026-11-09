@@ -1739,5 +1739,15 @@
   "welcome_lets_go": "Zaczynajmy",
   "checklist_retry": "Ponów",
   "switch_company": "Przełącz firmę",
-  "setup_choose_file_instead": "Wybierz plik zamiast tego"
+  "setup_choose_file_instead": "Wybierz plik zamiast tego",
+  "docuninja_empty_upload": "Prześlij plik PDF, aby wysłać go do podpisu",
+  "docuninja_name_and_upload": "Nazwij i prześlij…",
+  "edit_in_browser": "Edytuj w przeglądarce",
+  "docuninja_place_fields": "Umieść pola podpisu",
+  "docuninja_place_fields_help": "Otwiera się w przeglądarce. Najlepiej działa na komputerze.",
+  "docuninja_waiting_for_earlier_signer": "Oczekiwanie na wcześniejszego sygnatariusza",
+  "sign_here_hint": "Podpisz tutaj",
+  "docuninja_seats_used": "Wykorzystano miejsca: :count z :total",
+  "docuninja_company_setup_help_touch": "Twoje konto istnieje, ale ta firma nie jest jeszcze skonfigurowana. Dotknij przycisku poniżej, aby ją skonfigurować.",
+  "sign_in_browser": "Podpisz w przeglądarce"
 }

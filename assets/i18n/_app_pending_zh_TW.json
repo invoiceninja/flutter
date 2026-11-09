@@ -1738,5 +1738,15 @@
   "welcome_lets_go": "開始吧",
   "checklist_retry": "重試",
   "switch_company": "切換公司",
-  "setup_choose_file_instead": "改為選擇檔案"
+  "setup_choose_file_instead": "改為選擇檔案",
+  "docuninja_empty_upload": "上傳 PDF 以傳送簽署",
+  "docuninja_name_and_upload": "命名並上傳…",
+  "edit_in_browser": "在瀏覽器中編輯",
+  "docuninja_place_fields": "放置簽名欄位",
+  "docuninja_place_fields_help": "將在瀏覽器中開啟。在電腦上使用效果最佳。",
+  "docuninja_waiting_for_earlier_signer": "正在等待前一位簽署人",
+  "sign_here_hint": "在此簽名",
+  "docuninja_seats_used": "已使用 :count / :total 個席位",
+  "docuninja_company_setup_help_touch": "您的帳戶已存在，但此公司尚未設定。請點一下下方按鈕進行設定。",
+  "sign_in_browser": "在瀏覽器中簽署"
 }

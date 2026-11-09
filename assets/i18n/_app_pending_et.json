@@ -1738,5 +1738,15 @@
   "welcome_lets_go": "Alustame",
   "checklist_retry": "Proovi uuesti",
   "switch_company": "Vaheta ettevõtet",
-  "setup_choose_file_instead": "Valige hoopis fail"
+  "setup_choose_file_instead": "Valige hoopis fail",
+  "docuninja_empty_upload": "Laadige üles PDF, et saata see allkirjastamiseks",
+  "docuninja_name_and_upload": "Nimeta ja laadi üles…",
+  "edit_in_browser": "Muuda brauseris",
+  "docuninja_place_fields": "Paiguta allkirjaväljad",
+  "docuninja_place_fields_help": "Avaneb teie brauseris. Töötab kõige paremini arvutis.",
+  "docuninja_waiting_for_earlier_signer": "Ootab varasemat allkirjastajat",
+  "sign_here_hint": "Allkirjastage siin",
+  "docuninja_seats_used": "Kasutatud kohti: :count / :total",
+  "docuninja_company_setup_help_touch": "Teie konto on olemas, kuid see ettevõte pole veel seadistatud. Selle seadistamiseks puudutage allolevat nuppu.",
+  "sign_in_browser": "Allkirjasta brauseris"
 }

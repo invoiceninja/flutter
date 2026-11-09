@@ -6,8 +6,10 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
+import 'package:admin/ui/core/utils/fab_clearance.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
@@ -21,6 +23,14 @@ import 'package:admin/utils/formatting.dart';
 /// The pane width from which the list is React's table.
 const double kDocuNinjaTableMinWidth = 720;
 
+/// Whether the documents page lays out as React's table and wide toolbar in
+/// a pane [width] wide: from [kDocuNinjaTableMinWidth], and never on a phone
+/// ([Breakpoints.isPhone]) — a landscape phone's pane is that wide, on a
+/// viewport too short for the table's chrome (CLAUDE.md: a landscape phone
+/// is not a small desktop).
+bool dnShowsTable(BuildContext context, double width) =>
+    width >= kDocuNinjaTableMinWidth && !Breakpoints.isPhone(context);
+
 /// React's documents table (`useTableColumns.tsx`: contact, user, document,
 /// files, status, created at) on a wide pane, and a row per document on a
 /// narrow one. A page at a time; the next loads near the end.
@@ -32,7 +42,10 @@ class DocuNinjaDocumentsList extends StatefulWidget {
     this.actionsFor,
     this.selectable = false,
     this.header,
+    this.headerOnlyWhenEmpty = false,
     this.onClearFilters,
+    this.onCreate,
+    this.fabClearance = false,
   });
 
   final DocuNinjaDocumentsViewModel vm;
@@ -48,6 +61,19 @@ class DocuNinjaDocumentsList extends StatefulWidget {
 
   /// Scrolls above the rows (React's drop zone), on an empty list too.
   final Widget? header;
+
+  /// Shows [header] only over an empty list: a phone, whose create is the
+  /// `+` button, keeps the Camera / Photos / Files tiles for the empty
+  /// page and gives the rows the room otherwise.
+  final bool headerOnlyWhenEmpty;
+
+  /// The empty page's way to a first document (the New Document dialog),
+  /// for a role that may create; none otherwise.
+  final VoidCallback? onCreate;
+
+  /// A floating `+` sits over the list's bottom edge: the last row scrolls
+  /// clear of it ([fabScrollClearance]).
+  final bool fabClearance;
 
   /// Clears the search and the filters, offered when they leave the list
   /// empty — never a dead end (the app's lists' Clear filters).
@@ -132,8 +158,21 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
       _checkAfterLayout();
       return LayoutBuilder(
         builder: (context, c) {
-          final table = c.maxWidth >= kDocuNinjaTableMinWidth;
+          final table = dnShowsTable(context, c.maxWidth);
           final inset = dnListInset(table: table);
+          final header =
+              widget.header == null ||
+                  (widget.headerOnlyWhenEmpty &&
+                      !(vm.hasLoaded && vm.items.isEmpty))
+              ? null
+              : widget.header;
+          // The Scaffold leaves the home indicator in the body's padding,
+          // and a CustomScrollView does not pay it: the last row would end
+          // under it. With the `+` up, its clearance includes that inset.
+          final bottomInset = widget.fabClearance
+              ? fabScrollClearance(context)
+              : MediaQuery.paddingOf(context).bottom;
+          final emptyPage = !table && _emptyPage(vm);
           Widget padded(Widget child) => SliverPadding(
             padding: EdgeInsetsDirectional.only(
               start: inset,
@@ -150,12 +189,14 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
               slivers: [
                 // React's page scrolls as one: the drop zone, then the
                 // table under it.
-                if (widget.header != null) padded(widget.header!),
+                if (header != null) padded(header),
                 // A failed refresh says so where the pull happened; a failed
                 // next page says so under the rows.
                 if (_showError(vm) && !vm.errorFromMore)
                   padded(_errorNotice(vm)),
-                if (table)
+                if (emptyPage)
+                  _emptyPageSliver(context, bottomInset)
+                else if (table)
                   SliverPadding(
                     padding: EdgeInsetsDirectional.only(
                       start: inset,
@@ -185,6 +226,8 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
                       ),
                     ),
                   ),
+                if (!emptyPage && bottomInset > 0)
+                  SliverToBoxAdapter(child: SizedBox(height: bottomInset)),
               ],
             ),
           );
@@ -192,6 +235,41 @@ class _DocuNinjaDocumentsListState extends State<DocuNinjaDocumentsList> {
       );
     },
   );
+
+  /// Nothing to show and nothing narrowing the list: no documents yet.
+  bool _emptyPage(DocuNinjaDocumentsViewModel vm) =>
+      vm.hasLoaded &&
+      !vm.isLoading &&
+      !vm.isRequerying &&
+      vm.error == null &&
+      vm.items.isEmpty &&
+      !_filtered(vm);
+
+  /// A narrow list's first-run page: what the page is for, and the way to a
+  /// first document, in the room under the header. A filtered or searched
+  /// empty result keeps React's slim line (with Clear filters), and so does
+  /// the wide table.
+  Widget _emptyPageSliver(BuildContext context, double bottomInset) =>
+      SliverFillRemaining(
+        hasScrollBody: false,
+        child: Padding(
+          padding: EdgeInsetsDirectional.only(bottom: bottomInset),
+          child: EmptyState(
+            icon: Icons.draw_outlined,
+            title: context.tr('docuninja_empty_upload'),
+            action: widget.onCreate == null
+                ? null
+                : FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(64, 44),
+                    ),
+                    icon: const Icon(Icons.add),
+                    label: Text(context.tr('new_document')),
+                    onPressed: widget.onCreate,
+                  ),
+          ),
+        ),
+      );
 
   /// The rows, or React's empty-table line, the next-page error and spinner.
   List<Widget> _rowSlivers(

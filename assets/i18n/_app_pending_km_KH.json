@@ -1737,5 +1737,15 @@
   "welcome_lets_go": "តោះចាប់ផ្តើម",
   "checklist_retry": "ព្យាយាមម្តងទៀត",
   "switch_company": "ប្តូរក្រុមហ៊ុន",
-  "setup_choose_file_instead": "ជ្រើសរើសឯកសារជំនួសវិញ"
+  "setup_choose_file_instead": "ជ្រើសរើសឯកសារជំនួសវិញ",
+  "docuninja_empty_upload": "ផ្ទុកឡើង PDF ដើម្បីផ្ញើវាសម្រាប់ចុះហត្ថលេខា",
+  "docuninja_name_and_upload": "ដាក់ឈ្មោះ និងផ្ទុកឡើង…",
+  "edit_in_browser": "កែសម្រួលក្នុងកម្មវិធីរុករក",
+  "docuninja_place_fields": "ដាក់វាលហត្ថលេខា",
+  "docuninja_place_fields_help": "បើកក្នុងកម្មវិធីរុករករបស់អ្នក។ ដំណើរការល្អបំផុតលើកុំព្យូទ័រ។",
+  "docuninja_waiting_for_earlier_signer": "កំពុងរង់ចាំអ្នកចុះហត្ថលេខាមុន",
+  "sign_here_hint": "ចុះហត្ថលេខានៅទីនេះ",
+  "docuninja_seats_used": "បានប្រើកៅអី :count នៃ :total",
+  "docuninja_company_setup_help_touch": "គណនីរបស់អ្នកមានរួចហើយ ប៉ុន្តែក្រុមហ៊ុននេះមិនទាន់បានរៀបចំនៅឡើយទេ។ សូមប៉ះប៊ូតុងខាងក្រោមដើម្បីរៀបចំវា។",
+  "sign_in_browser": "ចុះហត្ថលេខាក្នុងកម្មវិធីរុករក"
 }

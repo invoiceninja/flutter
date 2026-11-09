@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/data/models/domain/user.dart';
@@ -17,6 +18,7 @@ import 'package:admin/domain/docuninja/docuninja_permissions.dart';
 import 'package:admin/domain/docuninja/docuninja_signature.dart';
 import 'package:admin/domain/docuninja/docuninja_users.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
@@ -32,7 +34,7 @@ import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view
 import 'package:admin/ui/core/widgets/filter_icon_button.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_bulk.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart'
-    show kDocuNinjaTableMinWidth;
+    show dnShowsTable;
 import 'package:admin/ui/features/docuninja/widgets/docuninja_table.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_filter_dialog.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_inline_error.dart';
@@ -165,6 +167,9 @@ class _UsersList extends StatefulWidget {
 }
 
 enum _UserAction { edit, archive, restore, delete }
+
+/// The AppBar `⋮` a narrow pane folds Select and Refresh into.
+enum _UsersMenuAction { select, refresh }
 
 class _UsersListState extends State<_UsersList> {
   late final DocuNinjaApi _api = context.read<DocuNinjaApi>();
@@ -313,61 +318,36 @@ class _UsersListState extends State<_UsersList> {
   }
 
   Future<void> _pickStates() async {
-    final picked =
-        await showDialog<({Set<String> states, Set<String> statuses})>(
-          context: context,
-          builder: (_) => DnFilterDialog(states: _vm.states),
-        );
+    // A bottom sheet on a phone, the dialog elsewhere.
+    final picked = await showDnFilterPicker(context, states: _vm.states);
     if (picked != null) {
       _vm.setFilters(statuses: const {}, states: picked.states);
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    final seats = _seatCount;
-    return _page(
-      title: context.tr('users'),
-      actions: [
-        // React's New User: no seat left means no new user. The Templates
-        // and Documents screens' `+`.
-        IconButton(
-          icon: const Icon(Icons.add),
-          tooltip: context.tr('new_user'),
-          onPressed: (seats != null && seats.full) || _busy
-              ? null
-              : () async {
-                  await context.push('/docuninja/users/access');
-                  if (mounted) await _refresh();
-                },
-        ),
-        ListenableBuilder(
-          listenable: _vm,
-          builder: (context, _) =>
-              // React's table checkboxes, for its bulk actions; on touch a
-              // long press on a row starts it too. Not when every listed
-              // user is the owner or the signed-in user, who take no bulk
-              // action.
-              _vm.isSelecting ||
-                  !_vm.items.any((u) => !_lifecycleLocked(u, widget.state))
-              ? const SizedBox.shrink()
-              : IconButton(
-                  icon: const Icon(Icons.checklist),
-                  tooltip: context.tr('select'),
-                  onPressed: _vm.enterSelectionMode,
-                ),
-        ),
-        // The lifecycle filter, so an archived user can be restored.
-        ListenableBuilder(
-          listenable: _vm,
-          builder: (context, _) => FilterIconButton(
-            activeCount: _vm.activeFilterCount,
-            onPressed: _pickStates,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, c) {
+      // React's table on a wide pane; rows on a narrow one and on a phone
+      // in either orientation (a landscape phone is not a small desktop).
+      final wide = dnShowsTable(context, c.maxWidth);
+      return _page(
+        title: context.tr('users'),
+        actions: [
+          // Selecting on a narrow pane, the selection bar under the app bar
+          // is the chrome: the app bar's own actions step aside, as the
+          // Documents screen's do.
+          ListenableBuilder(
+            listenable: _vm,
+            builder: (context, _) => !wide && _vm.isSelecting
+                ? const SizedBox.shrink()
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: _appBarActions(context, wide: wide),
+                  ),
           ),
-        ),
-      ],
-      body: LayoutBuilder(
-        builder: (context, c) => ListenableBuilder(
+        ],
+        body: ListenableBuilder(
           listenable: _vm,
           // Back leaves selection before it leaves the screen.
           builder: (context, _) => PopScope(
@@ -375,11 +355,84 @@ class _UsersListState extends State<_UsersList> {
             onPopInvokedWithResult: (didPop, _) {
               if (!didPop) _vm.clearSelection();
             },
-            child: _body(context, wide: c.maxWidth >= kDocuNinjaTableMinWidth),
+            child: _body(context, wide: wide),
           ),
         ),
+      );
+    },
+  );
+
+  /// Select is offered unless selecting, or when every listed user is the
+  /// owner or the signed-in user, who take no bulk action.
+  bool get _canSelect =>
+      !_vm.isSelecting &&
+      _vm.items.any((u) => !_lifecycleLocked(u, widget.state));
+
+  /// New User, Select and the filter as icons on a wide pane; a narrow one
+  /// keeps New User and the filter and folds Select and a Refresh into a
+  /// `⋮`, as the Documents screen does, so the title keeps its room.
+  List<Widget> _appBarActions(BuildContext context, {required bool wide}) {
+    final seats = _seatCount;
+    return [
+      // React's New User: no seat left means no new user. The Templates
+      // and Documents screens' `+`.
+      IconButton(
+        icon: const Icon(Icons.add),
+        tooltip: context.tr('new_user'),
+        onPressed: (seats != null && seats.full) || _busy
+            ? null
+            : () async {
+                await context.push('/docuninja/users/access');
+                if (mounted) await _refresh();
+              },
       ),
-    );
+      // React's table checkboxes, for its bulk actions; on touch a long
+      // press on a row starts it too.
+      if (wide)
+        ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => !_canSelect
+              ? const SizedBox.shrink()
+              : IconButton(
+                  icon: const Icon(Icons.checklist),
+                  tooltip: context.tr('select'),
+                  onPressed: _vm.enterSelectionMode,
+                ),
+        ),
+      // The lifecycle filter, so an archived user can be restored.
+      ListenableBuilder(
+        listenable: _vm,
+        builder: (context, _) => FilterIconButton(
+          activeCount: _vm.activeFilterCount,
+          onPressed: _pickStates,
+        ),
+      ),
+      if (!wide)
+        ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) => EntityActionsPopupButton<_UsersMenuAction>(
+            items: [
+              if (_canSelect)
+                EntityActionItem(
+                  kind: _UsersMenuAction.select,
+                  icon: Icons.checklist,
+                  label: context.tr('select'),
+                  enabled: true,
+                  onTap: _vm.enterSelectionMode,
+                ),
+              EntityActionItem(
+                kind: _UsersMenuAction.refresh,
+                icon: Icons.refresh,
+                label: context.tr('refresh'),
+                // Always on: a refresh already in flight is shared.
+                enabled: true,
+                startsGroup: _canSelect,
+                onTap: _refresh,
+              ),
+            ],
+          ),
+        ),
+    ];
   }
 
   Widget _body(BuildContext context, {required bool wide}) {
@@ -406,46 +459,67 @@ class _UsersListState extends State<_UsersList> {
               actions: _bulkActions,
               wide: wide,
               onDone: _countSeats,
+              // A narrow bar's actions as icon buttons, not a second ⋮.
+              inlineActions: true,
             ),
           )
         else
-          // React's table search, and the seats taken.
+          // React's table search, and the seats taken: beside the search
+          // on a wide pane, under it on a narrow one, where the words would
+          // squeeze the field.
           Padding(
             padding: EdgeInsetsDirectional.fromSTEB(inset, 8, inset, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 480),
-                      child: TextField(
-                        controller: _search,
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        textInputAction: TextInputAction.search,
-                        decoration: InputDecoration(
-                          isDense: true,
-                          prefixIcon: const Icon(Icons.search, size: 18),
-                          hintText: context.tr('search'),
-                        ),
-                        onChanged: _vm.setSearch,
-                      ),
-                    ),
-                  ),
-                ),
-                if (seats != null && seats.known) ...[
-                  const SizedBox(width: InSpacing.sm),
-                  LtrText(
-                    '${seats.used} / ${seats.max}',
-                    style: TextStyle(color: context.inTheme.ink2),
-                  ),
-                ],
-              ],
-            ),
+            child: _searchAndSeats(context, seats, wide: wide),
           ),
         Expanded(child: _list(context, wide: wide)),
       ],
+    );
+  }
+
+  Widget _searchAndSeats(
+    BuildContext context,
+    _Seats? seats, {
+    required bool wide,
+  }) {
+    final search = Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: TextField(
+          controller: _search,
+          autocorrect: false,
+          enableSuggestions: false,
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
+            isDense: true,
+            prefixIcon: const Icon(Icons.search, size: 18),
+            hintText: context.tr('search'),
+          ),
+          onChanged: _vm.setSearch,
+        ),
+      ),
+    );
+    if (seats == null || !seats.known) return search;
+    final count = Text(
+      context.tr('docuninja_seats_used', {
+        'count': '${seats.used}',
+        'total': '${seats.max}',
+      }),
+      key: const ValueKey('dn-seat-count'),
+      style: TextStyle(color: context.inTheme.ink2),
+    );
+    if (wide) {
+      return Row(
+        children: [
+          Expanded(child: search),
+          const SizedBox(width: InSpacing.sm),
+          count,
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [search, const SizedBox(height: 6), count],
     );
   }
 
@@ -506,6 +580,7 @@ class _UsersListState extends State<_UsersList> {
                 ),
                 // No row menu while selecting: the bulk actions are it.
                 actions: selecting ? const [] : _items(u),
+                selecting: selecting,
               ),
             );
           },
@@ -569,6 +644,7 @@ const List<DnTableColumn> _kUserColumns = [
 /// status), the name over the email on a narrow one.
 class _UserRow extends StatelessWidget {
   const _UserRow({
+    this.selecting = false,
     required this.user,
     required this.table,
     required this.selected,
@@ -585,6 +661,10 @@ class _UserRow extends StatelessWidget {
   final VoidCallback onLongPress;
   final Widget? leading;
   final List<EntityActionItem<_UserAction>> actions;
+
+  /// Selection is on: a narrow row drops its ⋮ (the bulk actions are the
+  /// menu) as the Documents rows do; the table keeps the room.
+  final bool selecting;
 
   @override
   Widget build(BuildContext context) {
@@ -657,7 +737,8 @@ class _UserRow extends StatelessWidget {
       content = ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 56),
         child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 4, 8),
+          // The Documents list's narrow inset, both edges.
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
               ?leading,
@@ -682,8 +763,14 @@ class _UserRow extends StatelessWidget {
                   ],
                 ),
               ),
-              pill,
-              menu,
+              const SizedBox(width: InSpacing.sm),
+              // Capped, as the Documents list's, so a long translated
+              // status at a large text size ellipsizes inside the pill.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: pill,
+              ),
+              if (!selecting) menu,
             ],
           ),
         ),
@@ -1213,15 +1300,57 @@ class DnPermissionsGrid extends StatelessWidget {
   final ValueChanged<List<DnPermission>> onChanged;
   final bool enabled;
 
+  /// Below this pane width, or on a phone, the grid is a block per model
+  /// with its permissions as wrapping chips: the grid's label column and
+  /// five boxes need about 460 px, and scrolling it sideways hid Delete and
+  /// Requires approval and scrolled the labels away.
+  static const double narrowWidth = 480;
+
   @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    final boxes = enabled && !isAdmin;
-    bool allOn(DnAction a) => kDnPermissionModels.every(
-      (m) =>
-          !dnPermissionApplies(m.$1, a) ||
-          dnHasPermission(permissions, m.$1, a),
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: isAdmin,
+        title: Text(context.tr('administrator')),
+        onChanged: enabled ? onAdminChanged : null,
+      ),
+      LayoutBuilder(
+        builder: (context, c) =>
+            c.maxWidth < narrowWidth || Breakpoints.isPhone(context)
+            ? _blocks(context)
+            : _grid(context),
+      ),
+    ],
+  );
+
+  /// The All row: on when every model that has [a] grants it.
+  bool _allOn(DnAction a) => kDnPermissionModels.every(
+    (m) =>
+        !dnPermissionApplies(m.$1, a) || dnHasPermission(permissions, m.$1, a),
+  );
+
+  /// The box for [a] on every model (the All row), or on [model].
+  bool _value(String? model, DnAction a) =>
+      !isAdmin &&
+      (model == null ? _allOn(a) : dnHasPermission(permissions, model, a));
+
+  /// Ticks or clears [a] on every model (the All row), or on [model]; null
+  /// when the boxes are off (an administrator, or the form is busy).
+  ValueChanged<bool?>? _onToggle(String? model, DnAction a) {
+    if (!enabled || isAdmin) return null;
+    return (v) => onChanged(
+      model == null
+          ? dnSetPermissionForAll(permissions, a, on: v ?? false)
+          : dnSetPermission(permissions, model, a, on: v ?? false),
     );
+  }
+
+  /// React's grid: a label column and a box per permission, scrolling
+  /// sideways if the pane is narrower than it.
+  Widget _grid(BuildContext context) {
+    final tokens = context.inTheme;
     Widget cell(Widget child) =>
         SizedBox(width: 64, child: Center(child: child));
     Widget header(String key) => cell(
@@ -1240,75 +1369,146 @@ class DnPermissionsGrid extends StatelessWidget {
         ...cells,
       ],
     );
+    Widget box(String? model, String label, DnAction a) => cell(
+      Checkbox(
+        semanticLabel: '$label ${context.tr(_columnKey(a))}',
+        value: _value(model, a),
+        onChanged: _onToggle(model, a),
+      ),
+    );
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: narrowWidth),
+        child: Column(
+          children: [
+            row('', [for (final (_, key) in kDnPermissionColumns) header(key)]),
+            row(context.tr('all'), [
+              for (final (a, _) in kDnPermissionColumns)
+                a == DnAction.requiresApproval
+                    ? cell(const Text('—'))
+                    : box(null, context.tr('all'), a),
+            ]),
+            for (final (model, labelKey) in kDnPermissionModels)
+              row(context.tr(labelKey), [
+                for (final (a, _) in kDnPermissionColumns)
+                  dnPermissionApplies(model, a)
+                      ? box(model, context.tr(labelKey), a)
+                      : cell(const Text('—')),
+              ]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The narrow form: the All block, then a block per model, each its
+  /// label over a wrap of the permissions that apply to it — the same
+  /// boxes and callbacks as the grid's, in the same order.
+  Widget _blocks(BuildContext context) {
+    Widget block(String? model, String label) => Padding(
+      padding: const EdgeInsets.only(top: InSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: InSpacing.sm,
+            runSpacing: InSpacing.sm,
+            children: [
+              for (final (a, key) in kDnPermissionColumns)
+                if (model == null
+                    ? a != DnAction.requiresApproval
+                    : dnPermissionApplies(model, a))
+                  _PermissionChip(
+                    label: context.tr(key),
+                    semanticLabel: '$label ${context.tr(key)}',
+                    value: _value(model, a),
+                    onChanged: _onToggle(model, a),
+                  ),
+            ],
+          ),
+        ],
+      ),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          value: isAdmin,
-          title: Text(context.tr('administrator')),
-          onChanged: enabled ? onAdminChanged : null,
+        block(null, context.tr('all')),
+        for (final (model, labelKey) in kDnPermissionModels)
+          block(model, context.tr(labelKey)),
+      ],
+    );
+  }
+}
+
+/// One permission in the narrow permissions form: a checkbox and its
+/// label in a rounded-rectangle chip, the whole chip the tap target (44 px
+/// tall on touch).
+class _PermissionChip extends StatelessWidget {
+  const _PermissionChip({
+    required this.label,
+    required this.semanticLabel,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+
+  /// The model and the permission, as the grid's box reads.
+  final String semanticLabel;
+  final bool value;
+  final ValueChanged<bool?>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final radius = BorderRadius.circular(InRadii.r1);
+    final on = onChanged;
+    // One node: the checkbox's state and label with the chip's tap.
+    return MergeSemantics(
+      child: Material(
+        color: value && on != null ? tokens.accentSoft : tokens.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(color: value ? tokens.accent : tokens.border),
         ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+        child: InkWell(
+          borderRadius: radius,
+          onTap: on == null ? null : () => on(!value),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 480),
-            child: Column(
-              children: [
-                row('', [
-                  for (final (_, key) in kDnPermissionColumns) header(key),
-                ]),
-                row(context.tr('all'), [
-                  for (final (a, _) in kDnPermissionColumns)
-                    a == DnAction.requiresApproval
-                        ? cell(const Text('—'))
-                        : cell(
-                            Checkbox(
-                              semanticLabel:
-                                  '${context.tr('all')} ${context.tr(_columnKey(a))}',
-                              value: !isAdmin && allOn(a),
-                              onChanged: boxes
-                                  ? (v) => onChanged(
-                                      dnSetPermissionForAll(
-                                        permissions,
-                                        a,
-                                        on: v ?? false,
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                          ),
-                ]),
-                for (final (model, labelKey) in kDnPermissionModels)
-                  row(context.tr(labelKey), [
-                    for (final (a, _) in kDnPermissionColumns)
-                      dnPermissionApplies(model, a)
-                          ? cell(
-                              Checkbox(
-                                semanticLabel:
-                                    '${context.tr(labelKey)} ${context.tr(_columnKey(a))}',
-                                value:
-                                    !isAdmin &&
-                                    dnHasPermission(permissions, model, a),
-                                onChanged: boxes
-                                    ? (v) => onChanged(
-                                        dnSetPermission(
-                                          permissions,
-                                          model,
-                                          a,
-                                          on: v ?? false,
-                                        ),
-                                      )
-                                    : null,
-                              ),
-                            )
-                          : cell(const Text('—')),
-                  ]),
-              ],
+            constraints: BoxConstraints(
+              minHeight: Env.isTouchPrimary ? InSizes.touchTarget : 36,
+            ),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(4, 2, 12, 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Checkbox(
+                    semanticLabel: semanticLabel,
+                    value: value,
+                    onChanged: onChanged,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  Flexible(
+                    // The checkbox carries the label for a screen reader.
+                    child: ExcludeSemantics(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          color: on == null ? tokens.ink3 : tokens.ink,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

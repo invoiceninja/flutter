@@ -1819,5 +1819,15 @@
   "welcome_lets_go": "Aan de slag",
   "checklist_retry": "Opnieuw proberen",
   "switch_company": "Bedrijf wisselen",
-  "setup_choose_file_instead": "Kies in plaats daarvan een bestand"
+  "setup_choose_file_instead": "Kies in plaats daarvan een bestand",
+  "docuninja_empty_upload": "Upload een pdf om deze ter ondertekening te versturen",
+  "docuninja_name_and_upload": "Naam geven en uploaden…",
+  "edit_in_browser": "Bewerken in browser",
+  "docuninja_place_fields": "Handtekeningvelden plaatsen",
+  "docuninja_place_fields_help": "Wordt geopend in uw browser. Werkt het best op een computer.",
+  "docuninja_waiting_for_earlier_signer": "Wacht op een eerdere ondertekenaar",
+  "sign_here_hint": "Hier ondertekenen",
+  "docuninja_seats_used": ":count van :total plaatsen gebruikt",
+  "docuninja_company_setup_help_touch": "Uw account bestaat, maar dit bedrijf is nog niet ingesteld. Tik op de knop hieronder om het in te stellen.",
+  "sign_in_browser": "Ondertekenen in browser"
 }

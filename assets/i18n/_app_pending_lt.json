@@ -1776,5 +1776,15 @@
   "checklist_retry": "Bandyti dar kartą",
   "switch_company": "Perjungti įmonę",
   "logout": "Atsijungti",
-  "setup_choose_file_instead": "Verčiau pasirinkti failą"
+  "setup_choose_file_instead": "Verčiau pasirinkti failą",
+  "docuninja_empty_upload": "Įkelkite PDF, kad išsiųstumėte jį pasirašyti",
+  "docuninja_name_and_upload": "Pavadinti ir įkelti…",
+  "edit_in_browser": "Redaguoti naršyklėje",
+  "docuninja_place_fields": "Išdėstyti parašo laukus",
+  "docuninja_place_fields_help": "Atsidaro jūsų naršyklėje. Geriausiai veikia kompiuteryje.",
+  "docuninja_waiting_for_earlier_signer": "Laukiama ankstesnio pasirašančiojo",
+  "sign_here_hint": "Pasirašykite čia",
+  "docuninja_seats_used": "Naudojama vietų: :count iš :total",
+  "docuninja_company_setup_help_touch": "Jūsų paskyra egzistuoja, tačiau ši įmonė dar nenustatyta. Bakstelėkite žemiau esantį mygtuką, kad ją nustatytumėte.",
+  "sign_in_browser": "Pasirašyti naršyklėje"
 }

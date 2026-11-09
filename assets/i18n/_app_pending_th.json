@@ -1819,5 +1819,15 @@
   "welcome_lets_go": "เริ่มกันเลย",
   "checklist_retry": "ลองอีกครั้ง",
   "switch_company": "สลับบริษัท",
-  "setup_choose_file_instead": "เลือกไฟล์แทน"
+  "setup_choose_file_instead": "เลือกไฟล์แทน",
+  "docuninja_empty_upload": "อัปโหลด PDF เพื่อส่งให้ลงนาม",
+  "docuninja_name_and_upload": "ตั้งชื่อและอัปโหลด…",
+  "edit_in_browser": "แก้ไขในเบราว์เซอร์",
+  "docuninja_place_fields": "วางช่องลายเซ็น",
+  "docuninja_place_fields_help": "เปิดในเบราว์เซอร์ของคุณ ใช้งานได้ดีที่สุดบนคอมพิวเตอร์",
+  "docuninja_waiting_for_earlier_signer": "กำลังรอผู้ลงนามก่อนหน้า",
+  "sign_here_hint": "ลงนามที่นี่",
+  "docuninja_seats_used": "ใช้แล้ว :count จาก :total ที่นั่ง",
+  "docuninja_company_setup_help_touch": "บัญชีของคุณมีอยู่แล้ว แต่บริษัทนี้ยังไม่ได้ตั้งค่า โปรดแตะปุ่มด้านล่างเพื่อตั้งค่า",
+  "sign_in_browser": "ลงนามในเบราว์เซอร์"
 }

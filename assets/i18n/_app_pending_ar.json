@@ -1737,5 +1737,15 @@
   "welcome_lets_go": "لنبدأ",
   "checklist_retry": "إعادة المحاولة",
   "switch_company": "تبديل الشركة",
-  "setup_choose_file_instead": "اختر ملفًا بدلًا من ذلك"
+  "setup_choose_file_instead": "اختر ملفًا بدلًا من ذلك",
+  "docuninja_empty_upload": "ارفع ملف PDF لإرساله للتوقيع",
+  "docuninja_name_and_upload": "التسمية والرفع…",
+  "edit_in_browser": "التحرير في المتصفح",
+  "docuninja_place_fields": "وضع حقول التوقيع",
+  "docuninja_place_fields_help": "يُفتح في متصفحك. يعمل بشكل أفضل على الكمبيوتر.",
+  "docuninja_waiting_for_earlier_signer": "في انتظار موقّع سابق",
+  "sign_here_hint": "وقّع هنا",
+  "docuninja_seats_used": "تم استخدام :count من :total مقاعد",
+  "docuninja_company_setup_help_touch": "حسابك موجود ولكن هذه الشركة لم يتم إعدادها بعد. يرجى الضغط على الزر أدناه لإعدادها.",
+  "sign_in_browser": "التوقيع في المتصفح"
 }

@@ -1819,5 +1819,15 @@
   "checklist_retry": "تلاش مجدد",
   "switch_company": "تغییر شرکت",
   "logout": "خروج از حساب",
-  "setup_choose_file_instead": "به‌جای آن یک فایل انتخاب کنید"
+  "setup_choose_file_instead": "به‌جای آن یک فایل انتخاب کنید",
+  "docuninja_empty_upload": "یک PDF بارگذاری کنید تا برای امضا ارسال شود",
+  "docuninja_name_and_upload": "نام‌گذاری و بارگذاری…",
+  "edit_in_browser": "ویرایش در مرورگر",
+  "docuninja_place_fields": "قرار دادن فیلدهای امضا",
+  "docuninja_place_fields_help": "در مرورگر شما باز می‌شود. روی رایانه بهترین عملکرد را دارد.",
+  "docuninja_waiting_for_earlier_signer": "در انتظار امضاکننده قبلی",
+  "sign_here_hint": "اینجا امضا کنید",
+  "docuninja_seats_used": ":count از :total جایگاه استفاده شده",
+  "docuninja_company_setup_help_touch": "حساب شما وجود دارد اما این شرکت هنوز راه‌اندازی نشده است. لطفاً برای راه‌اندازی آن روی دکمه زیر ضربه بزنید.",
+  "sign_in_browser": "امضا در مرورگر"
 }

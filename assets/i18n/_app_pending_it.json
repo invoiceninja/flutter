@@ -1819,5 +1819,15 @@
   "welcome_lets_go": "Iniziamo",
   "checklist_retry": "Riprova",
   "switch_company": "Cambia azienda",
-  "setup_choose_file_instead": "Scegli invece un file"
+  "setup_choose_file_instead": "Scegli invece un file",
+  "docuninja_empty_upload": "Carica un PDF per inviarlo alla firma",
+  "docuninja_name_and_upload": "Assegna nome e carica…",
+  "edit_in_browser": "Modifica nel browser",
+  "docuninja_place_fields": "Posiziona i campi firma",
+  "docuninja_place_fields_help": "Si apre nel browser. Funziona meglio su un computer.",
+  "docuninja_waiting_for_earlier_signer": "In attesa di un firmatario precedente",
+  "sign_here_hint": "Firma qui",
+  "docuninja_seats_used": ":count di :total posti utilizzati",
+  "docuninja_company_setup_help_touch": "Il tuo account esiste, ma questa azienda non è ancora configurata. Tocca il pulsante qui sotto per configurarla.",
+  "sign_in_browser": "Firma nel browser"
 }

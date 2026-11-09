@@ -1819,5 +1819,15 @@
   "welcome_lets_go": "Sett i gang",
   "checklist_retry": "Prøv igjen",
   "switch_company": "Bytt firma",
-  "setup_choose_file_instead": "Velg en fil i stedet"
+  "setup_choose_file_instead": "Velg en fil i stedet",
+  "docuninja_empty_upload": "Last opp en PDF for å sende den til signering",
+  "docuninja_name_and_upload": "Gi navn og last opp…",
+  "edit_in_browser": "Rediger i nettleser",
+  "docuninja_place_fields": "Plasser signaturfelt",
+  "docuninja_place_fields_help": "Åpnes i nettleseren din. Fungerer best på en datamaskin.",
+  "docuninja_waiting_for_earlier_signer": "Venter på en tidligere signerer",
+  "sign_here_hint": "Signer her",
+  "docuninja_seats_used": ":count av :total plasser brukt",
+  "docuninja_company_setup_help_touch": "Kontoen din finnes, men dette firmaet er ikke satt opp ennå. Trykk på knappen nedenfor for å sette det opp.",
+  "sign_in_browser": "Signer i nettleser"
 }

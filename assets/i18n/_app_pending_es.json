@@ -1819,5 +1819,15 @@
   "welcome_lets_go": "Empezar",
   "checklist_retry": "Reintentar",
   "switch_company": "Cambiar de empresa",
-  "setup_choose_file_instead": "Elegir un archivo en su lugar"
+  "setup_choose_file_instead": "Elegir un archivo en su lugar",
+  "docuninja_empty_upload": "Suba un PDF para enviarlo a firmar",
+  "docuninja_name_and_upload": "Nombrar y subir…",
+  "edit_in_browser": "Editar en el navegador",
+  "docuninja_place_fields": "Colocar campos de firma",
+  "docuninja_place_fields_help": "Se abre en su navegador. Funciona mejor en una computadora.",
+  "docuninja_waiting_for_earlier_signer": "Esperando a un firmante anterior",
+  "sign_here_hint": "Firme aquí",
+  "docuninja_seats_used": ":count de :total puestos usados",
+  "docuninja_company_setup_help_touch": "Su cuenta existe, pero esta empresa aún no está configurada. Toque el botón de abajo para configurarla.",
+  "sign_in_browser": "Firmar en el navegador"
 }

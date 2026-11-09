@@ -1819,5 +1819,15 @@
   "welcome_lets_go": "ເລີ່ມກັນເລີຍ",
   "checklist_retry": "ລອງໃໝ່",
   "switch_company": "ສະຫຼັບບໍລິສັດ",
-  "setup_choose_file_instead": "ເລືອກໄຟລ໌ແທນ"
+  "setup_choose_file_instead": "ເລືອກໄຟລ໌ແທນ",
+  "docuninja_empty_upload": "ອັບໂຫລດ PDF ເພື່ອສົ່ງໃຫ້ລົງລາຍເຊັນ",
+  "docuninja_name_and_upload": "ຕັ້ງຊື່ ແລະ ອັບໂຫລດ…",
+  "edit_in_browser": "ແກ້ໄຂໃນບຣາວເຊີ",
+  "docuninja_place_fields": "ວາງຊ່ອງລາຍເຊັນ",
+  "docuninja_place_fields_help": "ເປີດໃນບຣາວເຊີຂອງທ່ານ. ໃຊ້ງານໄດ້ດີທີ່ສຸດໃນຄອມພິວເຕີ.",
+  "docuninja_waiting_for_earlier_signer": "ກຳລັງລໍຖ້າຜູ້ລົງລາຍເຊັນກ່ອນໜ້າ",
+  "sign_here_hint": "ລົງລາຍເຊັນບ່ອນນີ້",
+  "docuninja_seats_used": "ໃຊ້ແລ້ວ :count ຈາກ :total ບ່ອນນັ່ງ",
+  "docuninja_company_setup_help_touch": "ບັນຊີຂອງທ່ານມີຢູ່ແລ້ວ ແຕ່ບໍລິສັດນີ້ຍັງບໍ່ໄດ້ຕັ້ງຄ່າເທື່ອ. ກະລຸນາແຕະປຸ່ມຂ້າງລຸ່ມນີ້ເພື່ອຕັ້ງຄ່າ.",
+  "sign_in_browser": "ລົງລາຍເຊັນໃນບຣາວເຊີ"
 }

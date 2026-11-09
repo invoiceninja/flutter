@@ -107,4 +107,69 @@ void main() {
     // Archived wins over the status, as in React's table.
     expect(find.text('Archived'), findsOneWidget);
   });
+
+  for (final size in const [Size(393, 852), Size(360, 760)]) {
+    testWidgets('on a phone at twice the text size the Join button is above '
+        'the fold (${size.width.toInt()} wide)', (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpWidget(
+        _host(
+          DocuNinjaJoinView(
+            isAdmin: true,
+            isEligible: true,
+            isCreating: false,
+            onCreate: () {},
+            onUpgrade: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final button = tester.getRect(find.byType(FilledButton));
+      expect(button.bottom, lessThanOrEqualTo(size.height));
+      // Ahead of the features card.
+      final features = tester.getTopLeft(find.text('Everything You Get'));
+      expect(button.bottom, lessThan(features.dy));
+    });
+  }
+
+  testWidgets('a desktop window keeps the button after the features', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        DocuNinjaJoinView(
+          isAdmin: true,
+          isEligible: true,
+          isCreating: false,
+          onCreate: () {},
+          onUpgrade: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final button = tester.getTopLeft(find.byType(FilledButton));
+    final features = tester.getTopLeft(find.text('Everything You Get'));
+    expect(button.dy, greaterThan(features.dy));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('company setup says "click" on a pointer device', (tester) async {
+    await tester.pumpWidget(
+      _host(DocuNinjaCompanySetupView(isWorking: false, onSetUp: () {})),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('click'), findsOneWidget);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('company setup on touch does not say "click"', (tester) async {
+    await tester.pumpWidget(
+      _host(DocuNinjaCompanySetupView(isWorking: false, onSetUp: () {})),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('click'), findsNothing);
+  });
 }

@@ -1738,5 +1738,15 @@
   "welcome_lets_go": "Poďme na to",
   "checklist_retry": "Skúsiť znova",
   "switch_company": "Prepnúť spoločnosť",
-  "setup_choose_file_instead": "Alebo vyberte súbor"
+  "setup_choose_file_instead": "Alebo vyberte súbor",
+  "docuninja_empty_upload": "Nahrajte PDF a odošlite ho na podpis",
+  "docuninja_name_and_upload": "Pomenovať a nahrať…",
+  "edit_in_browser": "Upraviť v prehliadači",
+  "docuninja_place_fields": "Umiestniť podpisové polia",
+  "docuninja_place_fields_help": "Otvorí sa v prehliadači. Najlepšie funguje na počítači.",
+  "docuninja_waiting_for_earlier_signer": "Čaká sa na predchádzajúceho podpisujúceho",
+  "sign_here_hint": "Podpíšte tu",
+  "docuninja_seats_used": "Využité miesta: :count z :total",
+  "docuninja_company_setup_help_touch": "Váš účet existuje, ale táto spoločnosť ešte nie je nastavená. Ťuknite na tlačidlo nižšie a nastavte ju.",
+  "sign_in_browser": "Podpísať v prehliadači"
 }

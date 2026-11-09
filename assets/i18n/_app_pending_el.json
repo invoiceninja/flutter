@@ -1738,5 +1738,15 @@
   "welcome_lets_go": "Ας ξεκινήσουμε",
   "checklist_retry": "Επανάληψη",
   "switch_company": "Αλλαγή εταιρείας",
-  "setup_choose_file_instead": "Επιλέξτε αρχείο αντί γι' αυτό"
+  "setup_choose_file_instead": "Επιλέξτε αρχείο αντί γι' αυτό",
+  "docuninja_empty_upload": "Ανεβάστε ένα PDF για να το στείλετε για υπογραφή",
+  "docuninja_name_and_upload": "Ονομασία και ανέβασμα…",
+  "edit_in_browser": "Επεξεργασία στο πρόγραμμα περιήγησης",
+  "docuninja_place_fields": "Τοποθέτηση πεδίων υπογραφής",
+  "docuninja_place_fields_help": "Ανοίγει στο πρόγραμμα περιήγησής σας. Λειτουργεί καλύτερα σε υπολογιστή.",
+  "docuninja_waiting_for_earlier_signer": "Αναμονή για προηγούμενο υπογράφοντα",
+  "sign_here_hint": "Υπογράψτε εδώ",
+  "docuninja_seats_used": ":count από :total θέσεις σε χρήση",
+  "docuninja_company_setup_help_touch": "Ο λογαριασμός σας υπάρχει, αλλά αυτή η εταιρεία δεν έχει ρυθμιστεί ακόμη. Πατήστε το παρακάτω κουμπί για να τη ρυθμίσετε.",
+  "sign_in_browser": "Υπογραφή στο πρόγραμμα περιήγησης"
 }

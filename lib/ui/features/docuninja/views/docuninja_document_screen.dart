@@ -18,7 +18,11 @@ import 'package:admin/domain/docuninja/docuninja_send_rules.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
+import 'package:admin/ui/core/detail/record_timestamps.dart';
+import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
+import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/widgets/app_selection_area.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/dashed_border.dart';
@@ -155,29 +159,127 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
       listenable: vm,
       builder: (context, _) {
         final doc = vm.document;
+        final items = doc == null ? null : _items(context, vm, doc);
         return Scaffold(
           appBar: AppBar(
+            // On a phone the body's heading already shows the (often long)
+            // name: the bar says what the page is instead of repeating it.
             title: Text(
-              doc == null ? context.tr('document') : _title(context, doc),
+              doc == null || isPhoneRecordLayout(context)
+                  ? context.tr('document')
+                  : _title(context, doc),
             ),
-            actions: [
-              if (doc != null)
-                EntityActionsPopupButton<_Action>(
-                  items: _items(context, vm, doc),
-                  splitEditAction: true,
-                ),
-            ],
+            actions: [if (items != null) ..._appBarActions(context, items)],
           ),
-          body: _body(context, vm, doc),
+          body: _body(context, vm, doc, items),
         );
       },
     );
+  }
+
+  /// Edit beside the `⋮`. Where the builder opens in the browser it says so
+  /// (`open_in_new`, "Edit in browser"): the shared split button always
+  /// draws the circled pencil, which read as an in-app editor and then left
+  /// the app without a word.
+  List<Widget> _appBarActions(
+    BuildContext context,
+    List<EntityActionItem<_Action>> items,
+  ) {
+    if (!dnBuilderOpensExternally()) {
+      return [
+        EntityActionsPopupButton<_Action>(items: items, splitEditAction: true),
+      ];
+    }
+    final edit = findActionItem(items, _Action.edit);
+    // `EntityActionsPopupButton`'s own sizing, so the pair matches it.
+    final side = actionButtonSize();
+    return [
+      if (edit != null) ...[
+        IconButton(
+          icon: Icon(edit.icon),
+          tooltip: edit.label,
+          style: IconButton.styleFrom(
+            fixedSize: Size(side, side),
+            minimumSize: Size.zero,
+            maximumSize: Size.infinite,
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: edit.enabled ? guardedOnTap(context, edit) : null,
+        ),
+        const SizedBox(width: kColActionsClusterGap),
+      ],
+      EntityActionsPopupButton<_Action>(
+        items: [
+          for (final i in items)
+            if (i.kind != _Action.edit) i,
+        ],
+      ),
+    ];
+  }
+
+  /// A phone's tiles for what a user most often does here, in this order;
+  /// each one is the `⋮` menu's own item (docs/detail-screen-layout.md § A
+  /// quick-action tile is a second render of an existing action).
+  List<EntityQuickAction<_Action>> _quickActions(
+    BuildContext context,
+    List<EntityActionItem<_Action>> items,
+    DnDocument doc,
+  ) {
+    EntityQuickAction<_Action>? tile(
+      _Action kind, {
+      String? shortKey,
+      bool applies = true,
+    }) {
+      final item = findActionItem(items, kind);
+      if (item == null) return null;
+      return EntityQuickAction<_Action>(
+        item: item,
+        shortLabel: shortKey == null ? item.label : context.tr(shortKey),
+        applies: applies,
+      );
+    }
+
+    return [
+      ?tile(_Action.send, shortKey: 'send'),
+      ?tile(_Action.sign, shortKey: dnSignLabelKey()),
+      ?tile(_Action.viewPdf, shortKey: 'view_pdf'),
+      ?tile(_Action.copyLink),
+      ?tile(_Action.download, shortKey: 'download'),
+      // Disabled once completed or voided: a tile that cannot run yields
+      // its slot; the `⋮` still shows it greyed.
+      // Labelled as the action is ("Edit in browser" while it leaves the
+      // app), and yielded while the Place signature fields card already
+      // offers the same step — four ways to one browser was three too many.
+      ?tile(
+        _Action.edit,
+        shortKey: dnBuilderEditLabelKey(),
+        applies:
+            !dnIsCompleted(doc) &&
+            doc.status != DnDocumentStatus.voided &&
+            !(dnDeferBuilderOnPhone() && dnNeedsFields(doc)),
+      ),
+    ];
+  }
+
+  /// "Created … · Updated …", muted under the title; null until the
+  /// company's date format has loaded.
+  String? _datesLine(BuildContext context, DnDocument doc) {
+    final created = dnLocalDate(_formatter, doc.createdAt);
+    final updated = dnLocalDate(_formatter, doc.updatedAt);
+    final parts = [
+      if (created.isNotEmpty) context.tr('created_short', {'date': created}),
+      if (updated.isNotEmpty && updated != created)
+        context.tr('updated_short', {'date': updated}),
+    ];
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 
   Widget _body(
     BuildContext context,
     DocuNinjaDocumentViewModel vm,
     DnDocument? doc,
+    List<EntityActionItem<_Action>>? items,
   ) {
     if (doc == null) {
       if (vm.isLoading) {
@@ -219,6 +321,10 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
     }
     final tokens = context.inTheme;
     final theme = Theme.of(context);
+    final actions = items ?? const <EntityActionItem<_Action>>[];
+    final phone = isPhoneRecordLayout(context);
+    final edit = findActionItem(actions, _Action.edit);
+    final dates = _datesLine(context, doc);
     final signers = _Invitations(
       document: doc,
       formatter: _formatter,
@@ -238,88 +344,116 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
           : () => _onAction(context, vm, doc, _Action.edit),
     );
     final timeline = _Timeline(entries: vm.timeline, formatter: _formatter);
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          spacing: InSpacing.sm,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Semantics(
+              header: true,
+              headingLevel: 1,
+              child: Text(
+                _title(context, doc),
+                style: theme.textTheme.titleLarge,
+              ),
+            ),
+            // React shows Deleted / Archived beside the status. Only when
+            // there is one: the Wrap spaces even a zero-size child.
+            if (doc.isDeleted || doc.isArchived)
+              DocuNinjaLifecyclePill(document: doc),
+            DocuNinjaStatusPill(document: doc, statusOnly: true),
+          ],
+        ),
+        if (dates != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              dates,
+              // ink2: at 12 px ink3 is under the 4.5:1 floor.
+              style: TextStyle(color: tokens.ink2, fontSize: 12),
+            ),
+          ),
+        // The action worked but the re-read did not (or a pull to refresh
+        // failed): what's shown may be stale.
+        if (vm.error != null && !vm.isLoading)
+          DocuNinjaInlineError(offline: vm.isOffline, onRetry: vm.load),
+        if (vm.isBusy || _downloading)
+          const Padding(
+            padding: EdgeInsets.only(top: InSpacing.sm),
+            child: LinearProgressIndicator(minHeight: 2),
+          ),
+        SizedBox(height: InSpacing.lg(context)),
+        // A phone's main actions as tiles, from the menu's own items; the
+        // strip owns its trailing gap and draws nothing when none applies.
+        if (phone)
+          EntityQuickActions<_Action>(
+            priority: _quickActions(context, actions, doc),
+          ),
+        // Where the builder would leave the app, a document still waiting
+        // for its fields says how to go on rather than launching a browser
+        // after the upload (the list lands here instead).
+        if (edit != null && dnDeferBuilderOnPhone() && dnNeedsFields(doc)) ...[
+          _PlaceFieldsCard(
+            onOpen: edit.enabled ? guardedOnTap(context, edit) : null,
+          ),
+          SizedBox(height: InSpacing.lg(context)),
+        ],
+        LayoutBuilder(
+          builder: (context, c) => c.maxWidth >= 760
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 2, child: signers),
+                    SizedBox(width: InSpacing.lg(context)),
+                    Expanded(flex: 3, child: timeline),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    signers,
+                    SizedBox(height: InSpacing.lg(context)),
+                    timeline,
+                  ],
+                ),
+        ),
+      ],
+    );
+    final pad = InSpacing.lg(context);
     return AppSelectionArea(
       child: RefreshIndicator(
         onRefresh: vm.load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.all(InSpacing.lg(context)),
+          // A ListView given a padding no longer adds the home indicator's
+          // inset itself. Read here, it is zero wherever something above
+          // has already taken it (a SafeArea strips it), so never doubled.
+          padding: EdgeInsets.symmetric(horizontal: pad).copyWith(
+            top: pad,
+            bottom: pad + MediaQuery.paddingOf(context).bottom,
+          ),
           children: [
             Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1100),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: tokens.surface,
-                    border: Border.all(color: tokens.border),
-                    borderRadius: BorderRadius.circular(InRadii.r3),
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.all(InSpacing.lg(context)),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Wrap(
-                          spacing: InSpacing.sm,
-                          runSpacing: 4,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Semantics(
-                              header: true,
-                              headingLevel: 1,
-                              child: Text(
-                                _title(context, doc),
-                                style: theme.textTheme.titleLarge,
-                              ),
-                            ),
-                            // React shows Deleted / Archived beside the status.
-                            // Only when there is one: the Wrap spaces even a
-                            // zero-size child.
-                            if (doc.isDeleted || doc.isArchived)
-                              DocuNinjaLifecyclePill(document: doc),
-                            DocuNinjaStatusPill(
-                              document: doc,
-                              statusOnly: true,
-                            ),
-                          ],
+                // On a phone the page is flush: a card inside the page's own
+                // inset cost every line ~25 px a side.
+                child: phone
+                    ? content
+                    : DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: tokens.surface,
+                          border: Border.all(color: tokens.border),
+                          borderRadius: BorderRadius.circular(InRadii.r3),
                         ),
-                        // The action worked but the re-read did not (or a
-                        // pull to refresh failed): what's shown may be stale.
-                        if (vm.error != null && !vm.isLoading)
-                          DocuNinjaInlineError(
-                            offline: vm.isOffline,
-                            onRetry: vm.load,
-                          ),
-                        if (vm.isBusy || _downloading)
-                          const Padding(
-                            padding: EdgeInsets.only(top: InSpacing.sm),
-                            child: LinearProgressIndicator(minHeight: 2),
-                          ),
-                        SizedBox(height: InSpacing.lg(context)),
-                        LayoutBuilder(
-                          builder: (context, c) => c.maxWidth >= 760
-                              ? Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(flex: 2, child: signers),
-                                    SizedBox(width: InSpacing.lg(context)),
-                                    Expanded(flex: 3, child: timeline),
-                                  ],
-                                )
-                              : Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    signers,
-                                    SizedBox(height: InSpacing.lg(context)),
-                                    timeline,
-                                  ],
-                                ),
+                        child: Padding(
+                          padding: EdgeInsets.all(pad),
+                          child: content,
                         ),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
               ),
             ),
           ],
@@ -372,19 +506,20 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
     );
     return [
       // React's Edit (the field builder): beside the menu, disabled once the
-      // document is completed or voided. It opens in the browser for now.
+      // document is completed or voided. Where it opens in the browser it
+      // says so, so leaving the app is no surprise.
       if (!doc.isDeleted && canEdit)
         item(
           _Action.edit,
-          Icons.edit_outlined,
-          'edit',
+          dnBuilderEditIcon(),
+          dnBuilderEditLabelKey(),
           primary: true,
           enabled: !completed && doc.status != DnDocumentStatus.voided,
         ),
       // React's Sign (its builder's): the user's own invitation, on React's
       // sign page (docs/docuninja.md § Signing your own invitation).
       if (_ownInvitation(doc) != null)
-        item(_Action.sign, Icons.draw_outlined, 'sign'),
+        item(_Action.sign, Icons.draw_outlined, dnSignLabelKey()),
       // React's `shouldShowPdf`: completed, not deleted, and with a file.
       if (completed && !doc.isDeleted && doc.files.isNotEmpty)
         item(_Action.viewPdf, Icons.picture_as_pdf_outlined, 'view_pdf'),
@@ -685,6 +820,65 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
 String _title(BuildContext context, DnDocument doc) =>
     doc.description.isEmpty ? context.tr('untitled_document') : doc.description;
 
+/// Whether [doc] still waits for its fields to be placed: a draft with no
+/// signers yet, or with signers but no field on any page. Past draft (sent,
+/// in approval, finished) the builder is not the next step; a draft that has
+/// both is ready to send, which its Send tile offers.
+@visibleForTesting
+bool dnNeedsFields(DnDocument doc) =>
+    !doc.isDeleted &&
+    doc.status == DnDocumentStatus.draft &&
+    (doc.invitations.isEmpty || doc.files.every((f) => f.rectangles.isEmpty));
+
+/// "Place signature fields": the way on from a new document where the
+/// builder opens in the browser (a phone or tablet), instead of leaving the
+/// app straight after the upload. Runs the same Edit action.
+class _PlaceFieldsCard extends StatelessWidget {
+  const _PlaceFieldsCard({required this.onOpen});
+
+  final VoidCallback? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.surface,
+        border: Border.all(color: tokens.border),
+        borderRadius: BorderRadius.circular(InRadii.r3),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(InSpacing.lg(context)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Semantics(
+              header: true,
+              headingLevel: 2,
+              child: Text(
+                context.tr('docuninja_place_fields'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              context.tr('docuninja_place_fields_help'),
+              style: TextStyle(color: tokens.ink2, fontSize: 13),
+            ),
+            SizedBox(height: InSpacing.md(context)),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+              onPressed: onOpen,
+              icon: const Icon(Icons.open_in_new, size: 18),
+              label: Text(context.tr('open_in_browser')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// One recipient as React's send dialogs write it (`getRecipient`):
 /// `Name (email)`, or the email alone when there is no name. The email is
 /// isolated left-to-right; only for text outside the selectable page.
@@ -836,6 +1030,16 @@ class _SignerCard extends StatelessWidget {
     // sending it to a client who would meet a sign-in wall.
     final copyLink =
         showResend && (i.clientContactId.isNotEmpty || i.userId.isNotEmpty);
+    final name = i.signerName.isNotEmpty
+        ? i.signerName
+        : i.signerEmail.isNotEmpty
+        ? i.signerEmail
+        : label;
+    // With a signing order only the next unsigned signer can be emailed;
+    // the others say why rather than show a button that does nothing.
+    final waiting = !dnCanResend(document, i) && i.signedDate == null;
+    // The dashes in `borderStrong` all but vanish on a dark surface.
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Align(
       alignment: AlignmentDirectional.centerStart,
       child: ConstrainedBox(
@@ -843,30 +1047,30 @@ class _SignerCard extends StatelessWidget {
         child: SizedBox(
           width: double.infinity,
           child: DashedBorder(
-            color: tokens.borderStrong,
+            color: dark ? tokens.ink4 : tokens.borderStrong,
             radius: InRadii.r1,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: tokens.surface,
+                color: dark ? tokens.surfaceAlt : tokens.surface,
                 borderRadius: BorderRadius.circular(InRadii.r1),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                // A phone's page is flush, and this inset is the card's own.
+                padding: EdgeInsets.all(
+                  isPhoneRecordLayout(context) ? InSpacing.md(context) : 16,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           child: LtrText(
-                            i.signerName.isNotEmpty
-                                ? i.signerName
-                                : i.signerEmail.isNotEmpty
-                                ? i.signerEmail
-                                : label,
+                            name,
                             // A name may be Arabic or Hebrew; an email is not.
                             keepRtlScript: true,
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: tokens.ink,
@@ -879,34 +1083,25 @@ class _SignerCard extends StatelessWidget {
                         _SignerPill(invitation: i),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    // React's "Client contact:" / "User:": who on whose side
-                    // is asked to sign.
-                    // The label gives way too: a long translation at a
-                    // large text size overflowed the row.
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            '$label:',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: line,
-                          ),
-                        ),
-                        if (i.signerEmail.isNotEmpty) ...[
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: LtrText(
-                              i.signerEmail,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: line,
-                            ),
-                          ),
-                        ],
-                      ],
+                    const SizedBox(height: 4),
+                    // React's "Client contact:" / "User:", as a caption: who
+                    // on whose side is asked to sign. On its own line, so
+                    // the email below keeps the card's whole width.
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: tokens.ink2, fontSize: 12),
                     ),
+                    // Two lines, not an ellipsis: a cut email is a guess.
+                    // Not twice when it is already the card's title.
+                    if (i.signerEmail.isNotEmpty && i.signerEmail != name)
+                      LtrText(
+                        i.signerEmail,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: line,
+                      ),
                     const SizedBox(height: 10),
                     Row(
                       children: [
@@ -945,13 +1140,19 @@ class _SignerCard extends StatelessWidget {
                               ),
                               child: Text(context.tr('copy_link')),
                             ),
-                          TextButton.icon(
-                            onPressed: !busy && dnCanResend(document, i)
-                                ? () => onResend(i)
-                                : null,
-                            icon: const Icon(Icons.send, size: 17),
-                            label: Text(context.tr('send_email')),
-                          ),
+                          if (waiting)
+                            _WaitingNote(style: line)
+                          // A signer who has signed has nothing to be sent:
+                          // no greyed button that can never be pressed.
+                          else if (i.signedDate == null ||
+                              dnCanResend(document, i))
+                            TextButton.icon(
+                              onPressed: !busy && dnCanResend(document, i)
+                                  ? () => onResend(i)
+                                  : null,
+                              icon: const Icon(Icons.send, size: 17),
+                              label: Text(context.tr('send_email')),
+                            ),
                         ],
                       ),
                     ],
@@ -961,6 +1162,35 @@ class _SignerCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Why a signer has no Send Email yet: someone earlier in the signing order
+/// has still to sign.
+class _WaitingNote extends StatelessWidget {
+  const _WaitingNote({required this.style});
+
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      // Level with the Copy Link button's label beside it.
+      padding: const EdgeInsets.symmetric(vertical: InSpacing.sm),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.hourglass_empty, size: 16, color: context.inTheme.ink3),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              context.tr('docuninja_waiting_for_earlier_signer'),
+              style: style,
+            ),
+          ),
+        ],
       ),
     );
   }

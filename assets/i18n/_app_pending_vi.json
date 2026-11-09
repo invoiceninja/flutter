@@ -1704,5 +1704,15 @@
   "welcome_lets_go": "Bắt đầu thôi",
   "checklist_retry": "Thử lại",
   "switch_company": "Chuyển công ty",
-  "setup_choose_file_instead": "Chọn tệp thay thế"
+  "setup_choose_file_instead": "Chọn tệp thay thế",
+  "docuninja_empty_upload": "Tải lên tệp PDF để gửi đi ký",
+  "docuninja_name_and_upload": "Đặt tên và tải lên…",
+  "edit_in_browser": "Chỉnh sửa trong trình duyệt",
+  "docuninja_place_fields": "Đặt các trường chữ ký",
+  "docuninja_place_fields_help": "Mở trong trình duyệt của bạn. Hoạt động tốt nhất trên máy tính.",
+  "docuninja_waiting_for_earlier_signer": "Đang chờ người ký trước",
+  "sign_here_hint": "Ký tại đây",
+  "docuninja_seats_used": "Đã dùng :count / :total chỗ",
+  "docuninja_company_setup_help_touch": "Tài khoản của bạn đã tồn tại nhưng công ty này chưa được thiết lập. Vui lòng chạm vào nút bên dưới để thiết lập.",
+  "sign_in_browser": "Ký trong trình duyệt"
 }

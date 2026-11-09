@@ -1825,5 +1825,15 @@
   "setup_region_done": "Done",
   "welcome_lets_go": "Let's go",
   "checklist_retry": "Retry",
-  "setup_choose_file_instead": "Choose a file instead"
+  "setup_choose_file_instead": "Choose a file instead",
+  "docuninja_empty_upload": "Upload a PDF to send it for signature",
+  "docuninja_name_and_upload": "Name and Upload…",
+  "edit_in_browser": "Edit in browser",
+  "docuninja_place_fields": "Place signature fields",
+  "docuninja_place_fields_help": "Opens in your browser. Works best on a computer.",
+  "docuninja_waiting_for_earlier_signer": "Waiting for an earlier signer",
+  "sign_here_hint": "Sign here",
+  "docuninja_seats_used": ":count of :total seats used",
+  "docuninja_company_setup_help_touch": "Your account exists but this company is not set up yet. Please tap the button below to set it up.",
+  "sign_in_browser": "Sign on the web"
 }

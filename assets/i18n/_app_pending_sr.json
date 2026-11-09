@@ -1737,5 +1737,15 @@
   "welcome_lets_go": "Krenimo",
   "checklist_retry": "Pokušaj ponovo",
   "switch_company": "Promeni kompaniju",
-  "setup_choose_file_instead": "Umesto toga izaberite datoteku"
+  "setup_choose_file_instead": "Umesto toga izaberite datoteku",
+  "docuninja_empty_upload": "Otpremite PDF da biste ga poslali na potpis",
+  "docuninja_name_and_upload": "Imenuj i otpremi…",
+  "edit_in_browser": "Uredi u pregledaču",
+  "docuninja_place_fields": "Postavite polja za potpis",
+  "docuninja_place_fields_help": "Otvara se u vašem pregledaču. Najbolje radi na računaru.",
+  "docuninja_waiting_for_earlier_signer": "Čeka se prethodni potpisnik",
+  "sign_here_hint": "Potpišite ovde",
+  "docuninja_seats_used": "Iskorišćeno mesta: :count od :total",
+  "docuninja_company_setup_help_touch": "Vaš nalog postoji, ali ova kompanija još nije podešena. Dodirnite dugme ispod da biste je podesili.",
+  "sign_in_browser": "Potpiši u pregledaču"
 }

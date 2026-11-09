@@ -1809,5 +1809,15 @@
   "welcome_lets_go": "Să începem",
   "checklist_retry": "Reîncercați",
   "switch_company": "Schimbați compania",
-  "setup_choose_file_instead": "Alegeți un fișier în schimb"
+  "setup_choose_file_instead": "Alegeți un fișier în schimb",
+  "docuninja_empty_upload": "Încărcați un PDF pentru a-l trimite spre semnare",
+  "docuninja_name_and_upload": "Denumire și încărcare…",
+  "edit_in_browser": "Editați în browser",
+  "docuninja_place_fields": "Plasați câmpurile de semnătură",
+  "docuninja_place_fields_help": "Se deschide în browser. Funcționează cel mai bine pe un computer.",
+  "docuninja_waiting_for_earlier_signer": "Se așteaptă un semnatar anterior",
+  "sign_here_hint": "Semnați aici",
+  "docuninja_seats_used": ":count din :total locuri utilizate",
+  "docuninja_company_setup_help_touch": "Contul dvs. există, dar această companie nu este încă configurată. Atingeți butonul de mai jos pentru a o configura.",
+  "sign_in_browser": "Semnați în browser"
 }

@@ -26,7 +26,9 @@ import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/filter_icon_button.dart';
+import 'package:admin/ui/core/widgets/document_capture.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/toast_controller.dart' show NotifyVariant;
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_bulk.dart';
@@ -232,7 +234,11 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
 
   /// A new document of [companyId]: the list re-reads, the app lands on it
   /// and (as React does) its builder opens — unless the user switched
-  /// company while it uploaded, when it is not this company's to open.
+  /// company while it uploaded, when it is not this company's to open. On a
+  /// phone whose builder would open in the browser ([dnDeferBuilderOnPhone])
+  /// it does not: leaving the app straight after an upload stranded the user
+  /// in a browser tab, so the app lands on the document, whose page offers
+  /// the builder.
   void _opened(DnDocument doc, String? companyId) {
     _session?.markDocumentsChanged();
     if (!mounted || companyId == null || _currentCompanyId != companyId) {
@@ -253,12 +259,53 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
       return;
     }
     context.go('/docuninja/${doc.id}');
+    if (dnDeferBuilderOnPhone()) {
+      Notify.success(context, context.tr('document_created'));
+      return;
+    }
     notifyAndOpenDocuNinjaBuilder(
       context,
       message: context.tr('document_created'),
       documentId: doc.id,
       companyId: companyId,
     );
+  }
+
+  /// An upload from the phone's create sheet is under way: the `+` shows
+  /// it, as the drop zone's tile does.
+  bool _sheetUploading = false;
+
+  /// The phone's `+`: the create sheet, then Camera / Photos / Files upload
+  /// at once (as the drop zone's tiles do), or the New Document dialog.
+  Future<void> _createFromSheet(DocuNinjaState state) async {
+    final api = context.read<DocuNinjaApi?>();
+    if (api == null || _sheetUploading) return;
+    final source = await showDocuNinjaCreateSheet(context);
+    if (source == null || !mounted) return;
+    if (source == DnCreateSource.named) return _create(state);
+    // Read now: once the screen is gone there is no context to read it from.
+    final intake = intakeOf(context);
+    final sources = await dnPickCreateSources(context, source);
+    if (sources.isEmpty) return;
+    if (!mounted) {
+      // Nothing will take the photo.
+      await releaseCapturedPhotos(intake, sources);
+      return;
+    }
+    setState(() => _sheetUploading = true);
+    try {
+      await dnCreateDocumentFromFiles(
+        context,
+        api: api,
+        sources: sources,
+        // The company the files were picked for.
+        companyId: _currentCompanyId,
+        onCreated: _opened,
+        onMaybeCreated: () => _session?.markDocumentsChanged(),
+      );
+    } finally {
+      if (mounted) setState(() => _sheetUploading = false);
+    }
   }
 
   /// React's drop zone above the table, for a DocuNinja role that may
@@ -306,7 +353,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
             state,
             vm,
             globalNav: globalNav,
-            wide: pane.maxWidth >= kDocuNinjaTableMinWidth,
+            wide: dnShowsTable(context, pane.maxWidth),
           ),
         );
       },
@@ -370,6 +417,34 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
     required bool globalNav,
     required bool wide,
   }) {
+    if (vm == null) {
+      return _page(context, state, null, globalNav: globalNav, wide: wide);
+    }
+    // The app bar and the `+` change with selection too.
+    return ListenableBuilder(
+      listenable: vm,
+      builder: (context, _) =>
+          _page(context, state, vm, globalNav: globalNav, wide: wide),
+    );
+  }
+
+  Widget _page(
+    BuildContext context,
+    DocuNinjaState state,
+    DocuNinjaDocumentsViewModel? vm, {
+    required bool globalNav,
+    required bool wide,
+  }) {
+    final phone = Breakpoints.isPhone(context);
+    final canCreate = vm != null && state.can('documents', DnAction.create);
+    // Selecting on a narrow pane: the selection bar under the app bar is
+    // the chrome, so the app bar's own actions step aside rather than sit
+    // over it as a second row of buttons and a second `⋮`.
+    final selecting = vm?.isSelecting ?? false;
+    final narrowSelecting = !wide && selecting;
+    // A phone creates from the `+` in the thumb's corner, as the app's
+    // lists do; it steps aside while selecting.
+    final fab = phone && canCreate && !selecting;
     return Scaffold(
       drawer: globalNav ? null : const AppDrawer(),
       appBar: AppBar(
@@ -377,123 +452,147 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
         leading: globalNav ? null : const DrawerHamburger(),
         automaticallyImplyLeading: !globalNav,
         actions: [
-          // React's drop zone and New Document page, for a DocuNinja
-          // role that may create.
-          if (vm != null && state.can('documents', DnAction.create))
-            ShortcutTooltip(
-              label: context.tr('new_document'),
-              keys: const ['N'],
-              child: IconButton(
-                icon: const Icon(Icons.add),
-                onPressed: () => _create(state),
+          if (!narrowSelecting) ...[
+            // React's drop zone and New Document page, for a DocuNinja
+            // role that may create; a phone's is the `+` button.
+            if (canCreate && !phone)
+              ShortcutTooltip(
+                label: context.tr('new_document'),
+                keys: const ['N'],
+                child: IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: () => _create(state),
+                ),
               ),
-            ),
-          if (vm != null && !wide)
-            ListenableBuilder(
-              listenable: vm,
-              builder: (context, _) => FilterIconButton(
+            if (vm != null && !wide)
+              FilterIconButton(
                 activeCount: vm.activeFilterCount,
                 onPressed: () => _pickFilters(context, vm),
               ),
-            ),
-          // React's DocuNinja menu (templates, users, settings) and a
-          // refresh, in one `⋮`: six icons would push the title off a
-          // phone's app bar.
-          if (vm != null)
-            ListenableBuilder(
-              listenable: vm,
-              builder: (context, _) => EntityActionsPopupButton<_MenuAction>(
-                items: [
-                  // React's table checkboxes, for its bulk actions; on
-                  // touch a long press on a row starts it too.
-                  if (vm.items.isNotEmpty &&
-                      !vm.isSelecting &&
-                      _bulkActions(state).isNotEmpty)
-                    EntityActionItem(
-                      kind: _MenuAction.select,
-                      icon: Icons.checklist,
-                      label: context.tr('select'),
-                      enabled: true,
-                      onTap: vm.enterSelectionMode,
+            // React's DocuNinja menu (templates, users, settings) and a
+            // refresh, in one `⋮`: six icons would push the title off a
+            // phone's app bar.
+            if (vm != null) _menu(context, state, vm, wide: wide),
+          ],
+        ],
+      ),
+      floatingActionButton: fab
+          ? FloatingActionButton(
+              // No `Hero`: the shell keeps every branch mounted, and the
+              // default tag is shared with the lists' own `+`.
+              heroTag: null,
+              tooltip: context.tr('new_document'),
+              onPressed: _sheetUploading ? null : () => _createFromSheet(state),
+              child: _sheetUploading
+                  ? const SizedBox.square(
+                      dimension: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    )
+                  : const Icon(Icons.add),
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      // The search field sits in the body, not the app bar's fixed-height
+      // `bottom`, so it grows with the text size instead of clipping.
+      body: vm == null
+          ? _body(context, state, vm, phone: phone, fab: false, wide: wide)
+          // Back leaves selection before it leaves the screen.
+          : PopScope(
+              canPop: !vm.isSelecting,
+              onPopInvokedWithResult: (didPop, _) {
+                if (!didPop) vm.clearSelection();
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // The selection header takes the search row's place
+                  // while selecting; the search keeps its text (the
+                  // controller is the screen's).
+                  if (vm.isSelecting)
+                    LayoutBuilder(
+                      builder: (context, c) => DnSelectionBar<DnDocument>(
+                        vm: vm,
+                        actions: _bulkActions(state),
+                        wide: dnShowsTable(context, c.maxWidth),
+                        // Archive / Restore / Delete fit beside the count.
+                        inlineActions: true,
+                      ),
+                    )
+                  else
+                    _searchBar(context, state, vm, wide: wide),
+                  Expanded(
+                    child: _body(
+                      context,
+                      state,
+                      vm,
+                      phone: phone,
+                      fab: fab,
+                      wide: wide,
                     ),
-                  if (!wide && state.can('blueprints', DnAction.view))
-                    EntityActionItem(
-                      kind: _MenuAction.templates,
-                      icon: Icons.copy_all_outlined,
-                      label: context.tr('templates'),
-                      enabled: true,
-                      isNavigationOnly: true,
-                      onTap: () => context.go('/docuninja/templates'),
-                    ),
-                  if (!wide && (state.login?.companyUser.isOwner ?? false))
-                    EntityActionItem(
-                      kind: _MenuAction.users,
-                      icon: Icons.group_outlined,
-                      label: context.tr('users'),
-                      enabled: true,
-                      isNavigationOnly: true,
-                      onTap: () => context.go('/docuninja/users'),
-                    ),
-                  if (!wide &&
-                      state.login != null &&
-                      dnIsAdmin(state.login!.companyUser))
-                    EntityActionItem(
-                      kind: _MenuAction.settings,
-                      icon: Icons.settings_outlined,
-                      label: context.tr('settings'),
-                      enabled: true,
-                      isNavigationOnly: true,
-                      onTap: () => context.go('/docuninja/settings'),
-                    ),
-                  EntityActionItem(
-                    kind: _MenuAction.refresh,
-                    icon: Icons.refresh,
-                    label: context.tr('refresh'),
-                    // Always on: a refresh already in flight is shared.
-                    enabled: true,
-                    startsGroup: true,
-                    onTap: vm.refresh,
                   ),
                 ],
               ),
             ),
-        ],
-      ),
-      // The search field sits in the body, not the app bar's fixed-height
-      // `bottom`, so it grows with the text size instead of clipping.
-      body: vm == null
-          ? _body(context, state, vm)
-          : ListenableBuilder(
-              listenable: vm,
-              // Back leaves selection before it leaves the screen.
-              builder: (context, _) => PopScope(
-                canPop: !vm.isSelecting,
-                onPopInvokedWithResult: (didPop, _) {
-                  if (!didPop) vm.clearSelection();
-                },
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // The selection header takes the search row's place
-                    // while selecting; the search keeps its text (the
-                    // controller is the screen's).
-                    if (vm.isSelecting)
-                      LayoutBuilder(
-                        builder: (context, c) => DnSelectionBar<DnDocument>(
-                          vm: vm,
-                          actions: _bulkActions(state),
-                          wide: c.maxWidth >= kDocuNinjaTableMinWidth,
-                        ),
-                      )
-                    else
-                      _searchBar(context, state, vm, wide: wide),
-                    Expanded(child: _body(context, state, vm)),
-                  ],
-                ),
-              ),
-            ),
     );
   }
+
+  Widget _menu(
+    BuildContext context,
+    DocuNinjaState state,
+    DocuNinjaDocumentsViewModel vm, {
+    required bool wide,
+  }) => EntityActionsPopupButton<_MenuAction>(
+    items: [
+      // React's table checkboxes, for its bulk actions; on touch a long
+      // press on a row starts it too.
+      if (vm.items.isNotEmpty &&
+          !vm.isSelecting &&
+          _bulkActions(state).isNotEmpty)
+        EntityActionItem(
+          kind: _MenuAction.select,
+          icon: Icons.checklist,
+          label: context.tr('select'),
+          enabled: true,
+          onTap: vm.enterSelectionMode,
+        ),
+      if (!wide && state.can('blueprints', DnAction.view))
+        EntityActionItem(
+          kind: _MenuAction.templates,
+          icon: Icons.copy_all_outlined,
+          label: context.tr('templates'),
+          enabled: true,
+          isNavigationOnly: true,
+          onTap: () => context.go('/docuninja/templates'),
+        ),
+      if (!wide && (state.login?.companyUser.isOwner ?? false))
+        EntityActionItem(
+          kind: _MenuAction.users,
+          icon: Icons.group_outlined,
+          label: context.tr('users'),
+          enabled: true,
+          isNavigationOnly: true,
+          onTap: () => context.go('/docuninja/users'),
+        ),
+      if (!wide && state.login != null && dnIsAdmin(state.login!.companyUser))
+        EntityActionItem(
+          kind: _MenuAction.settings,
+          icon: Icons.settings_outlined,
+          label: context.tr('settings'),
+          enabled: true,
+          isNavigationOnly: true,
+          onTap: () => context.go('/docuninja/settings'),
+        ),
+      EntityActionItem(
+        kind: _MenuAction.refresh,
+        icon: Icons.refresh,
+        label: context.tr('refresh'),
+        // Always on: a refresh already in flight is shared.
+        enabled: true,
+        startsGroup: true,
+        onTap: vm.refresh,
+      ),
+    ],
+  );
 
   Widget _searchBar(
     BuildContext context,
@@ -623,8 +722,11 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
   Widget _body(
     BuildContext context,
     DocuNinjaState state,
-    DocuNinjaDocumentsViewModel? vm,
-  ) {
+    DocuNinjaDocumentsViewModel? vm, {
+    required bool phone,
+    required bool fab,
+    required bool wide,
+  }) {
     final auth = context.read<Services>().auth.session.value;
     final me = auth?.currentCompany;
     switch (state.access) {
@@ -670,7 +772,15 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           key: ObjectKey(vm),
           vm: vm,
           selectable: _bulkActions(state).isNotEmpty,
-          header: _dropZone(state),
+          // Not while selecting on a narrow pane: the rows are the job. A
+          // phone's one way to create is the `+` FAB and its sheet — the
+          // tiles, and the empty page's own button, made three ways to the
+          // same thing, two of them to different flows.
+          header: phone || (!wide && vm.isSelecting) ? null : _dropZone(state),
+          fabClearance: fab,
+          onCreate: !phone && state.can('documents', DnAction.create)
+              ? () => _create(state)
+              : null,
           onClearFilters: () => _clearFilters(vm),
           onOpen: (doc) => context.go('/docuninja/${doc.id}'),
           actionsFor: (doc) {
@@ -743,8 +853,8 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
       if (!doc.isDeleted && canEdit)
         item(
           _RowAction.edit,
-          Icons.edit_outlined,
-          'edit',
+          dnBuilderEditIcon(),
+          dnBuilderEditLabelKey(),
           () => _openBuilder(doc),
           enabled: !completed && doc.status != DnDocumentStatus.voided,
         ),
@@ -910,15 +1020,42 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
   /// stays usable for the rest meanwhile.
   bool _rowDownloading = false;
 
+  /// The tap shows nothing else while a file is fetched, which can take a
+  /// while: a Processing toast until the bytes arrive (dismissed before the
+  /// save sheet takes over); a failure is `dnSaveFile`'s error toast.
   Future<void> _rowDownload(
     Future<DnFileBytes> Function() fetch,
     String fallbackName,
   ) async {
-    if (_rowDownloading) return;
+    final toasts = Notify.capture(context);
+    if (_rowDownloading) {
+      // Still on its way: the same toast again (it bumps, not stacks).
+      toasts?.info(context.tr('processing'));
+      return;
+    }
     _rowDownloading = true;
+    final progress = toasts?.show(
+      variant: NotifyVariant.info,
+      message: context.tr('processing'),
+    );
+    void done() {
+      if (progress != null) toasts?.dismiss(progress);
+    }
+
     try {
-      await dnSaveFile(context, fetch: fetch, fallbackName: fallbackName);
+      await dnSaveFile(
+        context,
+        fetch: () async {
+          try {
+            return await fetch();
+          } finally {
+            done();
+          }
+        },
+        fallbackName: fallbackName,
+      );
     } finally {
+      done();
       _rowDownloading = false;
     }
   }
@@ -947,15 +1084,12 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
     BuildContext context,
     DocuNinjaDocumentsViewModel vm,
   ) async {
-    final picked =
-        await showDialog<({Set<String> states, Set<String> statuses})>(
-          context: context,
-          builder: (context) => DnFilterDialog(
-            states: vm.states,
-            statuses: vm.statuses,
-            statusOptions: kDocuNinjaStatusFilters,
-          ),
-        );
+    final picked = await showDnFilterPicker(
+      context,
+      states: vm.states,
+      statuses: vm.statuses,
+      statusOptions: kDocuNinjaStatusFilters,
+    );
     if (picked != null) {
       vm.setFilters(statuses: picked.statuses, states: picked.states);
     }

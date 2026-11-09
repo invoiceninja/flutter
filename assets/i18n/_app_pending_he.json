@@ -1737,5 +1737,15 @@
   "welcome_lets_go": "יוצאים לדרך",
   "checklist_retry": "ניסיון חוזר",
   "switch_company": "החלפת חברה",
-  "setup_choose_file_instead": "בחירת קובץ במקום זאת"
+  "setup_choose_file_instead": "בחירת קובץ במקום זאת",
+  "docuninja_empty_upload": "העלה PDF כדי לשלוח אותו לחתימה",
+  "docuninja_name_and_upload": "מתן שם והעלאה…",
+  "edit_in_browser": "עריכה בדפדפן",
+  "docuninja_place_fields": "מיקום שדות חתימה",
+  "docuninja_place_fields_help": "נפתח בדפדפן שלך. עובד הכי טוב במחשב.",
+  "docuninja_waiting_for_earlier_signer": "ממתין לחותם קודם",
+  "sign_here_hint": "חתום כאן",
+  "docuninja_seats_used": ":count מתוך :total מושבים בשימוש",
+  "docuninja_company_setup_help_touch": "החשבון שלך קיים, אך החברה הזו עדיין לא הוגדרה. הקש על הכפתור למטה כדי להגדיר אותה.",
+  "sign_in_browser": "חתימה בדפדפן"
 }

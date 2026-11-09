@@ -1819,5 +1819,15 @@
   "welcome_lets_go": "Le të fillojmë",
   "checklist_retry": "Riprovo",
   "switch_company": "Ndërro kompaninë",
-  "setup_choose_file_instead": "Zgjidhni një skedar në vend të saj"
+  "setup_choose_file_instead": "Zgjidhni një skedar në vend të saj",
+  "docuninja_empty_upload": "Ngarkoni një PDF për ta dërguar për nënshkrim",
+  "docuninja_name_and_upload": "Emërto dhe ngarko…",
+  "edit_in_browser": "Redakto në shfletues",
+  "docuninja_place_fields": "Vendosni fushat e nënshkrimit",
+  "docuninja_place_fields_help": "Hapet në shfletuesin tuaj. Funksionon më mirë në kompjuter.",
+  "docuninja_waiting_for_earlier_signer": "Në pritje të një nënshkruesi të mëparshëm",
+  "sign_here_hint": "Nënshkruani këtu",
+  "docuninja_seats_used": ":count nga :total vende të përdorura",
+  "docuninja_company_setup_help_touch": "Llogaria juaj ekziston, por kjo kompani nuk është konfiguruar ende. Ju lutemi prekni butonin më poshtë për ta konfiguruar.",
+  "sign_in_browser": "Nënshkruaj në shfletues"
 }

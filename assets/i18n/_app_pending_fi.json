@@ -1739,5 +1739,15 @@
   "welcome_lets_go": "Aloitetaan",
   "checklist_retry": "Yritä uudelleen",
   "switch_company": "Vaihda yritystä",
-  "setup_choose_file_instead": "Valitse sen sijaan tiedosto"
+  "setup_choose_file_instead": "Valitse sen sijaan tiedosto",
+  "docuninja_empty_upload": "Lataa PDF lähettääksesi sen allekirjoitettavaksi",
+  "docuninja_name_and_upload": "Nimeä ja lataa…",
+  "edit_in_browser": "Muokkaa selaimessa",
+  "docuninja_place_fields": "Sijoita allekirjoituskentät",
+  "docuninja_place_fields_help": "Avautuu selaimessasi. Toimii parhaiten tietokoneella.",
+  "docuninja_waiting_for_earlier_signer": "Odottaa aiempaa allekirjoittajaa",
+  "sign_here_hint": "Allekirjoita tähän",
+  "docuninja_seats_used": ":count / :total paikkaa käytössä",
+  "docuninja_company_setup_help_touch": "Tilisi on olemassa, mutta tätä yritystä ei ole vielä otettu käyttöön. Ota se käyttöön napauttamalla alla olevaa painiketta.",
+  "sign_in_browser": "Allekirjoita selaimessa"
 }

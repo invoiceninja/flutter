@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -16,6 +17,8 @@ import 'package:admin/data/services/docuninja/docuninja_login_api.dart';
 import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/ui/core/detail/entity_quick_actions.dart';
+import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
@@ -255,9 +258,11 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     }
 
+    // The builder opens in the browser here (the embed is off), so Edit
+    // beside the menu is `open_in_new`, "Edit in browser".
     IconButton editButton(WidgetTester tester) => tester.widget<IconButton>(
       find.ancestor(
-        of: find.byTooltip('Edit'),
+        of: find.byIcon(Icons.open_in_new),
         matching: find.byType(IconButton),
       ),
     );
@@ -267,7 +272,7 @@ void main() {
       final viewer = _Session(admin: false);
       addTearDown(viewer.dispose);
       await pump(tester, _doc(status: 5), session: viewer);
-      expect(find.byTooltip('Edit'), findsNothing);
+      expect(find.byIcon(Icons.open_in_new), findsNothing);
       await openMenu(tester);
       for (final label in ['Clone', 'Void', 'Archive', 'Delete', 'Options']) {
         expect(find.text(label), findsNothing, reason: label);
@@ -277,7 +282,7 @@ void main() {
       final admin = _Session(admin: true);
       addTearDown(admin.dispose);
       await pump(tester, _doc(status: 5), session: admin);
-      expect(find.byTooltip('Edit'), findsOneWidget);
+      expect(find.byIcon(Icons.open_in_new), findsOneWidget);
       await openMenu(tester);
       for (final label in ['Clone', 'Void', 'Archive', 'Delete']) {
         expect(find.text(label), findsOneWidget, reason: label);
@@ -420,7 +425,7 @@ void main() {
     ) async {
       await pump(tester, _doc());
       // React's card: who on whose side, with Copy Link while it is sent.
-      expect(find.text('Client Contact:'), findsOneWidget);
+      expect(find.text('Client Contact'), findsOneWidget);
       expect(find.text('Copy Link'), findsOneWidget);
       await tapSendEmail(tester);
       expect(find.text('Send Confirmation'), findsOneWidget);
@@ -467,7 +472,7 @@ void main() {
       tester,
     ) async {
       await pump(tester, _doc(status: 6));
-      expect(find.text('Client Contact:'), findsOneWidget);
+      expect(find.text('Client Contact'), findsOneWidget);
       expect(find.text('Send Email'), findsNothing);
       expect(find.text('Copy Link'), findsNothing);
       await dispose(tester);
@@ -584,6 +589,202 @@ void main() {
       expect(await headerChildren(DnDocument.fromJson(archived)), 3);
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 1));
+    });
+  });
+
+  group('phone', () {
+    late ShellFixture fixture;
+
+    /// An iPhone-sized window (393 × 852) on a touch platform, where
+    /// `isPhoneRecordLayout` holds.
+    Future<void> pump(WidgetTester tester, DnDocument doc) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      fixture = await buildFixture(
+        companies: [FakeCompany(id: 'co1', name: 'Acme')],
+      );
+      addTearDown(fixture.dispose);
+      await tester.pumpWidget(
+        wrapWithShell(
+          fixture.services,
+          Provider<DocuNinjaApi>.value(
+            value: _Api(doc),
+            child: const DocuNinjaDocumentScreen(id: 'doc1'),
+          ),
+        ),
+      );
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    Future<void> dispose(WidgetTester tester) async {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+    }
+
+    List<dynamic> menuItems(WidgetTester tester) =>
+        (tester.widget(
+                      find.byWidgetPredicate(
+                        (w) => w is EntityActionsPopupButton,
+                      ),
+                    )
+                    as dynamic)
+                .items
+            as List<dynamic>;
+
+    // `FilledButton.icon` is a subclass: `widgetWithText` matches exact types.
+    Finder openButton() => find.ancestor(
+      of: find.text('Open in browser'),
+      matching: find.byWidgetPredicate((w) => w is FilledButton),
+    );
+
+    IconButton appBarEdit(WidgetTester tester) => tester.widget<IconButton>(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.widgetWithIcon(IconButton, Icons.open_in_new),
+      ),
+    );
+
+    testWidgets('a draft waiting for its fields offers the browser builder, '
+        'running the same Edit', (tester) async {
+      final json = _fixture()
+        ..['status_id'] = 1
+        ..['invitations'] = <Object>[];
+      await pump(tester, DnDocument.fromJson(json));
+      // Edit says where it goes: the browser, not an in-app editor.
+      expect(appBarEdit(tester).onPressed, isNotNull);
+      final open = openButton();
+      expect(open, findsOneWidget);
+      expect(
+        find.descendant(of: open, matching: find.byIcon(Icons.open_in_new)),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<FilledButton>(open).onPressed,
+        same(appBarEdit(tester).onPressed),
+        reason: 'the card runs the Edit action itself, not a copy of it',
+      );
+      await dispose(tester);
+
+      // A sent document is past the builder: no card.
+      await pump(tester, _doc(status: 5));
+      expect(openButton(), findsNothing);
+      await dispose(tester);
+    });
+
+    test('which documents still need their fields', () {
+      expect(dnNeedsFields(_doc(status: 1)), isFalse, reason: 'has both');
+      final noSigners = _fixture()
+        ..['status_id'] = 1
+        ..['invitations'] = <Object>[];
+      expect(dnNeedsFields(DnDocument.fromJson(noSigners)), isTrue);
+      expect(dnNeedsFields(_doc(status: 1, files: false)), isTrue);
+      expect(dnNeedsFields(_doc(status: 5, files: false)), isFalse);
+      expect(dnNeedsFields(_doc(status: 1, deleted: true)), isFalse);
+    });
+
+    testWidgets('the main actions are tiles, the menu\'s own items', (
+      tester,
+    ) async {
+      await pump(tester, _doc(status: 6));
+      final strip = find.byWidgetPredicate((w) => w is EntityQuickActions);
+      expect(strip, findsOneWidget);
+      for (final label in ['View PDF', 'Share Link', 'Download']) {
+        expect(
+          find.descendant(of: strip, matching: find.text(label)),
+          findsOneWidget,
+          reason: label,
+        );
+      }
+      final menu = menuItems(tester);
+      final priority =
+          (tester.widget(strip) as dynamic).priority as List<dynamic>;
+      expect(priority, isNotEmpty);
+      for (final q in priority) {
+        final item = (q as dynamic).item;
+        // Edit sits beside the menu, not in it: the same item drives the
+        // bar's button (disabled here, the document being completed).
+        final edit = appBarEdit(tester);
+        expect(
+          menu.any((m) => identical(m, item)) ||
+              (item.icon == (edit.icon as Icon).icon &&
+                  item.label == edit.tooltip),
+          isTrue,
+          reason: '${item.label} is a second render, not a second definition',
+        );
+      }
+      await dispose(tester);
+    });
+
+    testWidgets('the bar says Document; the heading keeps the name', (
+      tester,
+    ) async {
+      final json = _fixture()..['description'] = 'Master services agreement';
+      await pump(tester, DnDocument.fromJson(json));
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('Document'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Master services agreement'), findsOneWidget);
+      await dispose(tester);
+    });
+
+    testWidgets('a signer\'s email gets its own lines, not an ellipsis', (
+      tester,
+    ) async {
+      // Wider than the card's one line (the test font is 13 px a glyph),
+      // narrower than two.
+      const email = 'payables.dept@longcompanyname.example';
+      final json = _fixture();
+      final invitation = Map<String, dynamic>.from(
+        (json['invitations'] as List).first as Map,
+      );
+      invitation['contact'] = {
+        ...Map<String, dynamic>.from(invitation['contact'] as Map),
+        'first_name': 'Ann',
+        'last_name': 'Lee',
+        'email': email,
+      };
+      json['invitations'] = [invitation];
+      await pump(tester, DnDocument.fromJson(json));
+      final text = find.text(email);
+      expect(text, findsOneWidget);
+      expect(tester.widget<Text>(text).maxLines, 2);
+      final paragraph = find.descendant(
+        of: text,
+        matching: find.byType(RichText),
+      );
+      expect(
+        tester.renderObject<RenderParagraph>(paragraph).didExceedMaxLines,
+        isFalse,
+      );
+      expect(
+        tester.getSize(paragraph).height,
+        greaterThan(13 * 1.5),
+        reason: 'it wrapped onto a second line instead of being cut',
+      );
+      // The role is a caption of its own, not a prefix that squeezes it.
+      expect(find.text('Client Contact'), findsOneWidget);
+      await dispose(tester);
+    });
+
+    testWidgets('a signer waiting on the signing order says so, with no dead '
+        'Send Email', (tester) async {
+      final json = _fixture();
+      final first = Map<String, dynamic>.from(
+        (json['invitations'] as List).first as Map,
+      );
+      final second = {...first, 'id': 'second', 'signing_order': 2};
+      json['invitations'] = [first, second];
+      await pump(tester, DnDocument.fromJson(json));
+      expect(find.text('Send Email'), findsOneWidget);
+      expect(find.byIcon(Icons.hourglass_empty), findsOneWidget);
+      await dispose(tester);
     });
   });
 

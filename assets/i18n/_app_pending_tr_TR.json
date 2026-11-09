@@ -1819,5 +1819,15 @@
   "welcome_lets_go": "Başlayalım",
   "checklist_retry": "Yeniden Dene",
   "switch_company": "Şirket Değiştir",
-  "setup_choose_file_instead": "Bunun yerine dosya seçin"
+  "setup_choose_file_instead": "Bunun yerine dosya seçin",
+  "docuninja_empty_upload": "İmzaya göndermek için bir PDF yükleyin",
+  "docuninja_name_and_upload": "Adlandır ve Yükle…",
+  "edit_in_browser": "Tarayıcıda düzenle",
+  "docuninja_place_fields": "İmza alanlarını yerleştirin",
+  "docuninja_place_fields_help": "Tarayıcınızda açılır. En iyi bilgisayarda çalışır.",
+  "docuninja_waiting_for_earlier_signer": "Önceki bir imzalayan bekleniyor",
+  "sign_here_hint": "Buraya imzalayın",
+  "docuninja_seats_used": ":total koltuktan :count tanesi kullanılıyor",
+  "docuninja_company_setup_help_touch": "Hesabınız mevcut ancak bu şirket henüz kurulmadı. Kurmak için lütfen aşağıdaki düğmeye dokunun.",
+  "sign_in_browser": "Tarayıcıda imzala"
 }

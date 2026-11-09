@@ -2,13 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/domain/docuninja/docuninja_access.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 
 /// The screens React shows before the DocuNinja documents
 /// (`pages/documents/join/Join.tsx`, `components/DocumentStates.tsx`),
 /// in the app's chrome. docs/docuninja.md.
+
+/// The company-setup sentence, which names the gesture: "click" on a
+/// pointer device, "tap" on touch.
+String _companySetupHelp(BuildContext context) => context.tr(
+  Env.isTouchPrimary
+      ? 'docuninja_company_setup_help_touch'
+      : 'docuninja_company_setup_help',
+);
 
 /// React's Join page: what DocuNinja does, then Create (an Invoice Ninja
 /// owner or admin on Pro or Enterprise), Upgrade (an owner or admin on
@@ -126,9 +136,55 @@ class DocuNinjaJoinView extends StatelessWidget {
         ],
       );
     }
+    // On a phone the action follows the tagline, ahead of the features
+    // card: at a large text size the card is a screen or two tall, and
+    // the one thing to do here would sit below the fold.
+    final actionFirst = Breakpoints.isPhone(context);
+    final featuresCard = DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.surface,
+        border: Border.all(color: tokens.border),
+        borderRadius: BorderRadius.circular(InRadii.r3),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(InSpacing.lg(context)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.star_outline, size: 18, color: tokens.ink2),
+                const SizedBox(width: InSpacing.sm),
+                Expanded(
+                  child: Semantics(
+                    header: true,
+                    headingLevel: 2,
+                    child: Text(
+                      context.tr('docuninja_join_features_title'),
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: InSpacing.md(context)),
+            LayoutBuilder(
+              builder: (context, c) => c.maxWidth >= 480
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [for (final f in features) Expanded(child: f)],
+                    )
+                  : Column(children: features),
+            ),
+          ],
+        ),
+      ),
+    );
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(InSpacing.xl),
+        padding: EdgeInsets.all(
+          actionFirst ? InSpacing.lg(context) : InSpacing.xl,
+        ),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 672),
           child: Column(
@@ -155,54 +211,15 @@ class DocuNinjaJoinView extends StatelessWidget {
                 style: theme.textTheme.bodyLarge?.copyWith(color: tokens.ink2),
               ),
               SizedBox(height: InSpacing.lg(context)),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: tokens.surface,
-                  border: Border.all(color: tokens.border),
-                  borderRadius: BorderRadius.circular(InRadii.r3),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(InSpacing.lg(context)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.star_outline,
-                            size: 18,
-                            color: tokens.ink2,
-                          ),
-                          const SizedBox(width: InSpacing.sm),
-                          Expanded(
-                            child: Semantics(
-                              header: true,
-                              headingLevel: 2,
-                              child: Text(
-                                context.tr('docuninja_join_features_title'),
-                                style: theme.textTheme.titleMedium,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: InSpacing.md(context)),
-                      LayoutBuilder(
-                        builder: (context, c) => c.maxWidth >= 480
-                            ? Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  for (final f in features) Expanded(child: f),
-                                ],
-                              )
-                            : Column(children: features),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(height: InSpacing.lg(context)),
-              Center(child: action),
+              if (actionFirst) ...[
+                Center(child: action),
+                SizedBox(height: InSpacing.lg(context)),
+                featuresCard,
+              ] else ...[
+                featuresCard,
+                SizedBox(height: InSpacing.lg(context)),
+                Center(child: action),
+              ],
             ],
           ),
         ),
@@ -226,7 +243,7 @@ class DocuNinjaCompanySetupView extends StatelessWidget {
   Widget build(BuildContext context) => EmptyState(
     icon: Icons.draw_outlined,
     title: context.tr('welcome_to_docuninja'),
-    subtitle: context.tr('docuninja_company_setup_help'),
+    subtitle: _companySetupHelp(context),
     action: FilledButton(
       style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
       onPressed: isWorking ? null : onSetUp,
@@ -265,17 +282,17 @@ class DocuNinjaGoHomeState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final why = switch (access) {
-      DocuNinjaAccess.notJoined => 'docuninja_join_tagline',
-      DocuNinjaAccess.companySetup => 'docuninja_company_setup_help',
-      DocuNinjaAccess.planWall => 'upgrade_plan_docuninja',
-      DocuNinjaAccess.offline => 'offline',
-      DocuNinjaAccess.failed => 'an_error_occurred_try_again',
+      DocuNinjaAccess.notJoined => context.tr('docuninja_join_tagline'),
+      DocuNinjaAccess.companySetup => _companySetupHelp(context),
+      DocuNinjaAccess.planWall => context.tr('upgrade_plan_docuninja'),
+      DocuNinjaAccess.offline => context.tr('offline'),
+      DocuNinjaAccess.failed => context.tr('an_error_occurred_try_again'),
       _ => null,
     };
     return EmptyState(
       icon: Icons.draw_outlined,
       title: context.tr('docuninja'),
-      subtitle: why == null ? null : context.tr(why),
+      subtitle: why,
       action: TextButton(
         onPressed: () => context.go('/docuninja'),
         child: Text(context.tr('docuninja')),

@@ -1819,5 +1819,15 @@
   "welcome_lets_go": "Начнем",
   "checklist_retry": "Повторить",
   "switch_company": "Сменить компанию",
-  "setup_choose_file_instead": "Или выберите файл"
+  "setup_choose_file_instead": "Или выберите файл",
+  "docuninja_empty_upload": "Загрузите PDF, чтобы отправить его на подпись",
+  "docuninja_name_and_upload": "Назвать и загрузить…",
+  "edit_in_browser": "Редактировать в браузере",
+  "docuninja_place_fields": "Разместите поля для подписи",
+  "docuninja_place_fields_help": "Открывается в браузере. Лучше всего работает на компьютере.",
+  "docuninja_waiting_for_earlier_signer": "Ожидание предыдущего подписанта",
+  "sign_here_hint": "Подпишите здесь",
+  "docuninja_seats_used": "Использовано мест: :count из :total",
+  "docuninja_company_setup_help_touch": "Ваша учётная запись существует, но эта компания ещё не настроена. Нажмите кнопку ниже, чтобы настроить её.",
+  "sign_in_browser": "Подписать в браузере"
 }

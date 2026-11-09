@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
 import 'package:admin/data/services/docuninja/docuninja_client.dart';
@@ -15,6 +17,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/document_capture.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
+import 'package:admin/ui/core/widgets/icon_label_tile.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
@@ -183,7 +186,10 @@ class _CreateDialogState extends State<_CreateDialog> {
               children: [
                 TextField(
                   controller: _name,
-                  autofocus: true,
+                  // The name is optional: on touch a keyboard raised at once
+                  // covered the file pickers below it, the dialog's one
+                  // required input.
+                  autofocus: !Env.isTouchPrimary,
                   enabled: !_saving,
                   textCapitalization: TextCapitalization.sentences,
                   textInputAction: TextInputAction.done,
@@ -239,7 +245,7 @@ class _CreateDialogState extends State<_CreateDialog> {
           ),
           PrimaryDialogAction(
             label: context.tr('save'),
-            // The name field takes the focus.
+            // The name field takes the focus (with a pointer).
             autofocus: false,
             busy: _saving,
             onPressed: _save,
@@ -340,59 +346,18 @@ class _DocuNinjaDropZoneState extends State<DocuNinjaDropZone> {
   Future<void> _onFiles(List<UploadSource> sources) async {
     if (_busy) return;
     // Read now: the upload may outlive the zone, and the company may change.
-    final intake = intakeOf(context);
     final companyId = widget.companyOf?.call();
-    final accepted = sources.where(dnAcceptsUpload).toList();
-    if (accepted.length < sources.length) {
-      Notify.error(context, context.tr('invalid_file'));
-    }
-    if (accepted.isEmpty) {
-      unawaited(releaseCapturedPhotos(intake, sources));
-      return;
-    }
-    final fallback = context.tr('untitled_document');
-    final tryAgain = context.tr('an_error_occurred_try_again');
-    final mayHaveLanded = context.tr('an_error_occurred');
-    // The zone can go while the upload runs (the list goes offline, the
-    // company changes): its failure is still said, from the root.
-    final host = Navigator.of(context, rootNavigator: true).context;
-    void fail(String message) {
-      final at = mounted ? context : host;
-      if (at.mounted) Notify.error(at, message);
-    }
-
     setState(() => _busy = true);
     try {
-      final parts = await dnUploadParts(context, accepted);
-      if (!mounted) return;
-      if (parts == null) {
-        Notify.error(context, context.tr('pdf_password_required'));
-        return;
-      }
-      final doc = await widget.api.createDocument(
-        description: dnDocumentNameFromFile(
-          accepted.first.fileName,
-          fallback: fallback,
-        ),
-        files: parts,
+      await dnCreateDocumentFromFiles(
+        context,
+        api: widget.api,
+        sources: sources,
+        companyId: companyId,
+        onCreated: widget.onCreated,
+        onMaybeCreated: widget.onMaybeCreated,
       );
-      widget.onCreated(doc, companyId);
-    } on DocuNinjaException catch (e) {
-      if (e.statusCode == 408) {
-        // May have landed: the list re-reads rather than invite a retry.
-        widget.onMaybeCreated?.call();
-      }
-      final fieldError = e.fieldErrors.values
-          .map((v) => v.firstOrNull)
-          .nonNulls
-          .firstOrNull;
-      fail(e.statusCode == 408 ? mayHaveLanded : fieldError ?? tryAgain);
-    } on Object catch (e, st) {
-      _log.warning('Creating a DocuNinja document failed', e, st);
-      fail(tryAgain);
     } finally {
-      // The upload has read them: a photo taken here goes back now.
-      unawaited(releaseCapturedPhotos(intake, sources));
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -414,6 +379,216 @@ class _DocuNinjaDropZoneState extends State<DocuNinjaDropZone> {
         : null,
     onFiles: _onFiles,
   );
+}
+
+/// Makes a document of [sources] at once, named after the first file, with
+/// no dialog: the drop zone's upload, and the phone's create sheet's.
+/// [onCreated] gets the new document and [companyId] (the company the files
+/// were picked for), even when [context] has gone meanwhile, so the host can
+/// still land on it. A refused file, a cancelled password prompt and a
+/// failure are toasts; a failure is said from the root navigator when
+/// [context] has gone. Every photo in [sources] is handed back once the
+/// upload has read it.
+Future<void> dnCreateDocumentFromFiles(
+  BuildContext context, {
+  required DocuNinjaApi api,
+  required List<UploadSource> sources,
+  required void Function(DnDocument doc, String? companyId) onCreated,
+  String? companyId,
+  VoidCallback? onMaybeCreated,
+}) async {
+  // Read now: the upload may outlive the caller.
+  final intake = intakeOf(context);
+  final accepted = sources.where(dnAcceptsUpload).toList();
+  if (accepted.length < sources.length) {
+    Notify.error(context, context.tr('invalid_file'));
+  }
+  if (accepted.isEmpty) {
+    unawaited(releaseCapturedPhotos(intake, sources));
+    return;
+  }
+  final fallback = context.tr('untitled_document');
+  final tryAgain = context.tr('an_error_occurred_try_again');
+  final mayHaveLanded = context.tr('an_error_occurred');
+  // The caller can go while the upload runs (the list goes offline, the
+  // company changes): its failure is still said, from the root.
+  final host = Navigator.of(context, rootNavigator: true).context;
+  void fail(String message) {
+    final at = context.mounted ? context : host;
+    if (at.mounted) Notify.error(at, message);
+  }
+
+  try {
+    final parts = await dnUploadParts(context, accepted);
+    if (!context.mounted) return;
+    if (parts == null) {
+      Notify.error(context, context.tr('pdf_password_required'));
+      return;
+    }
+    final doc = await api.createDocument(
+      description: dnDocumentNameFromFile(
+        accepted.first.fileName,
+        fallback: fallback,
+      ),
+      files: parts,
+    );
+    onCreated(doc, companyId);
+  } on DocuNinjaException catch (e) {
+    if (e.statusCode == 408) {
+      // May have landed: the list re-reads rather than invite a retry.
+      onMaybeCreated?.call();
+    }
+    final fieldError = e.fieldErrors.values
+        .map((v) => v.firstOrNull)
+        .nonNulls
+        .firstOrNull;
+    fail(e.statusCode == 408 ? mayHaveLanded : fieldError ?? tryAgain);
+  } on Object catch (e, st) {
+    _log.warning('Creating a DocuNinja document failed', e, st);
+    fail(tryAgain);
+  } finally {
+    // The upload has read them: a photo taken here goes back now.
+    unawaited(releaseCapturedPhotos(intake, sources));
+  }
+}
+
+/// What the phone's create sheet ([showDocuNinjaCreateSheet]) was asked
+/// for: a capture or pick that uploads at once, or [named], the New
+/// Document dialog.
+enum DnCreateSource { camera, photos, files, named }
+
+/// The phone's create sheet, behind the documents list's `+` button: Camera,
+/// Photos and Files, which upload at once as the drop zone's tiles do, and
+/// the New Document dialog for a name first. Resolves to the pick once the
+/// sheet has closed (so the camera or picker it starts has no modal route
+/// in its way), or null when dismissed. Camera and Photos only on a native
+/// phone ([Env.isMobile]), as `FileDropZone.allowPhotos` has them.
+Future<DnCreateSource?> showDocuNinjaCreateSheet(BuildContext context) =>
+    showModalBottomSheet<DnCreateSource>(
+      context: context,
+      // Over the shell's running-timer pill, as the dashboard's sheet.
+      useRootNavigator: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => DnCreateSheet(
+        onSelected: (source) => Navigator.of(sheetContext).pop(source),
+      ),
+    );
+
+/// The body of [showDocuNinjaCreateSheet]; public for a widget test.
+class DnCreateSheet extends StatelessWidget {
+  const DnCreateSheet({super.key, required this.onSelected});
+
+  final ValueChanged<DnCreateSource> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final gutter = InSpacing.lg(context);
+    Widget tile(DnCreateSource source, IconData icon, String labelKey) =>
+        IconLabelTile(
+          icon: icon,
+          label: context.tr(labelKey),
+          onTap: () => onSelected(source),
+        );
+    final tiles = [
+      if (Env.isMobile) ...[
+        tile(
+          DnCreateSource.camera,
+          Icons.photo_camera_outlined,
+          'photo_source_camera',
+        ),
+        tile(
+          DnCreateSource.photos,
+          Icons.photo_library_outlined,
+          'photo_source_photos',
+        ),
+      ],
+      tile(
+        DnCreateSource.files,
+        Icons.insert_drive_file_outlined,
+        'photo_source_files',
+      ),
+    ];
+    return SafeArea(
+      top: false,
+      child: Padding(
+        // No top padding: the drag handle above already spaces the heading.
+        padding: EdgeInsetsDirectional.fromSTEB(gutter, 0, gutter, gutter),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Semantics(
+                header: true,
+                headingLevel: 1,
+                child: Text(
+                  context.tr('new_document'),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: tokens.ink,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              SizedBox(height: InSpacing.md(context)),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < tiles.length; i++) ...[
+                      if (i > 0) const SizedBox(width: InSpacing.sm),
+                      Expanded(child: tiles[i]),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: InSpacing.sm),
+              // A name first: the New Document dialog.
+              Material(
+                color: tokens.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(InRadii.r2),
+                  side: BorderSide(color: tokens.border),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: ListTile(
+                  leading: Icon(Icons.edit_note_outlined, color: tokens.ink2),
+                  title: Text(context.tr('docuninja_name_and_upload')),
+                  onTap: () => onSelected(DnCreateSource.named),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The files a create-sheet pick ([source]) yields: a photo taken, photos
+/// picked, or files from the device's picker (DocuNinja's types). Empty for
+/// a cancel, and for [DnCreateSource.named], which picks nothing here.
+Future<List<UploadSource>> dnPickCreateSources(
+  BuildContext context,
+  DnCreateSource source,
+) async {
+  switch (source) {
+    case DnCreateSource.camera:
+      return captureDocumentPhoto(context);
+    case DnCreateSource.photos:
+      return pickGalleryPhotos(context, multiple: true);
+    case DnCreateSource.files:
+      // An empty list is a cancel.
+      final files = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: kDnUploadExtensions,
+      );
+      return uploadSourcesFromPicked(files);
+    case DnCreateSource.named:
+      return const [];
+  }
 }
 
 /// React's "PDF password required" prompt for one file.

@@ -1819,5 +1819,15 @@
   "welcome_lets_go": "始めましょう",
   "checklist_retry": "再試行",
   "switch_company": "会社を切り替え",
-  "setup_choose_file_instead": "代わりにファイルを選択"
+  "setup_choose_file_instead": "代わりにファイルを選択",
+  "docuninja_empty_upload": "PDF をアップロードして署名を依頼",
+  "docuninja_name_and_upload": "名前を付けてアップロード…",
+  "edit_in_browser": "ブラウザで編集",
+  "docuninja_place_fields": "署名フィールドを配置",
+  "docuninja_place_fields_help": "ブラウザで開きます。パソコンでの操作をおすすめします。",
+  "docuninja_waiting_for_earlier_signer": "前の署名者を待っています",
+  "sign_here_hint": "ここに署名",
+  "docuninja_seats_used": ":total 席中 :count 席を使用中",
+  "docuninja_company_setup_help_touch": "アカウントは存在しますが、この会社はまだ設定されていません。下のボタンをタップして設定してください。",
+  "sign_in_browser": "ブラウザで署名"
 }

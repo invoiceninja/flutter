@@ -1819,5 +1819,15 @@
   "welcome_lets_go": "Začnimo",
   "checklist_retry": "Poskusi znova",
   "switch_company": "Zamenjaj podjetje",
-  "setup_choose_file_instead": "Namesto tega izberite datoteko"
+  "setup_choose_file_instead": "Namesto tega izberite datoteko",
+  "docuninja_empty_upload": "Naložite PDF, da ga pošljete v podpis",
+  "docuninja_name_and_upload": "Poimenuj in naloži…",
+  "edit_in_browser": "Uredi v brskalniku",
+  "docuninja_place_fields": "Postavite polja za podpis",
+  "docuninja_place_fields_help": "Odpre se v vašem brskalniku. Najbolje deluje na računalniku.",
+  "docuninja_waiting_for_earlier_signer": "Čakanje na prejšnjega podpisnika",
+  "sign_here_hint": "Podpišite tukaj",
+  "docuninja_seats_used": "Uporabljena mesta: :count od :total",
+  "docuninja_company_setup_help_touch": "Vaš račun obstaja, vendar to podjetje še ni nastavljeno. Tapnite spodnji gumb, da ga nastavite.",
+  "sign_in_browser": "Podpiši v brskalniku"
 }

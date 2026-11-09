@@ -1738,5 +1738,15 @@
   "welcome_lets_go": "Vamos começar",
   "checklist_retry": "Tentar novamente",
   "switch_company": "Mudar de empresa",
-  "setup_choose_file_instead": "Escolher antes um ficheiro"
+  "setup_choose_file_instead": "Escolher antes um ficheiro",
+  "docuninja_empty_upload": "Carregue um PDF para o enviar para assinatura",
+  "docuninja_name_and_upload": "Nomear e carregar…",
+  "edit_in_browser": "Editar no navegador",
+  "docuninja_place_fields": "Posicionar campos de assinatura",
+  "docuninja_place_fields_help": "Abre no seu navegador. Funciona melhor num computador.",
+  "docuninja_waiting_for_earlier_signer": "A aguardar um signatário anterior",
+  "sign_here_hint": "Assine aqui",
+  "docuninja_seats_used": ":count de :total licenças em utilização",
+  "docuninja_company_setup_help_touch": "A sua conta existe, mas esta empresa ainda não está configurada. Toque no botão abaixo para a configurar.",
+  "sign_in_browser": "Assinar no navegador"
 }

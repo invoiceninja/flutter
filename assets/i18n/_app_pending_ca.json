@@ -1738,5 +1738,15 @@
   "welcome_lets_go": "Som-hi",
   "checklist_retry": "Torna-ho a provar",
   "switch_company": "Canvia d'empresa",
-  "setup_choose_file_instead": "O trieu un fitxer"
+  "setup_choose_file_instead": "O trieu un fitxer",
+  "docuninja_empty_upload": "Pengeu un PDF per enviar-lo a signar",
+  "docuninja_name_and_upload": "Anomena i penja…",
+  "edit_in_browser": "Edita al navegador",
+  "docuninja_place_fields": "Col·loca els camps de signatura",
+  "docuninja_place_fields_help": "S'obre al navegador. Funciona millor en un ordinador.",
+  "docuninja_waiting_for_earlier_signer": "S'està esperant un signant anterior",
+  "sign_here_hint": "Signeu aquí",
+  "docuninja_seats_used": ":count de :total llicències utilitzades",
+  "docuninja_company_setup_help_touch": "El vostre compte existeix, però aquesta empresa encara no està configurada. Toqueu el botó de sota per configurar-la.",
+  "sign_in_browser": "Signa al navegador"
 }

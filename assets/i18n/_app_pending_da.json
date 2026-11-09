@@ -1742,5 +1742,15 @@
   "welcome_lets_go": "Kom i gang",
   "checklist_retry": "Prøv igen",
   "switch_company": "Skift firma",
-  "setup_choose_file_instead": "Vælg en fil i stedet"
+  "setup_choose_file_instead": "Vælg en fil i stedet",
+  "docuninja_empty_upload": "Upload en PDF for at sende den til underskrift",
+  "docuninja_name_and_upload": "Navngiv og upload…",
+  "edit_in_browser": "Rediger i browser",
+  "docuninja_place_fields": "Placer underskriftsfelter",
+  "docuninja_place_fields_help": "Åbner i din browser. Fungerer bedst på en computer.",
+  "docuninja_waiting_for_earlier_signer": "Venter på en tidligere underskriver",
+  "sign_here_hint": "Underskriv her",
+  "docuninja_seats_used": ":count af :total pladser brugt",
+  "docuninja_company_setup_help_touch": "Din konto findes, men denne virksomhed er ikke sat op endnu. Tryk på knappen nedenfor for at sætte den op.",
+  "sign_in_browser": "Underskriv i browser"
 }

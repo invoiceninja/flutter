@@ -1738,5 +1738,15 @@
   "welcome_lets_go": "Krenimo",
   "checklist_retry": "Pokušaj ponovno",
   "switch_company": "Promijeni tvrtku",
-  "setup_choose_file_instead": "Umjesto toga odaberite datoteku"
+  "setup_choose_file_instead": "Umjesto toga odaberite datoteku",
+  "docuninja_empty_upload": "Učitajte PDF da biste ga poslali na potpis",
+  "docuninja_name_and_upload": "Imenuj i učitaj…",
+  "edit_in_browser": "Uredi u pregledniku",
+  "docuninja_place_fields": "Postavi polja za potpis",
+  "docuninja_place_fields_help": "Otvara se u vašem pregledniku. Najbolje radi na računalu.",
+  "docuninja_waiting_for_earlier_signer": "Čeka se prethodni potpisnik",
+  "sign_here_hint": "Potpišite ovdje",
+  "docuninja_seats_used": "Iskorišteno mjesta: :count od :total",
+  "docuninja_company_setup_help_touch": "Vaš račun postoji, ali ova tvrtka još nije postavljena. Dodirnite gumb u nastavku da biste je postavili.",
+  "sign_in_browser": "Potpiši u pregledniku"
 }

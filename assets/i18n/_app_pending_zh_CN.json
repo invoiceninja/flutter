@@ -1819,5 +1819,15 @@
   "welcome_lets_go": "开始吧",
   "checklist_retry": "重试",
   "switch_company": "切换公司",
-  "setup_choose_file_instead": "改为选择文件"
+  "setup_choose_file_instead": "改为选择文件",
+  "docuninja_empty_upload": "上传 PDF 以发送签署",
+  "docuninja_name_and_upload": "命名并上传…",
+  "edit_in_browser": "在浏览器中编辑",
+  "docuninja_place_fields": "放置签名字段",
+  "docuninja_place_fields_help": "将在浏览器中打开。在电脑上使用效果最佳。",
+  "docuninja_waiting_for_earlier_signer": "正在等待前一位签署人",
+  "sign_here_hint": "在此签名",
+  "docuninja_seats_used": "已使用 :count / :total 个席位",
+  "docuninja_company_setup_help_touch": "您的账户已存在，但此公司尚未设置。请点按下方按钮进行设置。",
+  "sign_in_browser": "在浏览器中签署"
 }

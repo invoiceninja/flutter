@@ -1819,5 +1819,15 @@
   "welcome_lets_go": "Да започнеме",
   "checklist_retry": "Обиди се повторно",
   "switch_company": "Смени компанија",
-  "setup_choose_file_instead": "Наместо тоа изберете датотека"
+  "setup_choose_file_instead": "Наместо тоа изберете датотека",
+  "docuninja_empty_upload": "Прикачете PDF за да го испратите на потпис",
+  "docuninja_name_and_upload": "Именувај и прикачи…",
+  "edit_in_browser": "Уреди во прелистувач",
+  "docuninja_place_fields": "Постави полиња за потпис",
+  "docuninja_place_fields_help": "Се отвора во вашиот прелистувач. Најдобро работи на компјутер.",
+  "docuninja_waiting_for_earlier_signer": "Се чека претходен потписник",
+  "sign_here_hint": "Потпишете тука",
+  "docuninja_seats_used": "Искористени места: :count од :total",
+  "docuninja_company_setup_help_touch": "Вашата сметка постои, но оваа компанија сè уште не е поставена. Допрете го копчето подолу за да ја поставите.",
+  "sign_in_browser": "Потпиши во прелистувач"
 }

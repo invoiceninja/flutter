@@ -1738,5 +1738,15 @@
   "welcome_lets_go": "Да започваме",
   "checklist_retry": "Опитай отново",
   "switch_company": "Смяна на фирма",
-  "setup_choose_file_instead": "Изберете файл вместо това"
+  "setup_choose_file_instead": "Изберете файл вместо това",
+  "docuninja_empty_upload": "Качете PDF, за да го изпратите за подпис",
+  "docuninja_name_and_upload": "Име и качване…",
+  "edit_in_browser": "Редактиране в браузъра",
+  "docuninja_place_fields": "Поставяне на полета за подпис",
+  "docuninja_place_fields_help": "Отваря се в браузъра ви. Работи най-добре на компютър.",
+  "docuninja_waiting_for_earlier_signer": "Изчакване на предишен подписващ",
+  "sign_here_hint": "Подпишете тук",
+  "docuninja_seats_used": "Използвани места: :count от :total",
+  "docuninja_company_setup_help_touch": "Профилът ви съществува, но тази фирма все още не е настроена. Моля, докоснете бутона по-долу, за да я настроите.",
+  "sign_in_browser": "Подписване в браузъра"
 }

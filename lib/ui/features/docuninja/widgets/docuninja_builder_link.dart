@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:admin/app/env.dart';
 import 'package:admin/domain/docuninja/docuninja_create.dart';
 import 'package:admin/domain/docuninja/docuninja_embed.dart';
 import 'package:admin/l10n/localization.dart';
@@ -21,6 +22,32 @@ bool get dnEmbedSupported {
     _ => false,
   };
 }
+
+/// Whether the field builder opens outside the app here: the embed is off
+/// ([kDnEmbeddedBuilder]) or this platform has no web view for it
+/// ([dnEmbedSupported]), so [openDocuNinjaBuilder] takes the browser.
+bool dnBuilderOpensExternally() => !(kDnEmbeddedBuilder && dnEmbedSupported);
+
+/// Whether a create on this device should NOT launch the builder at once: a
+/// phone whose builder would open in the browser. Leaving the app straight
+/// after an upload strands the user in a browser tab, so the document
+/// screen offers the builder instead (a "Place signature fields" card).
+/// docs/docuninja.md.
+bool dnDeferBuilderOnPhone() => Env.isMobile && dnBuilderOpensExternally();
+
+/// Every Edit that opens the builder says where it goes: `open_in_new` and
+/// "Edit in browser" while the builder opens externally, so no tap leaves
+/// the app without warning (docs/docuninja.md § On a phone).
+IconData dnBuilderEditIcon() =>
+    dnBuilderOpensExternally() ? Icons.open_in_new : Icons.edit_outlined;
+
+String dnBuilderEditLabelKey() =>
+    dnBuilderOpensExternally() ? 'edit_in_browser' : 'edit';
+
+/// Sign, the same way: React's sign page opens in the browser unless the
+/// builder is embedded.
+String dnSignLabelKey() =>
+    dnBuilderOpensExternally() ? 'sign_in_browser' : 'sign';
 
 /// The app's route for the embedded builder of a document, or of a
 /// template when [template].
@@ -99,11 +126,17 @@ void notifyAndOpenDocuNinjaBuilder(
     );
   }
 
-  if (kIsWeb && !(kDnEmbeddedBuilder && dnEmbedSupported)) {
+  // The web can't open a tab here (above), and a phone must not be thrown
+  // out to the browser by a save: in both the builder is the toast's
+  // button, the user's own choice to leave (docs/docuninja.md § On a phone).
+  if ((kIsWeb || Env.isMobile) && dnBuilderOpensExternally()) {
     Notify.success(
       context,
       message,
-      action: NotifyAction(context.tr('edit'), open),
+      action: NotifyAction(
+        context.tr(Env.isMobile ? 'edit_in_browser' : 'edit'),
+        open,
+      ),
     );
     return;
   }

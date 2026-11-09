@@ -29,7 +29,7 @@ import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view
 import 'package:admin/ui/features/docuninja/widgets/docuninja_builder_link.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_bulk.dart';
 import 'package:admin/ui/features/docuninja/widgets/docuninja_documents_list.dart'
-    show kDocuNinjaTableMinWidth;
+    show dnShowsTable;
 import 'package:admin/ui/features/docuninja/widgets/docuninja_table.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/ui/core/widgets/filter_icon_button.dart';
@@ -52,6 +52,9 @@ class DocuNinjaTemplatesScreen extends StatefulWidget {
 }
 
 enum _Action { edit, use, options, archive, restore, delete }
+
+/// The AppBar `⋮` a narrow pane folds Select and Refresh into.
+enum _MenuAction { select, refresh }
 
 /// React's bulk actions on the templates table.
 final _kBulkActions = dnLifecycleBulkActions<DnBlueprint>(
@@ -136,11 +139,8 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
   /// React's lifecycle filter: without it an archived or deleted template
   /// could never be listed again, nor restored.
   Future<void> _pickStates(DocuNinjaTemplatesViewModel vm) async {
-    final picked =
-        await showDialog<({Set<String> states, Set<String> statuses})>(
-          context: context,
-          builder: (_) => DnFilterDialog(states: vm.states),
-        );
+    // A bottom sheet on a phone, the dialog elsewhere.
+    final picked = await showDnFilterPicker(context, states: vm.states);
     if (picked != null) {
       vm.setFilters(statuses: const {}, states: picked.states);
     }
@@ -159,54 +159,116 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
         final canView = state.can('blueprints', DnAction.view);
         final canCreate = state.can('blueprints', DnAction.create);
         final vm = state.isReady && canView ? _templates(state) : null;
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(context.tr('templates')),
-            actions: [
-              if (vm != null && canCreate)
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  tooltip: context.tr('new_template'),
-                  onPressed: _busy ? null : () => _create(vm),
-                ),
-              // React's table checkboxes, for its bulk actions; on touch a
-              // long press on a row starts it too.
-              if (vm != null)
-                ListenableBuilder(
-                  listenable: vm,
-                  builder: (context, _) =>
-                      vm.items.isEmpty || vm.isSelecting || _bulkActions.isEmpty
-                      ? const SizedBox.shrink()
-                      : IconButton(
-                          icon: const Icon(Icons.checklist),
-                          tooltip: context.tr('select'),
-                          onPressed: vm.enterSelectionMode,
-                        ),
-                ),
-              if (vm != null)
-                ListenableBuilder(
-                  listenable: vm,
-                  builder: (context, _) => FilterIconButton(
-                    activeCount: vm.activeFilterCount,
-                    onPressed: () => _pickStates(vm),
-                  ),
-                ),
-              if (vm != null)
-                ListenableBuilder(
-                  listenable: vm,
-                  builder: (context, _) => IconButton(
-                    icon: const Icon(Icons.refresh),
-                    tooltip: context.tr('refresh'),
-                    onPressed: vm.isLoading ? null : vm.refresh,
-                  ),
-                ),
-            ],
-          ),
-          body: _body(context, state, vm, canView, canCreate),
+        return LayoutBuilder(
+          builder: (context, c) {
+            // React's table on a wide pane; rows on a narrow one and on a
+            // phone in either orientation (a landscape phone is not a
+            // small desktop).
+            final wide = dnShowsTable(context, c.maxWidth);
+            return Scaffold(
+              appBar: AppBar(
+                title: Text(context.tr('templates')),
+                actions: [
+                  if (vm != null)
+                    // Selecting on a narrow pane, the selection bar under
+                    // the app bar is the chrome: the app bar's own actions
+                    // step aside, as the Documents screen's do.
+                    ListenableBuilder(
+                      listenable: vm,
+                      builder: (context, _) => !wide && vm.isSelecting
+                          ? const SizedBox.shrink()
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (canCreate)
+                                  IconButton(
+                                    icon: const Icon(Icons.add),
+                                    tooltip: context.tr('new_template'),
+                                    onPressed: _busy ? null : () => _create(vm),
+                                  ),
+                                ..._listActions(context, vm, wide: wide),
+                              ],
+                            ),
+                    ),
+                ],
+              ),
+              body: _body(context, state, vm, canView, canCreate, wide),
+            );
+          },
         );
       },
     );
   }
+
+  /// Select is offered while there are templates, a bulk action is
+  /// allowed and nothing is selected yet.
+  bool _canSelect(DocuNinjaTemplatesViewModel vm) =>
+      vm.items.isNotEmpty && !vm.isSelecting && _bulkActions.isNotEmpty;
+
+  /// Select, the filter and Refresh as icons on a wide pane; a narrow one
+  /// keeps the filter and folds Select and Refresh into a `⋮`, as the
+  /// Documents screen does, so the title keeps its room. Pull to refresh
+  /// works on both.
+  List<Widget> _listActions(
+    BuildContext context,
+    DocuNinjaTemplatesViewModel vm, {
+    required bool wide,
+  }) => [
+    // React's table checkboxes, for its bulk actions; on touch a long press
+    // on a row starts it too.
+    if (wide)
+      ListenableBuilder(
+        listenable: vm,
+        builder: (context, _) => !_canSelect(vm)
+            ? const SizedBox.shrink()
+            : IconButton(
+                icon: const Icon(Icons.checklist),
+                tooltip: context.tr('select'),
+                onPressed: vm.enterSelectionMode,
+              ),
+      ),
+    ListenableBuilder(
+      listenable: vm,
+      builder: (context, _) => FilterIconButton(
+        activeCount: vm.activeFilterCount,
+        onPressed: () => _pickStates(vm),
+      ),
+    ),
+    if (wide)
+      ListenableBuilder(
+        listenable: vm,
+        builder: (context, _) => IconButton(
+          icon: const Icon(Icons.refresh),
+          tooltip: context.tr('refresh'),
+          onPressed: vm.isLoading ? null : vm.refresh,
+        ),
+      )
+    else
+      ListenableBuilder(
+        listenable: vm,
+        builder: (context, _) => EntityActionsPopupButton<_MenuAction>(
+          items: [
+            if (_canSelect(vm))
+              EntityActionItem(
+                kind: _MenuAction.select,
+                icon: Icons.checklist,
+                label: context.tr('select'),
+                enabled: true,
+                onTap: vm.enterSelectionMode,
+              ),
+            EntityActionItem(
+              kind: _MenuAction.refresh,
+              icon: Icons.refresh,
+              label: context.tr('refresh'),
+              // Always on: a refresh already in flight is shared.
+              enabled: true,
+              startsGroup: _canSelect(vm),
+              onTap: vm.refresh,
+            ),
+          ],
+        ),
+      ),
+  ];
 
   Widget _body(
     BuildContext context,
@@ -214,6 +276,7 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
     DocuNinjaTemplatesViewModel? vm,
     bool canView,
     bool canCreate,
+    bool wide,
   ) {
     switch (state.access) {
       case DocuNinjaAccess.unavailable || DocuNinjaAccess.loading:
@@ -252,38 +315,34 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
         ),
       ),
     );
-    return LayoutBuilder(
-      builder: (context, c) {
-        // React's table on a wide pane, a row per template on a narrow one.
-        final wide = c.maxWidth >= kDocuNinjaTableMinWidth;
-        return ListenableBuilder(
-          listenable: vm,
-          // Back leaves selection before it leaves the screen.
-          builder: (context, _) => PopScope(
-            canPop: !vm.isSelecting,
-            onPopInvokedWithResult: (didPop, _) {
-              if (!didPop) vm.clearSelection();
-            },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // The selection header takes the search row's place while
-                // selecting; the search keeps its text (the controller is the
-                // screen's).
-                if (vm.isSelecting)
-                  DnSelectionBar<DnBlueprint>(
-                    vm: vm,
-                    actions: _bulkActions,
-                    wide: wide,
-                  )
-                else
-                  search(wide ? kDnTableInset : 16),
-                Expanded(child: _list(context, vm, canCreate, wide)),
-              ],
-            ),
-          ),
-        );
-      },
+    return ListenableBuilder(
+      listenable: vm,
+      // Back leaves selection before it leaves the screen.
+      builder: (context, _) => PopScope(
+        canPop: !vm.isSelecting,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) vm.clearSelection();
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // The selection header takes the search row's place while
+            // selecting; the search keeps its text (the controller is the
+            // screen's).
+            if (vm.isSelecting)
+              DnSelectionBar<DnBlueprint>(
+                vm: vm,
+                actions: _bulkActions,
+                wide: wide,
+                // A narrow bar's actions as icon buttons, not a second ⋮.
+                inlineActions: true,
+              )
+            else
+              search(wide ? kDnTableInset : 16),
+            Expanded(child: _list(context, vm, canCreate, wide)),
+          ],
+        ),
+      ),
     );
   }
 
@@ -363,6 +422,9 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
                 ),
                 // No row menu while selecting: the bulk actions are it.
                 actions: selecting ? const [] : _items(context, vm, t),
+                selecting: selecting,
+                opensBrowser:
+                    !selecting && canCreate && dnBuilderOpensExternally(),
               ),
             );
           },
@@ -451,7 +513,7 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
       // The template's builder, as a row tap opens it (its route checks
       // create, not edit).
       if (_can('blueprints', DnAction.create))
-        item(_Action.edit, Icons.edit_outlined, 'edit'),
+        item(_Action.edit, dnBuilderEditIcon(), dnBuilderEditLabelKey()),
       if (!t.isDeleted && _can('documents', DnAction.create))
         item(_Action.use, Icons.note_add_outlined, 'use_template'),
       if (canEdit) item(_Action.options, Icons.tune_outlined, 'options'),
@@ -616,6 +678,8 @@ const List<DnTableColumn> _kTemplateColumns = [
 
 class _TemplateRow extends StatelessWidget {
   const _TemplateRow({
+    this.opensBrowser = false,
+    this.selecting = false,
     required this.template,
     required this.onTap,
     required this.actions,
@@ -634,6 +698,15 @@ class _TemplateRow extends StatelessWidget {
   final VoidCallback? onLongPress;
   final bool selected;
   final Widget? leading;
+
+  /// A tap opens the builder in the browser: the narrow row says so with an
+  /// `open_in_new` hint, so the main tap target never leaves the app
+  /// unannounced (docs/docuninja.md § On a phone).
+  final bool opensBrowser;
+
+  /// Selection is on: a narrow row drops its ⋮ (the bulk actions are the
+  /// menu) as the Documents rows do; the table keeps the room.
+  final bool selecting;
 
   @override
   Widget build(BuildContext context) {
@@ -712,7 +785,8 @@ class _TemplateRow extends StatelessWidget {
       content = ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 56),
         child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 4, 8),
+          // The Documents list's narrow inset, both edges.
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
               ?leading,
@@ -741,9 +815,23 @@ class _TemplateRow extends StatelessWidget {
                   ],
                 ),
               ),
+              if (opensBrowser) ...[
+                const SizedBox(width: InSpacing.sm),
+                Icon(
+                  Icons.open_in_new,
+                  size: 16,
+                  color: tokens.ink3,
+                  semanticLabel: context.tr('edit_in_browser'),
+                ),
+              ],
               const SizedBox(width: InSpacing.sm),
-              pill,
-              menu,
+              // Capped, as the Documents list's, so a long translated
+              // status at a large text size ellipsizes inside the pill.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: pill,
+              ),
+              if (!selecting) menu,
             ],
           ),
         ),

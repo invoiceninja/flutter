@@ -1819,5 +1819,15 @@
   "welcome_lets_go": "Jdeme na to",
   "checklist_retry": "Zkusit znovu",
   "switch_company": "Přepnout firmu",
-  "setup_choose_file_instead": "Nebo zvolte soubor"
+  "setup_choose_file_instead": "Nebo zvolte soubor",
+  "docuninja_empty_upload": "Nahrajte PDF a odešlete ho k podpisu",
+  "docuninja_name_and_upload": "Pojmenovat a nahrát…",
+  "edit_in_browser": "Upravit v prohlížeči",
+  "docuninja_place_fields": "Umístit podpisová pole",
+  "docuninja_place_fields_help": "Otevře se v prohlížeči. Nejlépe funguje na počítači.",
+  "docuninja_waiting_for_earlier_signer": "Čeká se na předchozího podepisujícího",
+  "sign_here_hint": "Podepište zde",
+  "docuninja_seats_used": "Využito míst: :count z :total",
+  "docuninja_company_setup_help_touch": "Váš účet existuje, ale tato společnost ještě není nastavena. Klepněte prosím na tlačítko níže a nastavte ji.",
+  "sign_in_browser": "Podepsat v prohlížeči"
 }

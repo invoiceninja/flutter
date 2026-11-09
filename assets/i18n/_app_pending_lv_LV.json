@@ -1820,5 +1820,15 @@
   "checklist_retry": "Mēģināt vēlreiz",
   "switch_company": "Mainīt uzņēmumu",
   "logout": "Izrakstīties",
-  "setup_choose_file_instead": "Tā vietā izvēlēties failu"
+  "setup_choose_file_instead": "Tā vietā izvēlēties failu",
+  "docuninja_empty_upload": "Augšupielādējiet PDF, lai nosūtītu to parakstīšanai",
+  "docuninja_name_and_upload": "Nosaukt un augšupielādēt…",
+  "edit_in_browser": "Rediģēt pārlūkprogrammā",
+  "docuninja_place_fields": "Izvietot paraksta laukus",
+  "docuninja_place_fields_help": "Atveras jūsu pārlūkprogrammā. Vislabāk darbojas datorā.",
+  "docuninja_waiting_for_earlier_signer": "Gaida iepriekšējo parakstītāju",
+  "sign_here_hint": "Parakstieties šeit",
+  "docuninja_seats_used": "Izmantotas vietas: :count no :total",
+  "docuninja_company_setup_help_touch": "Jūsu konts pastāv, bet šis uzņēmums vēl nav iestatīts. Lūdzu, pieskarieties zemāk esošajai pogai, lai to iestatītu.",
+  "sign_in_browser": "Parakstīt pārlūkprogrammā"
 }

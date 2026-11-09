@@ -1357,13 +1357,28 @@ class _MarkdownTextFieldState extends State<MarkdownTextField>
     ]);
   }
 
+  /// The list buttons toggle, like every other editor's: a paragraph becomes
+  /// a list item of [type], a list item of [type] goes back to a paragraph,
+  /// and one of the other type switches. super_editor's paragraph-to-list
+  /// command casts its node to `ParagraphNode`, so pressing a list button on
+  /// a line that was already a list item threw (Sentry FLUTTER-ADMIN-X) —
+  /// hence the branch on the node, and nothing for any other kind of node.
   void _convertSelectedToList(ListItemType type) {
     final selection = _composer.selection;
     if (selection == null) return;
     final nodeId = selection.extent.nodeId;
-    _editor.execute([
-      ConvertParagraphToListItemRequest(nodeId: nodeId, type: type),
-    ]);
+    final node = _document.getNodeById(nodeId);
+    final EditRequest request;
+    if (node is ListItemNode) {
+      request = node.type == type
+          ? ConvertListItemToParagraphRequest(nodeId: nodeId)
+          : ChangeListItemTypeRequest(nodeId: nodeId, newType: type);
+    } else if (node is ParagraphNode) {
+      request = ConvertParagraphToListItemRequest(nodeId: nodeId, type: type);
+    } else {
+      return;
+    }
+    _editor.execute([request]);
   }
 
   @override

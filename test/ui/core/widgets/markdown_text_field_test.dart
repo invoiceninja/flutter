@@ -277,6 +277,51 @@ void main() {
     expect(controller.flush(), '<ol><li>One</li><li>Two</li></ol>');
   });
 
+  testWidgets('the list buttons toggle a line that is already a list item', (
+    tester,
+  ) async {
+    // super_editor's paragraph-to-list command casts its node to
+    // `ParagraphNode`; pressing a list button on a list item threw
+    // (Sentry FLUTTER-ADMIN-X).
+    final controller = MarkdownFieldController();
+    await tester.pumpWidget(
+      wrap(
+        Center(
+          child: SizedBox(
+            width: 400,
+            child: MarkdownTextField(
+              label: 'Terms',
+              showLabel: false,
+              controller: controller,
+              initialValue: '<ul><li>One</li></ul>',
+              onChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byType(MarkdownTextField));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(SuperEditor), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.format_list_numbered));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(controller.flush(), '<ol><li>One</li></ol>');
+
+    await tester.tap(find.byIcon(Icons.format_list_numbered));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(controller.flush(), '<p>One</p>');
+
+    await tester.tap(find.byIcon(Icons.format_list_bulleted));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(controller.flush(), '<ul><li>One</li></ul>');
+  });
+
   testWidgets('a pasted email keeps its line breaks, as HTML', (tester) async {
     // invoiceninja/flutter#159: a note pasted from an email looked right here
     // and ran together on the web, because these fields are HTML there and a

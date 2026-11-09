@@ -140,6 +140,8 @@ The wide bar's New Invoice button used to check the module alone. A user without
 
 ## The needs-attention band leads both layouts
 
+**Above it, for a new company only: the setup checklist.** `DashboardSetupChecklistSlot` is the first child of both bodies — one child always, like the band's slot — and while it leads a company with no invoices the zero figures and empty panels step back (`HiddenEmptyPanelsBuilder.force`). docs/first-run-welcome.md.
+
 **The band is pinned to the head of the page on the wide and the narrow body alike — its lists side by side on a wide screen, tabs that switch rows in place on a phone — and "nothing to show" is a verdict over every bucket, computed once, in the view model.** It replaced the wide grid's Past Due panel (below the chart, behind a large empty state) and the phone's "Needs your attention" card (under the metric cards, ~690 px down). The figures and the chart describe a period; the band describes *now*, which is why it ignores the date range and why it comes first.
 
 **Three buckets, all from lists the dashboard already downloads** — no request of its own (`helpers/needs_attention.dart`, pure, with `today` passed in):

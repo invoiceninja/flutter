@@ -129,6 +129,8 @@ pops as the email is queued, so an email win lands on a resting screen.
 
 ## Cadence
 
+**The first-run Welcome holds it too.** `promoShownRecently` also asks `WelcomeController.holdsBackPromptsAt` — despite its name, any recent automatic prompt — so no review is asked while a Welcome may open or within a week of it (docs/first-run-welcome.md).
+
 - **Native**: an ask sets `nextAt = +120 days` and `newerThan = this version`, and at most 3 asks
   in any 365 days — Apple's own cap, kept as ours since neither OS says what happened. A re-ask
   therefore always comes on an update launch, where What's New opens and holds prompts back a

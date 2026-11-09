@@ -52,6 +52,7 @@ import 'package:admin/ui/features/dashboard/widgets/kpi_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/manage_dashboard_cards_sheet.dart';
 import 'package:admin/ui/features/dashboard/widgets/mobile_dashboard_body.dart';
 import 'package:admin/ui/features/dashboard/widgets/needs_attention_band.dart';
+import 'package:admin/ui/features/dashboard/widgets/setup_checklist_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/recent_payments_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/section_listenable.dart';
 import 'package:admin/ui/features/dashboard/widgets/task_calendar_card.dart';
@@ -92,6 +93,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// line. Built once per company, never in `build`: a stream made there is a
   /// new object each time and would re-subscribe on every rebuild.
   late Stream<int> _failedSaves;
+
+  /// The setup checklist is leading a company with no invoices yet: the zero
+  /// figures and empty panels step back behind it
+  /// (docs/first-run-welcome.md).
+  bool _checklistOverEmpty = false;
+
+  void _onChecklistEmpty(bool empty) {
+    if (empty != _checklistOverEmpty && mounted) {
+      setState(() => _checklistOverEmpty = empty);
+    }
+  }
+
+  /// The first child of both bodies — always one child.
+  Widget _checklistSlot() => DashboardSetupChecklistSlot(
+    key: ValueKey('setup_checklist_$_companyId'),
+    companyId: _companyId,
+    // A create opens a blank form the way the `+` does (`_create`), never a
+    // bare `go` that could reuse a mounted, seeded one.
+    onNavigate: (route) => switch (route) {
+      kChecklistInvoiceRoute => _create(EntityType.invoice),
+      kChecklistClientRoute => _create(EntityType.client),
+      _ => _safeNavigate(route),
+    },
+    onEmptyChanged: _onChecklistEmpty,
+  );
 
   @override
   void initState() {
@@ -695,6 +721,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return MobileDashboardBody(
       vm: _vm,
       formatter: _formatter!,
+      leading: _checklistSlot(),
+      forceHideEmpty: _checklistOverEmpty,
       fabClearance: fabClearance,
       showFigures: _showsFigures,
       attentionActions: _attentionActions(),
@@ -732,8 +760,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// `view_dashboard`, so for them those sections could only ever show a
   /// retry; the band and the list panels are ordinary list requests and stay.
   bool get _showsFigures =>
-      _services.auth.session.value?.currentCompany?.can('view_dashboard') ??
-      false;
+      !_checklistOverEmpty &&
+      (_services.auth.session.value?.currentCompany?.can('view_dashboard') ??
+          false);
 
   bool _panelVisible(String kind) =>
       _vm.panelPrefs.any((p) => p.kind == kind && p.visible);
@@ -936,11 +965,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final expensesOn = _moduleOn(EntityType.expense);
     final zoneGap = const SizedBox(height: InSpacing.xl);
     final children = <Widget>[
-      // First, and one child whether or not it draws — see
-      // `DashboardAttentionSlot`.
+      // The setup checklist leads a new company; one child whether or not it
+      // draws, like the band under it.
+      _checklistSlot(),
+      // One child whether or not it draws — see `DashboardAttentionSlot`.
       HiddenEmptyPanelsBuilder(
         vm: _vm,
         pref: _services.hideEmptyPanels,
+        force: _checklistOverEmpty,
         builder: (context, hidden) => ListenableBuilder(
           // Tap-to-call decides whether rows carry a call button.
           listenable: _services.phoneActions,
@@ -1190,6 +1222,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return HiddenEmptyPanelsBuilder(
       vm: _vm,
       pref: _services.hideEmptyPanels,
+      force: _checklistOverEmpty,
       builder: (context, hidden) => DashboardPanelGrid(
         panelPrefs: _vm.panelPrefs,
         builders: builders,

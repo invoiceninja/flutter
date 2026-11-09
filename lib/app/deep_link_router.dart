@@ -85,6 +85,11 @@ class DeepLinkRouter {
   /// same to a link the user re-tried after cancelling one of its prompts.
   final _pending = <Uri>{};
 
+  /// A link was opened in this process — an OS delivery, the web page URL,
+  /// a pasted link. The first-run Welcome stands down for such a launch: the
+  /// user came for something specific (docs/first-run-welcome.md).
+  bool arrivedThisLaunch = false;
+
   /// Serialises [open]. The [_pending] guard only catches an *identical*
   /// URI; two different links arriving while a company switch is mid-dialog
   /// would otherwise interleave two modal sequences.
@@ -177,6 +182,7 @@ class DeepLinkRouter {
   /// screen and any company switch — and never when the link is refused, a
   /// guard is cancelled, or the session ends first.
   Future<void> open(Uri uri, {DeepLinkArrival? then}) {
+    arrivedThisLaunch = true;
     // The calendar OAuth return keeps its query string (a single-use `handoff`
     // token) and bypasses the queue entirely: it is a machine-to-machine
     // handoff to a screen that self-routes, not a place the user asked to go.

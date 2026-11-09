@@ -57,7 +57,7 @@ Plus two non-negotiables carried from admin-portal:
 | A self-hosted server's TLS certificate the device refuses | `docs/trusting-a-self-hosted-certificate.md` |
 | Setup: entitlements, dev login, Google Sign-In IDs, app icons | `docs/setup.md` |
 | Release builds, Sentry DSN, iOS archive, F-Droid, store deploys | `docs/setup.md` § Release builds with Sentry · `docs/fdroid.md` · `docs/store-deployment-setup.md` |
-| Writing release notes, or the What's New dialog after an update | § Release Notes · `docs/release-notes.md` · `docs/whats-new-dialog.md` |
+| Writing release notes, the What's New dialog, or the first-run Welcome / setup wizard | § Release Notes · `docs/release-notes.md` · `docs/whats-new-dialog.md` · `docs/first-run-welcome.md` |
 | CI workflows, perf benchmarks, integration tests | `.github/workflows/_test.yaml` · `docs/performance-tracking.md` · `docs/integration-tests.md` |
 | Server-side filter gaps / required API changes | `BACKEND.md` |
 | A runtime error or a stale outbox row | § Diagnostics log · `docs/diagnostics.md` |
@@ -119,6 +119,7 @@ Rules that turn into bugs or CI failures if forgotten. Read this block first.
 - **A path users wait on gets a benchmark in `benchmark/perf/` and a budget; never rename a benchmark id — its history is filed under it.** → `docs/performance-tracking.md`
 - **Contacts sync touches only a device contact it can prove it wrote — a link row whose recorded entry is the contact's only one (`ownsDeviceContact`) — never one found by label membership; Android merges cards into the user's own contacts, and a delete through the merged contact takes theirs.** → `docs/contacts-sync.md`
 - **Nothing asks for a review while `kAppIsBeta`; a store build asks only through the native API — no question first, never from a button; our card runs only on non-store builds and offers the review link to every answer; an automatic ask needs a server-confirmed finishing win at a quiet moment.** → `docs/review-prompt.md`
+- **The first-run Welcome is decided once per user per device at an interactive sign-in (`onSigningIn`, wired only by `main.dart`) — a restored session is never greeted and a pre-existing install is baselined — and `/setup` writes its draft once, the logo after the company PUT.** → `docs/first-run-welcome.md`
 - **Workarounds for open upstream bugs are logged in `docs/upstream-workarounds.md`** — issue link, files tagged KEEP vs MUST-REVERT, revert steps — whenever you add, change or remove one.
 
 ## Architecture — at a glance
@@ -157,6 +158,7 @@ Token-based visual language; the Dart port is the sole source of truth.
 When styling a page: read `design_tokens.dart`, reuse `InTheme`, prefer `Theme.of(context).colorScheme` + `context.inTheme` over hardcoded `Color(0x…)`.
 
 - **The drawn window buttons are the one exception to every shape rule below.** → `docs/desktop-window-state.md`
+- **Every decorative animation runs through `InMotion.of(context)`, so reduced motion is zero, and the device buzzes only through `InHaptics`.** → `docs/motion-and-haptics.md`
 
 **Always rounded rectangles, never pills.** Use `RoundedRectangleBorder(borderRadius: BorderRadius.circular(InRadii.r2))` (or `.r1` / `.r3` per size) — never `StadiumBorder`, never `BorderRadius.circular(999)`. Material 3 defaults `SegmentedButton` / `Chip` / `FloatingActionButton.extended` to pills, so `theme.dart` registers the rounded shape on every relevant component theme; new widgets inherit it. Add new component themes to `theme.dart` rather than overriding inline.
 

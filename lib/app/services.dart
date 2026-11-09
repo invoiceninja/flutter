@@ -16,6 +16,7 @@ import 'package:admin/app/back_online_signal.dart';
 import 'package:admin/app/confirm_actions_controller.dart';
 import 'package:admin/app/mobile_app_promo_controller.dart';
 import 'package:admin/app/review_prompt_controller.dart';
+import 'package:admin/app/welcome_controller.dart';
 import 'package:admin/app/whats_new_controller.dart';
 import 'package:admin/app/sign_out_notice.dart';
 import 'package:admin/app/default_items_tab_controller.dart';
@@ -157,6 +158,7 @@ import 'package:admin/data/services/user_settings_api.dart';
 import 'package:admin/data/services/users_api.dart';
 import 'package:admin/domain/contacts_sync/contacts_sync_service.dart';
 import 'package:admin/domain/entity_registry.dart';
+import 'package:admin/domain/welcome.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/expenses/receipt_parser.dart';
 import 'package:admin/domain/expenses/receipt_scanner.dart';
@@ -400,6 +402,7 @@ class Services implements SidebarBadgeContext {
     required this.signOutNotice,
     required this.mobileAppPromo,
     required this.whatsNew,
+    required this.welcome,
     required this.reviewPrompt,
     required this.spellCheck,
     required this.showSeconds,
@@ -857,6 +860,10 @@ class Services implements SidebarBadgeContext {
   /// The "What's new" dialog's schedule (docs/whats-new-dialog.md), armed
   /// only by `main()`. Read through its root provider, like [signOutNotice].
   final WhatsNewController whatsNew;
+
+  /// The first-run experience's schedule (docs/first-run-welcome.md), armed
+  /// only by `main()`. Read through its root provider, like [signOutNotice].
+  final WelcomeController welcome;
 
   /// The store-review prompt's schedule (docs/review-prompt.md), asking only
   /// when `main()` arms it. Read through its root provider, like
@@ -1685,13 +1692,42 @@ class Services implements SidebarBadgeContext {
       promote: mobileAppPromote,
       whatsNew: whatsNew,
     );
+    // The repo that tells the server a user was welcomed is built further
+    // down; the closure only runs once a Welcome has been seen.
+    late final UserSettingsRepository welcomeUserSettings;
+    final welcome = WelcomeController(
+      prefs: devicePrefs,
+      currentUserKey: () {
+        final s = auth.session.value;
+        if (s == null || s.userId.isEmpty) return null;
+        return welcomeUserKey(s.baseUrl, s.userId);
+      },
+      onWelcomed: () async {
+        final companyId = auth.session.value?.currentCompanyId ?? '';
+        if (companyId.isEmpty) return;
+        await welcomeUserSettings.patchReactSettings(
+          companyId: companyId,
+          patch: {
+            kWelcomeReactSettingsKey: {
+              'v': 1,
+              'at': DateTime.now().millisecondsSinceEpoch,
+            },
+          },
+        );
+      },
+      onSeen: whatsNew.markSeen,
+    );
     final reviewPrompt = ReviewPromptController(
       prefs: devicePrefs,
       autoAsk: reviewPromptAutoAsk,
       whatsNew: whatsNew,
-      promoShownRecently: mobileAppPromo.holdsBackPromptsAt,
+      // Despite the name, any prompt that showed recently: the promo, or the
+      // first-run Welcome (docs/first-run-welcome.md).
+      promoShownRecently: (t) =>
+          mobileAppPromo.holdsBackPromptsAt(t) || welcome.holdsBackPromptsAt(t),
     );
-    mobileAppPromo.heldBackBy = reviewPrompt.holdsBackPromptsAt;
+    mobileAppPromo.heldBackBy = (t) =>
+        reviewPrompt.holdsBackPromptsAt(t) || welcome.holdsBackPromptsAt(t);
     // Assigned a few lines below; the `onUnauthorized` closure captures the
     // variable (not its value) and only ever runs once a request has come
     // back 401 — long after construction completes.
@@ -1877,6 +1913,7 @@ class Services implements SidebarBadgeContext {
       db: db,
       onEnqueued: kickDrain,
     );
+    welcomeUserSettings = userSettingsRepo;
     final usersApi = UsersApi(apiClient);
     final userRepo = UserRepository(
       db: db,
@@ -2594,6 +2631,7 @@ class Services implements SidebarBadgeContext {
       signOutNotice: signOutNotice,
       mobileAppPromo: mobileAppPromo,
       whatsNew: whatsNew,
+      welcome: welcome,
       reviewPrompt: reviewPrompt,
       spellCheck: spellCheck,
       showSeconds: showSeconds,

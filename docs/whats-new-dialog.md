@@ -60,6 +60,8 @@ Only `main()` calls `noteLaunch`, so no test or harness ever arms the dialog.
 
 ## When it opens on its own
 
+**The first-run Welcome goes first.** While a Welcome may still open, and on a launch it showed, the host stands down without spending an attempt, so the notes come on a later launch instead of straight after it; closing the Welcome marks them read (docs/first-run-welcome.md).
+
 `WhatsNewHost` sits in the authenticated shell beside `MobileAppPromoHost`, so it never lands over `/login`, `/lock` or `/setup`:
 
 - **About 2 s after the shell settles**, sooner than the promo's 4 s — it belongs to the update just installed.

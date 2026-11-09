@@ -31,6 +31,7 @@ import 'package:admin/app/logging.dart';
 import 'package:admin/app/memory_pressure_observer.dart';
 import 'package:admin/app/mobile_app_promo_controller.dart';
 import 'package:admin/app/review_prompt_controller.dart';
+import 'package:admin/app/welcome_controller.dart';
 import 'package:admin/app/whats_new_controller.dart';
 import 'package:admin/app/native_splash.dart';
 import 'package:admin/app/native_window.dart';
@@ -308,6 +309,24 @@ Future<void> _bootstrap() async {
           services.auth.isAuthenticated,
     ),
   );
+  // The first-run Welcome's half of the same question, per user: whoever
+  // this device last signed in is not greeted as new (a 401 or an idle lock
+  // keeps that stored identity). Interactive sign-ins from here on decide for
+  // their user — wired here, never in `Services.build`, so a test harness
+  // that signs in arms nothing (docs/first-run-welcome.md).
+  final existingInstall =
+      !opened.db.createdThisOpen ||
+      opened.wasReset ||
+      services.auth.isAuthenticated;
+  unawaited(
+    services.auth.storedWelcomeUserKey().then(
+      (key) => services.welcome.noteLaunch(
+        existingInstall: existingInstall,
+        storedUserKey: key,
+      ),
+    ),
+  );
+  services.auth.onSigningIn = services.welcome.noteSignIn;
 
   // Demo build: if no session was restored, bootstrap one from a baked-in API
   // token so the app lands on the dashboard instead of /login. Inert in normal
@@ -848,6 +867,12 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         // read as `context.read<WhatsNewController?>()` for the same reason.
         ChangeNotifierProvider<WhatsNewController>.value(
           value: widget.services.whatsNew,
+        ),
+        // For the shell's Welcome host, the setup wizard, the dashboard
+        // checklist, About and the command palette, read as
+        // `context.read<WelcomeController?>()` for the same reason.
+        ChangeNotifierProvider<WelcomeController>.value(
+          value: widget.services.welcome,
         ),
         // For the shell's review prompt host, About, the command palette and
         // the Debug Panel, read as `context.read<ReviewPromptController?>()`

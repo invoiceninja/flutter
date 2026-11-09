@@ -291,6 +291,17 @@ abstract final class DevicePrefKeys {
     PrefScope.device,
   );
 
+  /// The first-run experience's record (`WelcomeController`,
+  /// docs/first-run-welcome.md): which users this device has greeted, keyed
+  /// by server and user, and each company's setup checklist. Device scope so
+  /// a sign-out does not greet the same person again; per user because the
+  /// JSON is keyed by user.
+  static const welcome = PrefKey<String>(
+    'welcome_json',
+    PrefCodec.string,
+    PrefScope.device,
+  );
+
   /// In the order they were added; append new keys at the end.
   static const List<PrefKey<Object>> all = [
     locale,
@@ -322,6 +333,7 @@ abstract final class DevicePrefKeys {
     showSeconds,
     downloadsFolder,
     reviewPrompt,
+    welcome,
   ];
 
   /// The rows a data wipe leaves in place: the [PrefScope.device] keys and the

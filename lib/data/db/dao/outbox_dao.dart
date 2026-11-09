@@ -970,6 +970,29 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return q.watch().distinctRows();
   }
 
+  /// The `upload_logo` rows queued for [companyId]'s own record, as `(id,
+  /// state)` pairs, oldest first — the setup checklist's "Uploading…" /
+  /// Retry (docs/first-run-welcome.md). Selects two columns, never the
+  /// payload: a logo's bytes ride in it as base64, and this stream lives as
+  /// long as the dashboard does.
+  Stream<List<({int id, String state})>> watchLogoUploads({
+    required String companyId,
+    required String companyWireName,
+  }) {
+    final q = selectOnly(outbox)
+      ..addColumns([outbox.id, outbox.state])
+      ..where(
+        outbox.companyId.equals(companyId) &
+            outbox.entityType.equals(companyWireName) &
+            outbox.entityId.equals(companyId) &
+            outbox.payload.like('%"upload_logo"%'),
+      )
+      ..orderBy([OrderingTerm(expression: outbox.id)]);
+    return q
+        .map((r) => (id: r.read(outbox.id)!, state: r.read(outbox.state)!))
+        .watch();
+  }
+
   /// Stream of every outbox row for [companyId], newest first. Drives the
   /// Outbox screen. Includes `pending`, `in_flight`, and `dead` rows so the
   /// user sees the full mutation queue, not just the failures.

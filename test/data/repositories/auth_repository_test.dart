@@ -14,6 +14,7 @@ import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/data/services/users_api.dart';
 import 'package:admin/domain/sync/refresh_sync_constants.dart';
+import 'package:admin/domain/welcome.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -53,6 +54,39 @@ class _FakeAuthService implements AuthService {
     if (next is LoginResponseApi) return next;
     throw next;
   }
+
+  @override
+  Future<LoginResponseApi> signup({
+    required String baseUrl,
+    required bool isHosted,
+    required String email,
+    required String password,
+    String referralCode = '',
+  }) => login(
+    baseUrl: baseUrl,
+    isHosted: isHosted,
+    email: email,
+    password: password,
+  );
+
+  @override
+  Future<LoginResponseApi> oauthLogin({
+    required String baseUrl,
+    required String provider,
+    required bool isHosted,
+    String? idToken,
+    String? authCode,
+    String? accessToken,
+    String? email,
+    String? firstName,
+    String? lastName,
+    bool create = false,
+  }) => login(
+    baseUrl: baseUrl,
+    isHosted: isHosted,
+    email: email ?? '',
+    password: '',
+  );
 
   @override
   Future<void> recoverPassword({
@@ -4567,6 +4601,131 @@ void main() {
             reason: 'a marker left behind would wipe this queued work',
           );
         },
+      );
+    });
+  });
+
+  // The first-run Welcome's decision (docs/first-run-welcome.md) is made at
+  // an interactive sign-in, from the response — never on a restore.
+  group('onSigningIn', () {
+    test('a login reports the user and what the response says', () async {
+      final seen = <SignInFacts>[];
+      AuthSession? sessionAtHook;
+      repo.onSigningIn = (f) {
+        seen.add(f);
+        sessionAtHook = repo.session.value;
+      };
+      authService.queueLogin(
+        _envelope(
+          settingsByCompanyId: const {},
+          user: const UserSummaryApi(id: 'user_x'),
+        ),
+      );
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: false,
+        email: 'a@b',
+        password: 'pw',
+      );
+      expect(seen, hasLength(1));
+      expect(seen.single.userKey, welcomeUserKey('https://test', 'user_x'));
+      expect(seen.single.isSignup, isFalse);
+      expect(seen.single.companyCount, 1);
+      // Before the session activates, so the shell mounts on a decision
+      // already made.
+      expect(sessionAtHook, isNull);
+    });
+
+    test('a sign-up says so', () async {
+      final seen = <SignInFacts>[];
+      repo.onSigningIn = seen.add;
+      authService.queueLogin(_envelope());
+      await repo.signup(
+        baseUrl: 'https://test',
+        isHosted: true,
+        email: 'a@b',
+        password: 'pw',
+      );
+      expect(seen.single.isSignup, isTrue);
+    });
+
+    test('an OAuth "sign up" is never taken as a new account', () async {
+      // The server logs an existing Google / Microsoft user in before it
+      // reads `create` — LoginController::handleGoogleOauth. A truly new
+      // account goes through /setup, which re-labels it.
+      final seen = <SignInFacts>[];
+      repo.onSigningIn = seen.add;
+      authService.queueLogin(_envelope());
+      await repo.oauthLogin(
+        baseUrl: 'https://test',
+        isHosted: true,
+        provider: 'google',
+        idToken: 'x',
+        create: true,
+      );
+      expect(seen.single.isSignup, isFalse);
+    });
+
+    test(
+      'a queued name shows in the session before the server answers',
+      () async {
+        authService.queueLogin(_envelope());
+        await repo.login(
+          baseUrl: 'https://test',
+          isHosted: false,
+          email: 'a@b',
+          password: 'pw',
+        );
+        repo.noteQueuedUserName(first: 'Ada', last: 'Lovelace');
+        expect(repo.session.value!.userFirstName, 'Ada');
+        expect(repo.session.value!.userLastName, 'Lovelace');
+      },
+    );
+
+    test('a restored session decides nothing', () async {
+      authService.queueLogin(_envelope());
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: false,
+        email: 'a@b',
+        password: 'pw',
+      );
+      final seen = <SignInFacts>[];
+      final restored = AuthRepository(
+        db: db,
+        authService: authService,
+        tokenStorage: storage,
+        passwordCache: passwordCache,
+      )..onSigningIn = seen.add;
+      await restored.restore();
+      expect(restored.session.value, isNotNull);
+      expect(seen, isEmpty);
+    });
+
+    test('a hook that throws does not fail the sign-in', () async {
+      repo.onSigningIn = (_) => throw StateError('boom');
+      authService.queueLogin(_envelope());
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: false,
+        email: 'a@b',
+        password: 'pw',
+      );
+      expect(repo.session.value, isNotNull);
+    });
+
+    test('the stored identity names who last held a session', () async {
+      expect(await repo.storedWelcomeUserKey(), isNull);
+      authService.queueLogin(_envelope());
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: false,
+        email: 'a@b',
+        password: 'pw',
+      );
+      expect(
+        await repo.storedWelcomeUserKey(),
+        welcomeUserKey('https://test', 'user_x'),
       );
     });
   });

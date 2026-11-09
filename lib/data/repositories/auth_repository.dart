@@ -23,6 +23,7 @@ import 'package:admin/data/services/google_oauth.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/domain/sync/refresh_sync_constants.dart';
+import 'package:admin/domain/welcome.dart';
 import 'package:admin/utils/perf_trace.dart';
 
 export 'package:admin/data/repositories/local_data_disposer.dart'
@@ -139,6 +140,40 @@ class AuthRepository {
   /// controllers follow `DevicePrefsStore`.) Failures are logged and
   /// swallowed; logout must complete regardless.
   Future<void> Function()? onBeforeDataWipe;
+
+  /// Wired by `main()` — never by `Services.build`, so no test harness that
+  /// signs in arms anything — to `WelcomeController.noteSignIn`
+  /// (docs/first-run-welcome.md). Fires on an *interactive* sign-in only
+  /// ([login], [loginWithPasskey], [oauthLogin], [signup]), after the
+  /// identity-change wipe and before the session activates, with what the
+  /// response says about this user. Never on [restore], [refresh] or
+  /// [loginWithToken]: a restored session is not a first run. Failures are
+  /// logged and swallowed; a sign-in must complete regardless.
+  void Function(SignInFacts facts)? onSigningIn;
+
+  void _noteSigningIn(
+    LoginResponseApi response, {
+    required String baseUrl,
+    required bool isSignup,
+  }) {
+    final hook = onSigningIn;
+    if (hook == null || response.data.isEmpty) return;
+    final userId = response.data.first.user.id;
+    if (userId.isEmpty) return;
+    try {
+      hook(
+        SignInFacts(
+          userKey: welcomeUserKey(baseUrl, userId),
+          isSignup: isSignup,
+          companyUserSettings: [for (final uc in response.data) uc.settings],
+          reactSettings: [for (final uc in response.data) uc.reactSettings],
+          companyCount: response.data.length,
+        ),
+      );
+    } catch (e, st) {
+      _log.warning('onSigningIn failed', e, st);
+    }
+  }
 
   /// Wired by DI to `SyncRepository.drainOnce`. Fires whenever the active
   /// company becomes non-null (login, restore, /refresh, addCompany) or
@@ -325,6 +360,23 @@ class AuthRepository {
     required String email,
   }) => _auth.precheck(baseUrl: baseUrl, isHosted: isHosted, email: email);
 
+  /// The Welcome's key ([welcomeUserKey]) for whoever last held a session on
+  /// this device, from the stored identity: a 401, an idle re-lock or a
+  /// timed-out restore keep it, so `main()` can tell an existing user of this
+  /// app from a first run even when no session came back. Null when nothing
+  /// is stored (a fresh install, or a deliberate sign-out).
+  Future<String?> storedWelcomeUserKey() async {
+    try {
+      final userId = await _secure.read(kAuthUserIdKey) ?? '';
+      final baseUrl = await _secure.read(kAuthBaseUrlKey) ?? '';
+      if (userId.isEmpty || baseUrl.isEmpty) return null;
+      return welcomeUserKey(baseUrl, userId);
+    } catch (e, st) {
+      _log.warning('Could not read the stored identity', e, st);
+      return null;
+    }
+  }
+
   /// Hot login. Calls `/api/v1/login`, persists everything, and primes
   /// [credentials] so subsequent API calls work.
   /// Wipe the local database when the credentials being signed in belong to a
@@ -495,6 +547,7 @@ class AuthRepository {
     // A different user (or a brand-new signup) on this device must not inherit
     // the previous session's preserved database — see [_wipeIfIdentityChanged].
     await _wipeIfIdentityChanged(response, baseUrl: baseUrl);
+    _noteSigningIn(response, baseUrl: baseUrl, isSignup: false);
     await _persistAndActivate(
       response: response,
       baseUrl: baseUrl,
@@ -538,6 +591,7 @@ class AuthRepository {
     // A different user (or a brand-new signup) on this device must not inherit
     // the previous session's preserved database — see [_wipeIfIdentityChanged].
     await _wipeIfIdentityChanged(response, baseUrl: baseUrl);
+    _noteSigningIn(response, baseUrl: baseUrl, isSignup: false);
     await _persistAndActivate(
       response: response,
       baseUrl: baseUrl,
@@ -600,6 +654,11 @@ class AuthRepository {
     // A different user (or a brand-new signup) on this device must not inherit
     // the previous session's preserved database — see [_wipeIfIdentityChanged].
     await _wipeIfIdentityChanged(response, baseUrl: baseUrl);
+    // Never a sign-up, even with `create`: the server logs an existing
+    // Google or Microsoft user in before it reads the flag
+    // (`LoginController::handleGoogleOauth`). A truly new account lands on
+    // `/setup`, which re-labels it (docs/first-run-welcome.md).
+    _noteSigningIn(response, baseUrl: baseUrl, isSignup: false);
     await _persistAndActivate(
       response: response,
       baseUrl: baseUrl,
@@ -627,6 +686,7 @@ class AuthRepository {
     // A different user (or a brand-new signup) on this device must not inherit
     // the previous session's preserved database — see [_wipeIfIdentityChanged].
     await _wipeIfIdentityChanged(response, baseUrl: baseUrl);
+    _noteSigningIn(response, baseUrl: baseUrl, isSignup: true);
     await _persistAndActivate(
       response: response,
       baseUrl: baseUrl,
@@ -659,6 +719,18 @@ class AuthRepository {
     final s = _session.value;
     if (s == null) return;
     _session.value = s.copyWith(verifiedPhoneNumber: true, userPhone: phone);
+  }
+
+  /// Shows the signed-in user's name in the session before the server has
+  /// confirmed it — the setup wizard queued the user PUT, and the shell's
+  /// missing-name prompt reads the session, so without this it asks a new
+  /// user for the name they typed a second earlier
+  /// (docs/first-run-welcome.md). The PUT's response, or the next
+  /// `/refresh`, replaces it with the server's.
+  void noteQueuedUserName({required String first, required String last}) {
+    final s = _session.value;
+    if (s == null) return;
+    _session.value = s.copyWith(userFirstName: first, userLastName: last);
   }
 
   /// Merge user-level fields from a `PUT /users/{id}` response into the

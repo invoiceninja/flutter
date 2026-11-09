@@ -1796,8 +1796,10 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | QR code generation | ✅ | ✅ | ✅ | ✅ | |
 | Accent color customization | ✅ | ✅ | ✅ | ✅ | |
 | Help / tooltip system | ✅ | ✅ | ✅ | ✅ | |
-| Onboarding tour | ✅ | 🟡 | ❌ | ✅ | removed — product decision |
-| New-company setup wizard (name / currency / language) | ✅ | ✅ | ✅ | ✅ | |
+| Onboarding tour (coach marks over the UI) | ✅ | 🟡 | ❌ | ✅ | removed — product decision; the first-run Welcome and the setup checklist below replace it without coach marks |
+| New-company setup wizard (two steps: business name / currency / invoice language, then logo; live invoice preview; admins only) | ✅ | ✅ | ✅ | | rebuilt Nov 2026, not yet AI-reviewed; docs/first-run-welcome.md |
+| First-run Welcome for an existing account (Get started, or What's changed for a previous-app user; sheet on phones; reopen from About / palette) | — | — | ✅ | | docs/first-run-welcome.md |
+| Dashboard setup checklist for a new company (logo, first sent invoice, online payments, clients; ticks from local data) | — | — | ✅ | | |
 | Contact-us dialog | ✅ | ✅ | ✅ | ✅ | |
 | About dialog | ✅ | ✅ | ✅ | ✅ | |
 | What's new dialog after an update (bundled release notes, highlights that open the feature; About and the command palette reopen it) | — | — | ✅ | | |

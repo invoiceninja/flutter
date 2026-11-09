@@ -1,306 +1,396 @@
 import 'dart:async';
 
+import 'package:decimal/decimal.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
-import 'package:admin/data/repositories/local_data_disposer.dart';
-import 'package:admin/ui/core/dialogs/confirm_sign_out_dialog.dart';
-import 'package:admin/ui/features/shell/widgets/confirm_pending_outbox.dart';
+import 'package:admin/app/welcome_controller.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/data/models/value/language.dart';
-import 'package:admin/data/repositories/statics_repository.dart';
+import 'package:admin/data/repositories/auth/auth_session.dart';
+import 'package:admin/data/repositories/local_data_disposer.dart';
+import 'package:admin/data/services/upload_source.dart';
+import 'package:admin/domain/setup_defaults.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/dialogs/confirm_sign_out_dialog.dart';
+import 'package:admin/ui/core/utils/haptics.dart';
+import 'package:admin/ui/core/widgets/confirm_password_sheet.dart';
+import 'package:admin/ui/core/widgets/document_capture.dart';
+import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
+import 'package:admin/ui/features/auth/view_models/setup_wizard_view_model.dart';
+import 'package:admin/ui/features/auth/widgets/setup_wizard/setup_invoice_preview.dart';
+import 'package:admin/ui/features/auth/widgets/setup_wizard/setup_wizard_steps.dart';
+import 'package:admin/ui/features/auth/widgets/setup_wizard/setup_wizard_top_bar.dart';
+import 'package:admin/ui/features/settings/views/basic/company_details/logo_crop_screen.dart';
+import 'package:admin/ui/features/shell/widgets/confirm_pending_outbox.dart';
 import 'package:admin/ui/features/shell/widgets/show_company_picker.dart';
+import 'package:admin/utils/formatting.dart';
 
-/// One-shot gate shown when the active company hasn't been named yet
-/// (settings.name is empty or still the server's default
-/// `'Untitled Company'`). Mirrors admin-portal's `SettingsWizard` dialog
-/// and React's `CompanyEdit` modal, but rendered as a full-screen route
-/// outside the shell so it gates every deep link uniformly.
+/// The gate a company with no name yet sits behind (`isCompanySetupRequired`)
+/// — for a new account, the first screen of the app. Two steps, **Your
+/// business** then **Add your logo**, beside a live invoice preview, ending
+/// in a short finish moment before the one commit (docs/first-run-welcome.md).
 ///
-/// Single step on purpose — collects only what's needed to unwedge the
-/// app: company name (required), currency, language. Logo / payment
-/// gateways / subdomain live in their dedicated settings screens.
-class SetupWizardScreen extends StatefulWidget {
+/// A full-screen route outside the shell, so it gates every deep link the
+/// same way; only the business name is required.
+class SetupWizardScreen extends StatelessWidget {
   const SetupWizardScreen({super.key});
 
+  /// Keyed on the active company: switching to another unnamed company from
+  /// the ⋮ menu keeps the same `/setup` page, and a wizard still bound to the
+  /// previous company would name the wrong one and leave the gate shut.
   @override
-  State<SetupWizardScreen> createState() => _SetupWizardScreenState();
+  Widget build(BuildContext context) => ValueListenableBuilder<AuthSession?>(
+    valueListenable: context.read<Services>().auth.session,
+    builder: (context, session, _) =>
+        _SetupWizard(key: ValueKey(session?.currentCompanyId ?? '')),
+  );
 }
 
-class _SetupWizardScreenState extends State<SetupWizardScreen> {
-  late final TextEditingController _nameController;
-  final _firstNameController = TextEditingController();
-  final _lastNameController = TextEditingController();
+class _SetupWizard extends StatefulWidget {
+  const _SetupWizard({super.key});
 
-  /// Ask for the user's own name too when the account has none — an Apple
-  /// sign-up whose user hid their name, or an email sign-up (admin-portal's
-  /// wizard did the same). Decided once: typing a name must not hide the
-  /// fields being typed into.
-  late final bool _askUserName;
-  String _currencyId = '';
-  String _languageId = '';
-  bool _isSaving = false;
-  String? _nameError;
-  bool _defaultsSeeded = false;
+  @override
+  State<_SetupWizard> createState() => _SetupWizardScreenState();
+}
+
+/// Width at which the preview gets its own pane beside the form.
+const double _kSplitWidth = 720;
+
+/// The 1,250 the preview's total shows, in the chosen currency.
+final Decimal _kPreviewTotal = Decimal.fromInt(1250);
+
+const int _kMaxLogoBytes = 5 * 1024 * 1024;
+
+class _SetupWizardScreenState extends State<_SetupWizard>
+    with SingleTickerProviderStateMixin {
+  late final Services _services;
+  late final SetupWizardViewModel _vm;
+  final _nameController = TextEditingController();
+  final _firstController = TextEditingController();
+  final _lastController = TextEditingController();
+  final _nameFocus = FocusNode();
+  final _firstFocus = FocusNode();
+  final _headingFocus = FocusNode(skipTraversal: true);
+  final _primaryFocus = FocusNode();
+
+  /// The first frame's entrance: heading, subtitle and fields rise in.
+  late final AnimationController _entrance;
+
+  bool _regionExpanded = false;
+
+  /// The finish moment is playing; the commit follows it.
+  bool _finishing = false;
+
+  /// Which way the last step change went, for the slide.
+  bool _forward = true;
+  bool _logoBusy = false;
+  String? _logoError;
+  Formatter? _formatter;
+  bool _regionSeeded = false;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController()..addListener(_onNameChanged);
-    final session = context.read<Services>().auth.session.value;
-    _askUserName =
-        session != null &&
-        session.userId.isNotEmpty &&
-        session.userFirstName.trim().isEmpty &&
-        session.userLastName.trim().isEmpty;
-    // Statics may not be warm on a fresh first login. `ensureLoaded` reads
-    // the Drift cache when present and only hits the network on a cold
-    // launch; the callback's `setState` re-runs `didChangeDependencies` →
-    // `_seedDefaultsFromLocale` once the maps are populated. The canonical
-    // `StaticsWarmer` wrapper is unsuitable here because its `setState`
-    // re-emits the same `child` reference, which Flutter optimizes into a
-    // no-op for our subtree — we need an explicit wizard-state rebuild.
-    final statics = context.read<Services>().statics;
+    _services = context.read<Services>();
+    final session = _services.auth.session.value;
+    _vm = SetupWizardViewModel(
+      companyId: session?.currentCompanyId ?? '',
+      session: session,
+      company: _services.company,
+      user: _services.user,
+      sync: _services.sync,
+      passwordCache: _services.passwordCache,
+      welcome: _readWelcome(),
+      warmFormatter: (id) => _services.formatterFor(id),
+      onNameQueued: (first, last) =>
+          _services.auth.noteQueuedUserName(first: first, last: last),
+    )..addListener(_onVm);
+    _entrance = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 360),
+    );
+    final statics = _services.statics;
     if (statics.currencies.isEmpty || statics.languages.isEmpty) {
       statics.ensureLoaded().then((_) {
-        if (mounted) setState(_seedDefaultsFromLocale);
+        if (mounted) _seedRegion();
       });
     }
+    unawaited(_loadFormatter());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _enter());
   }
 
-  @override
-  void dispose() {
-    _nameController
-      ..removeListener(_onNameChanged)
-      ..dispose();
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    super.dispose();
-  }
-
-  void _onNameChanged() {
-    final hasError = _nameError != null;
-    if (hasError) {
-      setState(() => _nameError = null);
-    } else {
-      // Rebuild so `_canSubmit` reflects the latest text — also drives the
-      // submit button's enabled state.
-      setState(() {});
+  WelcomeController? _readWelcome() {
+    try {
+      return context.read<WelcomeController?>();
+    } on ProviderNotFoundException {
+      return null;
     }
   }
+
+  Future<void> _loadFormatter() async {
+    final id = _vm.companyId;
+    if (id.isEmpty) return;
+    try {
+      final f = await _services.formatterFor(id);
+      if (mounted) setState(() => _formatter = f);
+    } catch (_) {
+      // The preview's total waits on its placeholder; nothing else needs it.
+    }
+  }
+
+  /// Play the entrance, then focus the first field — after it on a phone, so
+  /// the keyboard and the page don't move at the same time.
+  void _enter() {
+    if (!mounted) return;
+    final motion = InMotion.of(context);
+    if (motion.enabled) {
+      _entrance.forward();
+    } else {
+      _entrance.value = 1;
+    }
+    final wait = motion(
+      Env.isMobile ? const Duration(milliseconds: 320) : Duration.zero,
+    );
+    _focusTimer = Timer(wait, () {
+      if (!mounted || _vm.step != SetupWizardStep.business) return;
+      if (MediaQuery.maybeAccessibleNavigationOf(context) ?? false) {
+        _headingFocus.requestFocus();
+      } else {
+        (_vm.askUserName ? _firstFocus : _nameFocus).requestFocus();
+      }
+    });
+  }
+
+  Timer? _focusTimer;
+  Timer? _unstick;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_defaultsSeeded) _seedDefaultsFromLocale();
+    if (!_regionSeeded) _seedRegion();
   }
 
-  /// Pick currency + language from the device locale once statics are warm
-  /// and the current company hasn't already chosen them. Falls back to USD
-  /// / English (id `'1'`) when no locale-derived match is found — the
-  /// historical Invoice Ninja defaults.
-  void _seedDefaultsFromLocale() {
-    final services = context.read<Services>();
-    final statics = services.statics;
+  /// The company's own currency and language if it has them, else the
+  /// device locale's — once statics are warm.
+  void _seedRegion() {
+    final statics = _services.statics;
     if (statics.currencies.isEmpty || statics.languages.isEmpty) return;
-
-    final session = services.auth.session.value;
-    final companyId = session?.currentCompanyId;
-    if (companyId == null || companyId.isEmpty) return;
-
-    // Read the current company once, off-async. Defaults only seed
-    // when the company hasn't set them yet (settings.{currencyId,languageId}
-    // is empty). We don't await — seed runs after the future, but
-    // `services.company.get` returns immediately from Drift cache.
-    services.company.get(companyId).then((company) {
-      if (!mounted || company == null) return;
-      final existingCurrency = company.settings.currencyId ?? '';
-      final existingLanguage = company.settings.languageId ?? '';
-      final deviceLocale = Localizations.maybeLocaleOf(context);
-      final pickedCurrency = existingCurrency.isNotEmpty
-          ? existingCurrency
-          : _defaultCurrencyId(statics, deviceLocale);
-      final pickedLanguage = existingLanguage.isNotEmpty
-          ? existingLanguage
-          : _defaultLanguageId(statics, deviceLocale);
-      setState(() {
-        _currencyId = pickedCurrency;
-        _languageId = pickedLanguage;
-        _defaultsSeeded = true;
-      });
-    });
-  }
-
-  String _defaultCurrencyId(StaticsRepository statics, Locale? locale) {
-    final countryCode = locale?.countryCode;
-    if (countryCode == null || countryCode.isEmpty) return '1'; // USD
-    final byCode = _currencyForCountry(statics, countryCode);
-    return byCode ?? '1';
-  }
-
-  /// Hard-coded country → currency mapping for the common cases. Keeps the
-  /// signup default smart without dragging in a full ISO-3166 → ISO-4217
-  /// table. Anything not in the map falls back to USD.
-  String? _currencyForCountry(StaticsRepository statics, String iso2) {
-    const map = <String, String>{
-      'US': 'USD',
-      'GB': 'GBP',
-      'CA': 'CAD',
-      'AU': 'AUD',
-      'NZ': 'NZD',
-      'JP': 'JPY',
-      'CH': 'CHF',
-      'SE': 'SEK',
-      'NO': 'NOK',
-      'DK': 'DKK',
-      'PL': 'PLN',
-      'IN': 'INR',
-      'BR': 'BRL',
-      'MX': 'MXN',
-      'AR': 'ARS',
-      'ZA': 'ZAR',
-      'SG': 'SGD',
-      'HK': 'HKD',
-      'IL': 'ILS',
-      'KR': 'KRW',
-      // Eurozone → EUR (20 members as of 2026, ordered by accession year)
-      'DE': 'EUR', 'FR': 'EUR', 'ES': 'EUR', 'IT': 'EUR', 'NL': 'EUR',
-      'BE': 'EUR', 'AT': 'EUR', 'IE': 'EUR', 'PT': 'EUR', 'GR': 'EUR',
-      'FI': 'EUR', 'LU': 'EUR', 'CY': 'EUR', 'MT': 'EUR', 'SI': 'EUR',
-      'SK': 'EUR', 'EE': 'EUR', 'LV': 'EUR', 'LT': 'EUR', 'HR': 'EUR',
-    };
-    final code = map[iso2.toUpperCase()];
-    if (code == null) return null;
-    final hit = statics.currencies.values
-        .where((c) => c.code.toUpperCase() == code)
-        .firstOrNull;
-    return hit?.id;
-  }
-
-  String _defaultLanguageId(StaticsRepository statics, Locale? locale) {
-    final languageCode = locale?.languageCode.toLowerCase();
-    if (languageCode == null || languageCode.isEmpty) return '1';
-    // Prefer exact `lang_country` match (e.g. `fr_CA`), fall back to the
-    // first row whose `locale` starts with the device language code.
-    final tag = locale?.countryCode != null
-        ? '${languageCode}_${locale!.countryCode!.toLowerCase()}'
-        : languageCode;
-    final exact = statics.languages.values
-        .where((l) => l.locale.toLowerCase() == tag)
-        .firstOrNull;
-    if (exact != null) return exact.id;
-    final prefix = statics.languages.values
-        .where((l) => l.locale.toLowerCase().startsWith(languageCode))
-        .firstOrNull;
-    return prefix?.id ?? '1'; // English
-  }
-
-  bool get _canSubmit => !_isSaving && _nameController.text.trim().isNotEmpty;
-
-  Future<void> _onSave() async {
-    if (_isSaving) return;
-    final name = _nameController.text.trim();
-    if (name.isEmpty) {
-      setState(() => _nameError = context.tr('please_enter_a_value'));
-      return;
-    }
-    setState(() {
-      _isSaving = true;
-      _nameError = null;
-    });
-    final services = context.read<Services>();
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    try {
-      final session = services.auth.session.value;
-      final companyId = session?.currentCompanyId;
-      if (companyId == null || companyId.isEmpty) {
-        throw StateError('No active company');
-      }
-      final current = await services.company.get(companyId);
-      if (current == null) throw StateError('No company row for $companyId');
-      await services.company.updateCompany(
-        draft: current.copyWith(
-          settings: current.settings.copyWith(
-            name: name,
-            currencyId: _currencyId.isEmpty
-                ? current.settings.currencyId
-                : _currencyId,
-            languageId: _languageId.isEmpty
-                ? current.settings.languageId
-                : _languageId,
-          ),
-        ),
-      );
-      await _saveUserName(services, companyId, session?.userId ?? '');
-      // Push the PUT through immediately so a follow-on `/refresh` (e.g.
-      // restore() on next cold launch) gets the server-truth name and
-      // doesn't bounce the user back into the wizard.
-      unawaited(services.sync.drainOnce(companyId: companyId));
+    if (_vm.companyId.isEmpty) return;
+    _regionSeeded = true;
+    final locale = Localizations.maybeLocaleOf(context);
+    _services.company.get(_vm.companyId).then((company) {
       if (!mounted) return;
-      Notify.success(
-        context,
-        context.tr('welcome_x', {'name': name}),
-        messenger: messenger,
+      final cur = company?.settings.currencyId ?? '';
+      final lang = company?.settings.languageId ?? '';
+      _vm.seedRegion(
+        currencyId: cur.isNotEmpty
+            ? cur
+            : defaultCurrencyId(statics.currencies.values, locale),
+        languageId: lang.isNotEmpty
+            ? lang
+            : defaultLanguageId(statics.languages.values, locale),
       );
-      // Router redirect fires on auth.session notify → bounces to
-      // postLoginRoute(). No manual context.go(...) needed.
+    });
+  }
+
+  void _onVm() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _vm
+      ..removeListener(_onVm)
+      ..dispose();
+    _focusTimer?.cancel();
+    _unstick?.cancel();
+    _entrance.dispose();
+    _nameController.dispose();
+    _firstController.dispose();
+    _lastController.dispose();
+    _nameFocus.dispose();
+    _firstFocus.dispose();
+    _headingFocus.dispose();
+    _primaryFocus.dispose();
+    super.dispose();
+  }
+
+  bool get _busy => _finishing || _vm.committing || _logoBusy;
+
+  // ─── Navigation ──────────────────────────────────────────────────────
+
+  void _onPrimary() {
+    if (_busy) return;
+    switch (_vm.step) {
+      case SetupWizardStep.business:
+        _forward = true;
+        if (_vm.advance()) {
+          unawaited(InHaptics.selection());
+          _focusAfterStepChange();
+        } else {
+          _nameFocus.requestFocus();
+        }
+      case SetupWizardStep.logo:
+        unawaited(_finish());
+    }
+  }
+
+  bool _back() {
+    if (_busy) return false;
+    _forward = false;
+    final moved = _vm.back();
+    if (moved) {
+      unawaited(InHaptics.selection());
+      _focusAfterStepChange();
+    }
+    return moved;
+  }
+
+  /// A screen reader is taken to the new step's heading; a keyboard user to
+  /// where they will act next — the name field, or the primary on step 2 so
+  /// Enter still finishes.
+  void _focusAfterStepChange() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (MediaQuery.maybeAccessibleNavigationOf(context) ?? false) {
+        _headingFocus.requestFocus();
+      } else if (_vm.step == SetupWizardStep.business) {
+        _nameFocus.requestFocus();
+      } else if (!Env.isTouchPrimary) {
+        _primaryFocus.requestFocus();
+      } else {
+        // Off the name field, so the keyboard drops — but still inside the
+        // wizard, so a hardware Esc keeps going back a step.
+        _headingFocus.requestFocus();
+      }
+    });
+  }
+
+  /// The finish moment — the button turns into a check, the progress fills,
+  /// the content settles — and then the one commit. The commit comes last
+  /// because the router leaves `/setup` as soon as the name is saved.
+  Future<void> _finish() async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final failed = context.tr('setup_save_failed');
+    // The name save is password-protected, and the password primed at
+    // sign-up may have lapsed (five minutes, or the app went to the
+    // background). Ask now, while the wizard is up — never as a sheet with
+    // no context on the dashboard. Declining still saves the company.
+    if (_vm.nameNeedsPassword) {
+      final ok = await showConfirmPasswordSheet(
+        context,
+        cache: _services.passwordCache,
+      );
+      if (!mounted) return;
+      if (!ok) _vm.skipUserName = true;
+    }
+    setState(() => _finishing = true);
+    unawaited(InHaptics.success());
+    await Future<void>.delayed(
+      InMotion.of(context)(const Duration(milliseconds: 450)),
+    );
+    if (!mounted) return;
+    try {
+      await _vm.commit();
+      // The router redirect lands the user on the dashboard and tears this
+      // screen down. Should it still be up a moment later, the gate did not
+      // open: hand the controls back rather than sit frozen on a check.
+      _unstick = Timer(const Duration(seconds: 2), () {
+        if (!mounted) return;
+        setState(() => _finishing = false);
+        _vm.resetCommitting();
+      });
     } catch (e) {
       if (!mounted) return;
-      Notify.error(
-        context,
-        context.tr('failed'),
-        error: e,
-        messenger: messenger,
-      );
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
+      setState(() => _finishing = false);
+      Notify.error(context, failed, error: e, messenger: messenger);
     }
   }
 
-  /// Queue the user's own name through the same path User Details saves
-  /// with (`UserRepository.enqueueUpdate`, whole-record body). Optional — both
-  /// blank leaves the user untouched.
-  Future<void> _saveUserName(
-    Services services,
-    String companyId,
-    String userId,
-  ) async {
-    if (!_askUserName || userId.isEmpty) return;
-    final first = _firstNameController.text.trim();
-    final last = _lastNameController.text.trim();
-    if (first.isEmpty && last.isEmpty) return;
-    final user = await services.user.get(companyId: companyId, userId: userId);
-    if (user == null) return;
-    final draft = user.copyWith(firstName: first, lastName: last);
-    // Same body as `UserDetailsViewModel._buildBody`: the whole record, so
-    // untouched fields round-trip, minus a blank `language_id` (Laravel
-    // rejects "" for the foreign key).
-    final body = Map<String, dynamic>.from(draft.toApi().toJson());
-    if (draft.languageId.isEmpty) body.remove('language_id');
-    await services.user.enqueueUpdate(
-      companyId: companyId,
-      draft: draft,
-      body: body,
-    );
+  // ─── Logo ────────────────────────────────────────────────────────────
+
+  Future<void> _pickPhoto() async {
+    final intake = intakeOf(context);
+    final sources = await pickGalleryPhotos(context, multiple: false);
+    if (!mounted) return;
+    try {
+      await _takeLogo(sources);
+    } finally {
+      unawaited(releaseCapturedPhotos(intake, sources));
+    }
   }
 
+  Future<void> _pickFile() async {
+    final picked = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: kSetupLogoExtensions,
+    );
+    if (!mounted || picked == null) return;
+    final sources = await uploadSourcesFromPicked([picked]);
+    if (!mounted) return;
+    await _takeLogo(sources);
+  }
+
+  /// Validate, crop, keep. Nothing is uploaded until the wizard is finished;
+  /// a file that can't be a logo says so under the box, not in a toast.
+  Future<void> _takeLogo(List<UploadSource> sources) async {
+    if (sources.isEmpty || _logoBusy) return;
+    final source = sources.first;
+    final invalid = context.tr('setup_logo_error');
+    final tooLarge = context.tr('upload_too_large_with_size', {
+      'size': '${_kMaxLogoBytes ~/ (1024 * 1024)}',
+    });
+    setState(() {
+      _logoBusy = true;
+      _logoError = null;
+    });
+    try {
+      final ext = p.extension(source.fileName).toLowerCase();
+      if (!kSetupLogoExtensions.contains(ext.replaceFirst('.', ''))) {
+        setState(() => _logoError = invalid);
+        return;
+      }
+      final size = await source.length();
+      if (!mounted) return;
+      if (size > _kMaxLogoBytes) {
+        setState(() => _logoError = tooLarge);
+        return;
+      }
+      final bytes = await source.readRange(0, size);
+      if (!mounted) return;
+      final cropped = await showLogoCropScreen(context, bytes);
+      if (!mounted || cropped == null) return;
+      if (cropped.lengthInBytes > _kMaxLogoBytes) {
+        setState(() => _logoError = tooLarge);
+        return;
+      }
+      _vm.setLogo(cropped);
+      unawaited(InHaptics.light());
+    } catch (_) {
+      if (mounted) setState(() => _logoError = invalid);
+    } finally {
+      if (mounted) setState(() => _logoBusy = false);
+    }
+  }
+
+  // ─── Ways out ────────────────────────────────────────────────────────
+
   Future<void> _onSignOut() async {
-    // Resolved before the first await so the confirm below doesn't push a
-    // `context` read past one (`use_build_context_synchronously`).
-    final services = context.read<Services>();
-    // Note this screen reaches sign-out twice: here, and via
-    // `_onSwitchCompany` -> `showCompanyPicker` -> the picker's Log Out row,
-    // which carries its own confirm through `SettingsActions.signOut`.
+    // Resolved before the first await (`use_build_context_synchronously`).
+    final services = _services;
     if (!await showConfirmSignOutDialog(context)) return;
     if (!mounted) return;
-    // Full logout wipes every company's local DB — quiesce pending offline
-    // rows first, same guard as every other sign-out entry point.
+    // A full logout wipes every company's local DB — quiesce pending offline
+    // rows first, the same guard as every other sign-out entry point.
     final companyId = services.auth.session.value?.currentCompanyId;
     if (companyId != null) {
       final outbox = await confirmPendingOutboxIfAny(
@@ -313,8 +403,13 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
     await services.auth.logout(data: LocalDataPolicy.destroy);
   }
 
-  Future<void> _onSwitchCompany() async {
-    await showCompanyPicker(context);
+  // ─── Build ───────────────────────────────────────────────────────────
+
+  String? _previewTotal(List<Currency> currencies) {
+    final f = _formatter;
+    if (f == null || _vm.currencyId.isEmpty) return null;
+    if (!currencies.any((c) => c.id == _vm.currencyId)) return null;
+    return f.money(_kPreviewTotal, currencyId: _vm.currencyId);
   }
 
   @override
@@ -322,272 +417,322 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
     final tokens = context.inTheme;
     final session = context.watch<Services>().auth.session.value;
     final canSwitch = (session?.companies.length ?? 0) > 1;
-    final statics = context.watch<Services>().statics;
+    final statics = _services.statics;
     final currencies = statics.currencies.values.toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     final languages = statics.languages.values.toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    final currentCurrency = currencies
-        .where((c) => c.id == _currencyId)
-        .firstOrNull;
-    final currentLanguage = languages
-        .where((l) => l.id == _languageId)
-        .firstOrNull;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: tokens.bg,
-      body: SafeArea(
-        child: FormSaveScope(
-          onSubmit: _onSave,
-          enabled: _canSubmit,
-          child: ListView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: InSpacing.xl,
-              vertical: InSpacing.xxl,
-            ),
-            children: [
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 440),
+    return PopScope(
+      // Android back goes back a step; on the first it leaves as usual.
+      canPop: _vm.isFirstStep && !_busy,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _back();
+      },
+      child: CallbackShortcuts(
+        // Only off the first step: there Esc belongs to the currency and
+        // language pickers, which close on it, and back leaves the screen.
+        bindings: _vm.isFirstStep
+            ? const {}
+            : {const SingleActivator(LogicalKeyboardKey.escape): _back},
+        child: Scaffold(
+          backgroundColor: tokens.bg,
+          body: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final split = constraints.maxWidth >= _kSplitWidth;
+                return FormSaveScope(
+                  onSubmit: _onPrimary,
+                  enabled: !_busy,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Image.asset(
-                        isDark
-                            ? 'assets/images/logo_dark.png'
-                            : 'assets/images/logo_light.png',
-                        height: 48,
+                      SetupWizardTopBar(
+                        step: _vm.stepNumber,
+                        stepCount: _vm.stepCount,
+                        complete: _finishing || _vm.committing,
+                        showWordmark: split,
+                        enabled: !_busy,
+                        onSignOut: _onSignOut,
+                        onSwitchCompany: canSwitch
+                            ? () => showCompanyPicker(context)
+                            : null,
                       ),
-                      const SizedBox(height: InSpacing.xl),
-                      Text(
-                        context.tr('welcome_to_invoice_ninja'),
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              color: tokens.ink,
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                      const SizedBox(height: InSpacing.sm),
-                      Text(
-                        context.tr('setup_wizard_intro'),
-                        textAlign: TextAlign.center,
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodyMedium?.copyWith(color: tokens.ink3),
-                      ),
-                      const SizedBox(height: InSpacing.xl),
-                      _SurfaceCard(
-                        padding: const EdgeInsets.all(InSpacing.xl),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _NameField(
-                              controller: _nameController,
-                              errorText: _nameError,
-                            ),
-                            if (_askUserName) ...[
-                              SizedBox(height: InSpacing.md(context)),
-                              _UserNameFields(
-                                first: _firstNameController,
-                                last: _lastNameController,
-                              ),
-                            ],
-                            SizedBox(height: InSpacing.md(context)),
-                            SearchableDropdownField<Currency>(
-                              label: context.tr('currency'),
-                              items: currencies,
-                              initialValue: currentCurrency,
-                              displayString: (c) => '${c.name} (${c.code})',
-                              idOf: (c) => c.id,
-                              onChanged: (c) =>
-                                  setState(() => _currencyId = c?.id ?? ''),
-                            ),
-                            SizedBox(height: InSpacing.md(context)),
-                            SearchableDropdownField<Language>(
-                              label: context.tr('language'),
-                              items: languages,
-                              initialValue: currentLanguage,
-                              displayString: (l) => l.name,
-                              idOf: (l) => l.id,
-                              onChanged: (l) =>
-                                  setState(() => _languageId = l?.id ?? ''),
-                            ),
-                            const SizedBox(height: InSpacing.xl),
-                            FilledButton.icon(
-                              key: const ValueKey('setup_submit'),
-                              onPressed: _canSubmit ? _onSave : null,
-                              icon: _isSaving
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation(
-                                          Colors.white,
-                                        ),
-                                      ),
-                                    )
-                                  : const Icon(Icons.arrow_forward, size: 18),
-                              label: Text(context.tr('setup_submit')),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: tokens.accent,
-                                foregroundColor: Colors.white,
-                                minimumSize: const Size.fromHeight(48),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    InRadii.r2,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: InSpacing.md(context)),
-                      Row(
-                        mainAxisAlignment: canSwitch
-                            ? MainAxisAlignment.spaceBetween
-                            : MainAxisAlignment.center,
-                        children: [
-                          if (canSwitch)
-                            TextButton.icon(
-                              key: const ValueKey('setup_switch_company'),
-                              onPressed: _isSaving ? null : _onSwitchCompany,
-                              icon: const Icon(
-                                Icons.swap_horiz_outlined,
-                                size: 16,
-                              ),
-                              label: Text(context.tr('switch_company')),
-                            ),
-                          TextButton.icon(
-                            key: const ValueKey('setup_sign_out'),
-                            onPressed: _isSaving ? null : _onSignOut,
-                            icon: const Icon(Icons.logout_outlined, size: 16),
-                            label: Text(context.tr('logout')),
-                          ),
-                        ],
+                      Expanded(
+                        child: split
+                            ? _buildSplit(context, currencies, languages)
+                            : _buildNarrow(context, currencies, languages),
                       ),
                     ],
                   ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSplit(
+    BuildContext context,
+    List<Currency> currencies,
+    List<Language> languages,
+  ) {
+    final tokens = context.inTheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: Column(
+            children: [
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: InSpacing.xxl,
+                      vertical: InSpacing.xl,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 440),
+                      child: _stepBody(context, currencies, languages, false),
+                    ),
+                  ),
+                ),
+              ),
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 440 + 64),
+                  child: _footer(context, phone: false),
                 ),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _NameField extends StatelessWidget {
-  const _NameField({required this.controller, this.errorText});
-
-  final TextEditingController controller;
-  final String? errorText;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    final scope = FormSaveScope.maybeOf(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Text(
-            context.tr('company_name'),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: tokens.ink3,
+        Expanded(
+          child: ColoredBox(
+            color: tokens.surfaceAlt,
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(InSpacing.xl),
+                child: _preview(currencies, width: 360),
+              ),
             ),
           ),
         ),
-        TextField(
-          key: const ValueKey('setup_company_name'),
-          controller: controller,
-          autofocus: true,
-          textInputAction: TextInputAction.done,
-          decoration: InputDecoration(errorText: errorText),
-          onSubmitted: (_) => scope?.trySubmit(),
-        ),
       ],
     );
   }
-}
 
-class _UserNameFields extends StatelessWidget {
-  const _UserNameFields({required this.first, required this.last});
-
-  final TextEditingController first;
-  final TextEditingController last;
-
-  @override
-  Widget build(BuildContext context) {
-    final scope = FormSaveScope.maybeOf(context);
-    Widget field(
-      TextEditingController c,
-      String labelKey,
-      String hint,
-      String key,
-      TextInputAction action,
-    ) => TextField(
-      key: ValueKey(key),
-      controller: c,
-      textCapitalization: TextCapitalization.words,
-      autofillHints: [hint],
-      textInputAction: action,
-      decoration: InputDecoration(labelText: context.tr(labelKey)),
-      onSubmitted: action == TextInputAction.done
-          ? (_) => scope?.trySubmit()
-          : null,
-    );
-    return Row(
+  Widget _buildNarrow(
+    BuildContext context,
+    List<Currency> currencies,
+    List<Language> languages,
+  ) {
+    return Column(
       children: [
         Expanded(
-          child: field(
-            first,
-            'first_name',
-            AutofillHints.givenName,
-            'setup_first_name',
-            TextInputAction.next,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              InSpacing.xl,
+              InSpacing.sm,
+              InSpacing.xl,
+              InSpacing.xl,
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: _stepBody(context, currencies, languages, true),
+              ),
+            ),
           ),
         ),
-        SizedBox(width: InSpacing.md(context)),
-        Expanded(
-          child: field(
-            last,
-            'last_name',
-            AutofillHints.familyName,
-            'setup_last_name',
-            TextInputAction.done,
-          ),
-        ),
+        _footer(context, phone: true),
       ],
     );
   }
-}
 
-class _SurfaceCard extends StatelessWidget {
-  const _SurfaceCard({required this.child, required this.padding});
+  Widget _preview(List<Currency> currencies, {required double width}) =>
+      SetupInvoicePreview(
+        businessName: _vm.businessName,
+        total: _previewTotal(currencies),
+        logo: _vm.logo,
+        width: width,
+      );
 
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: tokens.surface,
-        borderRadius: BorderRadius.circular(InRadii.r3),
-        border: Border.all(color: tokens.border),
-        boxShadow: tokens.shadow2,
+  /// The current step, entering with a fade and a short rise on the first
+  /// frame, and sliding in from the side it was reached from afterwards.
+  Widget _stepBody(
+    BuildContext context,
+    List<Currency> currencies,
+    List<Language> languages,
+    bool narrow,
+  ) {
+    final motion = InMotion.of(context);
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    // Gated on the device, not the window: an iPad or a landscape phone is
+    // still touch, and still needs Photos (the iOS file picker cannot reach
+    // it) — CLAUDE.md "A landscape phone is not a small desktop".
+    final touchLogo = Env.isTouchPrimary;
+    final Widget body = switch (_vm.step) {
+      SetupWizardStep.business => SetupStepBusiness(
+        key: const ValueKey(SetupWizardStep.business),
+        vm: _vm,
+        nameController: _nameController,
+        firstController: _firstController,
+        lastController: _lastController,
+        nameFocus: _nameFocus,
+        firstFocus: _firstFocus,
+        headingFocus: _headingFocus,
+        regionExpanded: _regionExpanded,
+        onToggleRegion: () =>
+            setState(() => _regionExpanded = !_regionExpanded),
+        currencies: currencies,
+        languages: languages,
       ),
-      padding: padding,
-      child: child,
+      SetupWizardStep.logo => SetupStepLogo(
+        key: const ValueKey(SetupWizardStep.logo),
+        vm: _vm,
+        headingFocus: _headingFocus,
+        touchLayout: touchLogo,
+        busy: _busy,
+        error: _logoError,
+        onFiles: _takeLogo,
+        onPickPhoto: _pickPhoto,
+        onPickFile: _pickFile,
+        // On a phone the preview is this step's hero, and its logo slot the
+        // way to add one; on a wide screen it already has its own pane.
+        preview: narrow
+            ? SetupInvoicePreview(
+                businessName: _vm.businessName,
+                total: _previewTotal(currencies),
+                logo: _vm.logo,
+                width: 300,
+                onTapLogo: _busy ? null : (touchLogo ? _pickPhoto : null),
+              )
+            : null,
+      ),
+    };
+
+    final entering = CurvedAnimation(parent: _entrance, curve: InMotion.out);
+    return AnimatedOpacity(
+      opacity: _finishing || _vm.committing ? 0.0 : 1.0,
+      duration: motion(const Duration(milliseconds: 160)),
+      curve: InMotion.in_,
+      child: FadeTransition(
+        opacity: entering,
+        child: SlideTransition(
+          position: Tween(
+            begin: const Offset(0, 0.02),
+            end: Offset.zero,
+          ).animate(entering),
+          child: AnimatedSwitcher(
+            duration: motion(InMotion.base),
+            reverseDuration: motion(const Duration(milliseconds: 120)),
+            switchInCurve: InMotion.out,
+            switchOutCurve: InMotion.in_,
+            layoutBuilder: (current, previous) => Stack(
+              alignment: AlignmentDirectional.topStart,
+              children: [...previous, ?current],
+            ),
+            transitionBuilder: (child, animation) {
+              final incoming = child.key == ValueKey(_vm.step);
+              // Forward: the new step comes from the end edge, the old one
+              // leaves toward the start; Back mirrors it, and so does RTL.
+              var dx = incoming ? 24.0 : -16.0;
+              if (!_forward) dx = -dx;
+              if (rtl) dx = -dx;
+              return FadeTransition(
+                opacity: animation,
+                child: AnimatedBuilder(
+                  animation: animation,
+                  builder: (context, child) => Transform.translate(
+                    offset: Offset(dx * (1 - animation.value), 0),
+                    child: child,
+                  ),
+                  child: child,
+                ),
+              );
+            },
+            child: body,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _footer(BuildContext context, {required bool phone}) {
+    final tokens = context.inTheme;
+    final motion = InMotion.of(context);
+    final onLogo = _vm.step == SetupWizardStep.logo;
+    final done = _finishing || _vm.committing;
+    final hasLogo = _vm.logo != null;
+    // The heaviest button never says skip: an outlined "Skip for Now" until
+    // a logo lands, then a filled "Finish Setup".
+    final filled = !onLogo || hasLogo || done;
+    final label = !onLogo
+        ? context.tr('continue')
+        : (hasLogo || done
+              ? context.tr('setup_finish')
+              : context.tr('setup_skip_for_now'));
+    final content = AnimatedSwitcher(
+      duration: motion(const Duration(milliseconds: 180)),
+      child: done
+          ? const Icon(Icons.check, key: ValueKey('done'), size: 20)
+          : Text(label, key: ValueKey(label)),
+    );
+    final onPressed = _busy && !done ? null : (done ? () {} : _onPrimary);
+    final primary = filled
+        ? FilledButton(
+            key: const ValueKey('setup_submit'),
+            focusNode: _primaryFocus,
+            style: FilledButton.styleFrom(minimumSize: const Size(96, 44)),
+            onPressed: onPressed,
+            child: content,
+          )
+        : OutlinedButton(
+            key: const ValueKey('setup_submit'),
+            focusNode: _primaryFocus,
+            style: OutlinedButton.styleFrom(minimumSize: const Size(96, 44)),
+            onPressed: onPressed,
+            child: content,
+          );
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        InSpacing.xl,
+        InSpacing.md(context),
+        InSpacing.xl,
+        InSpacing.md(context),
+      ),
+      decoration: phone
+          ? BoxDecoration(
+              color: tokens.bg,
+              border: Border(top: BorderSide(color: tokens.border)),
+            )
+          : null,
+      // Step 1 on a phone has no Back, so Continue takes the whole width —
+      // where the thumb is.
+      child: phone && _vm.isFirstStep
+          ? SizedBox(width: double.infinity, child: primary)
+          : Row(
+              children: [
+                if (!_vm.isFirstStep)
+                  TextButton(
+                    key: const ValueKey('setup_back'),
+                    onPressed: _busy ? null : _back,
+                    child: Text(context.tr('setup_back')),
+                  ),
+                // The primary takes what Back leaves and sits at the end; its
+                // label wraps before the row can overflow — a long locale or
+                // a large text size on a narrow phone.
+                Expanded(
+                  child: Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: primary,
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }

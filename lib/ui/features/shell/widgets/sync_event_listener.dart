@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/app/welcome_controller.dart';
 import 'package:admin/data/repositories/token_repository.dart';
 import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/domain/sync/sync_event.dart';
@@ -21,6 +22,7 @@ import 'package:admin/ui/features/auth/widgets/name_required_dialog.dart';
 import 'package:admin/ui/features/mobile_promo/mobile_app_promo_host.dart';
 import 'package:admin/ui/features/review_prompt/review_prompt_host.dart';
 import 'package:admin/ui/features/tokens/widgets/token_created_dialog.dart';
+import 'package:admin/ui/features/welcome/welcome_host.dart';
 import 'package:admin/ui/features/whats_new/whats_new_host.dart';
 
 final _log = Logger('SyncEventListener');
@@ -140,11 +142,30 @@ class _SyncEventListenerState extends State<SyncEventListener> {
   /// Kept for [dispose], where an inherited lookup is no longer safe.
   Services? _services;
 
+  WelcomeController? _welcome() {
+    try {
+      return context.read<WelcomeController?>();
+    } on ProviderNotFoundException {
+      return null;
+    }
+  }
+
   void _maybePromptForName() {
     if (_namePromptScheduled || !mounted) return;
     final session = context.read<Services>().auth.session.value;
     if (!needsUserName(session)) return;
     if (_namePromptedUserId == session!.userId) return;
+    // Not on a launch the first-run Welcome has, or is about to, nor the one
+    // that just finished /setup: two dialogs back to back, or a dialog over a
+    // new account's first dashboard, is no way to say hello. The next launch
+    // asks.
+    final welcome = _welcome();
+    if (welcome != null &&
+        (welcome.autoOpens ||
+            welcome.shownThisLaunch ||
+            welcome.setupCompletedThisLaunch)) {
+      return;
+    }
     _namePromptScheduled = true;
     // After the frame: never push a dialog from inside a build.
     WidgetsBinding.instance.addPostFrameCallback((_) => _showNamePrompt());
@@ -597,8 +618,14 @@ class _SyncEventListenerState extends State<SyncEventListener> {
   // guarantee of never landing over `/lock` or `/setup`. The promo waits a
   // day behind What's New (docs/whats-new-dialog.md); the review prompt and
   // the promo hold each other back for a week (docs/review-prompt.md).
+  //
+  // The first-run Welcome leads them all (docs/first-run-welcome.md): it
+  // holds What's New back while it may open, and the promo and the review
+  // prompt for a week after it does.
   @override
-  Widget build(BuildContext context) => WhatsNewHost(
-    child: MobileAppPromoHost(child: ReviewPromptHost(child: widget.child)),
+  Widget build(BuildContext context) => WelcomeHost(
+    child: WhatsNewHost(
+      child: MobileAppPromoHost(child: ReviewPromptHost(child: widget.child)),
+    ),
   );
 }

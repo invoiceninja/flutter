@@ -5,6 +5,7 @@ import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/apple_sign_in.dart';
 import 'package:admin/data/services/google_oauth.dart';
+import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
 import 'package:admin/ui/features/auth/view_models/social_sign_in.dart';
 
@@ -15,9 +16,15 @@ import 'package:admin/ui/features/auth/view_models/social_sign_in.dart';
 /// offers its signup link only when "Hosted" is selected, like React). Mirrors [LoginViewModel]'s busy / error /
 /// fieldErrors machinery so the screen surfaces server validation inline.
 class SignupViewModel extends ChangeNotifier {
-  SignupViewModel({required this.auth});
+  SignupViewModel({required this.auth, this.passwordCache});
 
   final AuthRepository auth;
+
+  /// Primed with the password just chosen, so the setup wizard can save the
+  /// user's name: `PUT /users/{id}` is password-protected, and asking for a
+  /// password typed seconds earlier would be the first thing a new user is
+  /// asked twice (docs/first-run-welcome.md).
+  final PasswordCache? passwordCache;
 
   /// Set in [dispose]: leaving the screen while a sign-up is on the wire
   /// disposes this, and the request's `finally` then notified a dead notifier
@@ -125,6 +132,7 @@ class SignupViewModel extends ChangeNotifier {
         email: email,
         password: password,
       );
+      passwordCache?.set(password);
       return true;
     } on ValidationException catch (e) {
       _fieldErrors = e.fieldErrors;

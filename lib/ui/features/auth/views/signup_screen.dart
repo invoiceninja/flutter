@@ -30,7 +30,11 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   void initState() {
     super.initState();
-    _vm = SignupViewModel(auth: context.read<Services>().auth);
+    final services = context.read<Services>();
+    _vm = SignupViewModel(
+      auth: services.auth,
+      passwordCache: services.passwordCache,
+    );
   }
 
   @override
@@ -81,10 +85,10 @@ class _SignupBody extends StatelessWidget {
   Future<void> _finish(BuildContext context, Future<bool> attempt) async {
     final ok = await attempt;
     if (!context.mounted) return;
-    if (ok) {
-      Notify.success(context, context.tr('account_created'));
-      return; // router redirect lands the now-authenticated user
-    }
+    // No toast: the router lands the new account on the setup wizard, and
+    // sign-up into the wizard is one continuous flow
+    // (docs/first-run-welcome.md).
+    if (ok) return;
     // A social sheet dismissed returns false with no error — say nothing.
     final msg = _resolveError(context);
     final detailKey = vm.errorDetailKey;

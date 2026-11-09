@@ -70,6 +70,10 @@ String defaultPostLoginRoute(AuthSession? session) {
 bool isCompanySetupRequired(AuthSession? session) {
   final c = session?.currentCompany;
   if (c == null) return false;
+  // Only someone who may save company settings is gated: an invited user on
+  // an unnamed company could only fail the save the server refuses them, so
+  // they go straight in (docs/first-run-welcome.md).
+  if (!c.isAdmin && !c.isOwner) return false;
   final name = c.displayName.trim();
   // Empty AND the resolved-fallback case both mean no real name set.
   // `companyDisplayName` returns `'Untitled'` only when settings.name,
@@ -782,7 +786,33 @@ GoRouter buildRouter({
       GoRoute(path: '/lock', builder: (context, state) => const LockScreen()),
       GoRoute(
         path: '/setup',
-        builder: (context, state) => const SetupWizardScreen(),
+        // A fade-through, not the platform push: the wizard is where sign-up
+        // continues, not a page stacked on it — it has no back to slide to
+        // (docs/first-run-welcome.md).
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          transitionDuration: const Duration(milliseconds: 300),
+          reverseTransitionDuration: const Duration(milliseconds: 150),
+          child: const SetupWizardScreen(),
+          transitionsBuilder: (context, animation, secondary, child) {
+            if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+              return child;
+            }
+            // 90 ms of the old page fading, then 210 ms of the wizard
+            // fading and settling from 0.98.
+            final enter = CurvedAnimation(
+              parent: animation,
+              curve: const Interval(0.3, 1, curve: Curves.easeOutCubic),
+            );
+            return FadeTransition(
+              opacity: enter,
+              child: ScaleTransition(
+                scale: Tween(begin: 0.98, end: 1.0).animate(enter),
+                child: child,
+              ),
+            );
+          },
+        ),
       ),
       GoRoute(
         path: '/too-old',

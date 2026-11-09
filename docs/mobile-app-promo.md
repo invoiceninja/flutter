@@ -46,6 +46,8 @@ Rejected: a single QR code pointing at a redirect that sends Android phones to G
 
 ## Who sees it, and when
 
+**Never in a first-run Welcome's week.** `heldBackBy` also asks `WelcomeController.holdsBackPromptsAt`: the promo waits while a Welcome may open and for seven days after it does (docs/first-run-welcome.md).
+
 `mobilePromoEligible`: a signed-in session that is not the demo (`isDemo`, `Env.isDemoBuild`, `Env.demoMode`) and whose server a phone could reach — `localhost` / `*.localhost`, `127.*`, `0.0.0.0` and `::1` are skipped (`isLoopbackHost`). A private-network server — anything `isLocalNetworkHost` (the self-hosted login's classifier) calls local apart from loopback: RFC 1918, link-local, CGNAT, `.local` / `.lan` / `.home.arpa` / `.internal` — is shown with "Your phone needs to be on the same network".
 
 Where it can open:

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/app/welcome_controller.dart';
 import 'package:admin/app/whats_new_controller.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/ui/core/dialogs/automatic_dialogs.dart';
@@ -84,8 +85,26 @@ class _WhatsNewHostState extends State<WhatsNewHost> {
         _eligible;
   }
 
+  /// The first-run Welcome has this launch — it may still open, or it did.
+  /// What's New stands down without spending an attempt, so the notes come
+  /// on a later launch rather than straight after it
+  /// (docs/first-run-welcome.md).
+  bool get _welcomeHasLaunch {
+    WelcomeController? welcome;
+    try {
+      welcome = context.read<WelcomeController?>();
+    } on ProviderNotFoundException {
+      return false;
+    }
+    return welcome != null && (welcome.autoOpens || welcome.shownThisLaunch);
+  }
+
   void _onSession() {
     if (!mounted || _checksLeft != null || !_mayOpen) return;
+    if (_welcomeHasLaunch) {
+      _checksLeft = 0;
+      return;
+    }
     _checksLeft =
         1 + (_giveUpAfter - _settle).inMilliseconds ~/ _retry.inMilliseconds;
     _quiet = QuietMomentCheck();
@@ -95,6 +114,7 @@ class _WhatsNewHostState extends State<WhatsNewHost> {
   void _tryShow() {
     _timer = null;
     if (!mounted || !_mayOpen) return;
+    if (_welcomeHasLaunch) return;
     final left = _checksLeft! - 1;
     _checksLeft = left;
     if (left < 0) {

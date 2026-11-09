@@ -860,6 +860,46 @@ class InSpacing {
       MediaQuery.sizeOf(context).width >= 600 ? 16 : 12;
 }
 
+/// Brightness-independent motion: the durations and curves every crafted
+/// transition uses, so screens share one rhythm instead of each inventing
+/// its own numbers (docs/first-run-welcome.md).
+///
+/// Read durations through [InMotion.of] wherever the motion is decorative:
+/// it answers [Duration.zero] under `MediaQuery.disableAnimations`, so the
+/// reduced-motion path is the same code with nothing moving.
+class InMotion {
+  const InMotion._(this._enabled);
+
+  final bool _enabled;
+
+  /// A quick acknowledgement: a crossfade, an exit.
+  static const Duration fast = Duration(milliseconds: 150);
+
+  /// An element entering or changing place.
+  static const Duration base = Duration(milliseconds: 240);
+
+  /// A larger surface moving, or a bar filling.
+  static const Duration slow = Duration(milliseconds: 320);
+
+  /// Things arriving.
+  static const Curve out = Curves.easeOutCubic;
+
+  /// Things leaving.
+  static const Curve in_ = Curves.easeInCubic;
+
+  /// Things travelling from one state to another.
+  static const Curve move = Curves.easeInOutCubic;
+
+  static InMotion of(BuildContext context) =>
+      InMotion._(!(MediaQuery.maybeDisableAnimationsOf(context) ?? false));
+
+  /// Whether decorative motion should play at all.
+  bool get enabled => _enabled;
+
+  /// [d] when motion is on, [Duration.zero] when the user asked for less.
+  Duration call(Duration d) => _enabled ? d : Duration.zero;
+}
+
 /// Stable tint palette for initials avatars (clients, companies, contacts).
 /// Brightness-independent — the same seed maps to the same colour in light
 /// and dark mode so a given entity reads as the same identity across themes.

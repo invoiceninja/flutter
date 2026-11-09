@@ -365,14 +365,19 @@ void main() {
 
     test('true when displayName is empty', () {
       final session = _sessionWith(
-        _company(permissions: '', name: '', displayName: ''),
+        _company(permissions: '', isAdmin: true, name: '', displayName: ''),
       );
       expect(isCompanySetupRequired(session), isTrue);
     });
 
     test('true when displayName is the server seed "Untitled Company"', () {
       final session = _sessionWith(
-        _company(permissions: '', name: '', displayName: 'Untitled Company'),
+        _company(
+          permissions: '',
+          isAdmin: true,
+          name: '',
+          displayName: 'Untitled Company',
+        ),
       );
       expect(isCompanySetupRequired(session), isTrue);
     });
@@ -382,7 +387,12 @@ void main() {
       // `companyDisplayName` returns "Untitled" only when settings.name,
       // displayName, and the row\'s name are all empty.
       final session = _sessionWith(
-        _company(permissions: '', name: '', displayName: 'Untitled'),
+        _company(
+          permissions: '',
+          isAdmin: true,
+          name: '',
+          displayName: 'Untitled',
+        ),
       );
       expect(isCompanySetupRequired(session), isTrue);
     });
@@ -394,14 +404,49 @@ void main() {
       // "Untitled" — that\'s our signal that the user set this, not a
       // fallback.
       final session = _sessionWith(
-        _company(permissions: '', name: 'Untitled', displayName: 'Untitled'),
+        _company(
+          permissions: '',
+          isAdmin: true,
+          name: 'Untitled',
+          displayName: 'Untitled',
+        ),
       );
       expect(isCompanySetupRequired(session), isFalse);
     });
 
     test('false when company has a real name', () {
       final session = _sessionWith(
-        _company(permissions: '', name: 'Acme', displayName: 'Acme Co'),
+        _company(
+          permissions: '',
+          isAdmin: true,
+          name: 'Acme',
+          displayName: 'Acme Co',
+        ),
+      );
+      expect(isCompanySetupRequired(session), isFalse);
+    });
+
+    test('an owner is gated like an admin', () {
+      final session = _sessionWith(
+        _company(
+          permissions: '',
+          isOwner: true,
+          name: '',
+          displayName: 'Untitled Company',
+        ),
+      );
+      expect(isCompanySetupRequired(session), isTrue);
+    });
+
+    test('false for an invited user who may not save company settings', () {
+      // The server refuses their save, so the gate could never open — they
+      // go straight in and get the Welcome (docs/first-run-welcome.md).
+      final session = _sessionWith(
+        _company(
+          permissions: 'view_all',
+          name: '',
+          displayName: 'Untitled Company',
+        ),
       );
       expect(isCompanySetupRequired(session), isFalse);
     });

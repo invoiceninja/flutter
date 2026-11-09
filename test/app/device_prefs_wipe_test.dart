@@ -185,6 +185,12 @@ final Map<PrefKey<Object>, _Probe> _probes = {
     (s) => s.reviewPrompt.noteRatedManually(),
     (s) => !s.reviewPrompt.state.done,
   ),
+  // "This device has greeted this person" — a sign-out must not make the
+  // Welcome greet them again, and the promo's hold after it survives too.
+  DevicePrefKeys.welcome: _Probe(
+    (s) => s.welcome.noteOpened(),
+    (s) => s.welcome.state.shownAt == null,
+  ),
 };
 
 final _certificate = CertificateFacts(

@@ -40,9 +40,15 @@ class HiddenEmptyPanelsBuilder extends StatefulWidget {
     required this.vm,
     required this.pref,
     required this.builder,
+    this.force = false,
   });
 
   final DashboardViewModel vm;
+
+  /// Hide empty panels whatever the preference says — while the setup
+  /// checklist leads a company with no invoices yet, a grid of zeros under
+  /// it only dilutes the one thing to do (docs/first-run-welcome.md).
+  final bool force;
   final HideEmptyPanelsController pref;
 
   /// [hidden] is either empty or [DashboardViewModel.emptyPanels]: every kind
@@ -93,7 +99,8 @@ class _HiddenEmptyPanelsBuilderState extends State<HiddenEmptyPanelsBuilder> {
     source.pref.removeListener(_onChanged);
   }
 
-  Set<String> _resolve() => widget.pref.effectiveFor(isPhone: _byDefault)
+  Set<String> _resolve() =>
+      widget.force || widget.pref.effectiveFor(isPhone: _byDefault)
       ? widget.vm.emptyPanels.value
       : const <String>{};
 

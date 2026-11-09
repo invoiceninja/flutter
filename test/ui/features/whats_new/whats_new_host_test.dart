@@ -12,10 +12,12 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
+import 'package:admin/app/welcome_controller.dart';
 import 'package:admin/app/whats_new_controller.dart';
 import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/domain/release_notes.dart';
+import 'package:admin/domain/welcome.dart';
 import 'package:admin/ui/core/dialogs/automatic_dialogs.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_guard.dart';
 import 'package:admin/ui/features/whats_new/whats_new_host.dart';
@@ -130,6 +132,53 @@ void main() {
     await tester.pumpAndSettle();
     expect(c.pending, isEmpty);
     expect(c.state.seenVersion, '2.0.1');
+  });
+
+  testWidgets('stands down, without spending an attempt, while the first-run '
+      'Welcome has the launch', (tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final controller = WhatsNewController(
+      prefs: DevicePrefsStore(null),
+      currentVersion: '2.0.1',
+      catalog: const [
+        ReleaseNotes(version: '2.0.1', items: [ReleaseNoteItem('Added: x')]),
+      ],
+      surfaces: const {},
+      isDemoBuild: false,
+      demoMode: false,
+    );
+    addTearDown(controller.dispose);
+    await controller.noteLaunch(existingInstall: true);
+    final welcome = WelcomeController(
+      prefs: DevicePrefsStore(null),
+      currentUserKey: () => 'k',
+      isDemoBuild: false,
+      demoMode: false,
+    )..noteSignIn(const SignInFacts(userKey: 'k', isSignup: false));
+    addTearDown(welcome.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildInTheme(InTheme.light),
+        localizationsDelegates: kTestLocalizationsDelegates,
+        supportedLocales: kTestSupportedLocales,
+        home: Provider<Services>.value(
+          value: _FakeServices(_session()),
+          child: ChangeNotifierProvider<WelcomeController?>.value(
+            value: welcome,
+            child: ChangeNotifierProvider.value(
+              value: controller,
+              child: const WhatsNewHost(child: Scaffold(body: SizedBox())),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 70));
+    expect(find.text(_title), findsNothing);
+    expect(controller.attempts, 0);
+    expect(controller.pending, isNotEmpty, reason: 'told on a later launch');
   });
 
   testWidgets('a new install is told nothing', (tester) async {

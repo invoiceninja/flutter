@@ -40,6 +40,7 @@ void main() {
     'show_seconds': PrefScope.device,
     'downloads_folder': PrefScope.device,
     'review_prompt_json': PrefScope.device,
+    'welcome_json': PrefScope.device,
   };
 
   final names = [for (final k in DevicePrefKeys.all) k.name];

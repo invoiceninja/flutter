@@ -21,6 +21,7 @@ import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/welcome.dart' show kOwnReactSettingsKey;
 import 'package:admin/ui/features/dashboard/helpers/needs_attention.dart';
 import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
 
@@ -1315,7 +1316,7 @@ class DashboardViewModel extends ChangeNotifier {
   // keeps its dashboard in `company_user.settings`, which none of this
   // touches. See `docs/dashboard-panels.md`.
 
-  static const String _kSyncedOwn = 'flutter_dashboard';
+  static const String _kSyncedOwn = kOwnReactSettingsKey;
   static const String _kSyncedSub = 'react_settings';
 
   /// Set while a local change is waiting to be written to `react_settings` —

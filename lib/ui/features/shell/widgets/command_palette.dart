@@ -26,6 +26,7 @@ import 'package:admin/ui/features/reports/views/reports_gallery_screen.dart';
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 import 'package:admin/ui/features/settings/widgets/settings_search_result.dart';
 import 'package:admin/ui/features/review_prompt/review_listing.dart';
+import 'package:admin/ui/features/welcome/welcome_dialog.dart';
 import 'package:admin/ui/features/whats_new/whats_new_dialog.dart';
 import 'package:admin/utils/search_fold.dart';
 
@@ -105,6 +106,25 @@ const String kReportsSearchGroup = 'reports';
 /// The group of the palette's What's New hit — also its heading's key
 /// ("Release Notes").
 const String kWhatsNewSearchGroup = 'release_notes';
+
+/// The group of the palette's first-run Welcome hit — also its heading's key
+/// ("Getting Started").
+const String kWelcomeSearchGroup = 'getting_started';
+
+/// What someone looking for the Welcome types (docs/first-run-welcome.md).
+/// English, beside the translated label.
+const _kWelcomeTerms = [
+  'welcome',
+  'getting started',
+  'get started',
+  'old app',
+  'previous app',
+  "what's changed",
+  'whats changed',
+  'what changed',
+  'tour',
+  'help',
+];
 
 /// What someone looking for the release notes types. English, beside the
 /// translated label and heading: "changelog" has no key of its own.
@@ -374,6 +394,7 @@ class _CommandPaletteState extends State<_CommandPalette> {
       final merged = [
         ...r.where((hit) => !hit.isSettings),
         ..._localReportHits(q),
+        ..._localWelcomeHits(q),
         ..._localWhatsNewHits(q),
         ..._localRateAppHits(q),
         ..._localSettingsHits(q),
@@ -392,6 +413,7 @@ class _CommandPaletteState extends State<_CommandPalette> {
       setState(() {
         _results = [
           ..._localReportHits(q),
+          ..._localWelcomeHits(q),
           ..._localWhatsNewHits(q),
           ..._localRateAppHits(q),
           ..._localSettingsHits(q),
@@ -421,6 +443,22 @@ class _CommandPaletteState extends State<_CommandPalette> {
             id: '',
             path: reportRoutePath(definition.identifier),
           ),
+    ];
+  }
+
+  /// The first-run Welcome (docs/first-run-welcome.md), for "welcome",
+  /// "getting started", "old app" and the like. Selecting it opens the
+  /// Welcome over the current screen.
+  List<SearchResult> _localWelcomeHits(String query) {
+    final needle = query.trim().toLowerCase();
+    if (needle.length < 3 || !welcomeAvailable(context)) return const [];
+    final label = context.tr('getting_started');
+    final terms = [..._kWelcomeTerms, label.toLowerCase()];
+    if (!terms.any((t) => t.startsWith(needle) || t.contains(' $needle'))) {
+      return const [];
+    }
+    return [
+      SearchResult(group: kWelcomeSearchGroup, name: label, id: '', path: ''),
     ];
   }
 
@@ -583,6 +621,13 @@ class _CommandPaletteState extends State<_CommandPalette> {
       if (reviewPrompt == null) return;
       rateAppManually(context, reviewPrompt);
       Navigator.of(context).pop();
+      return;
+    }
+    if (r.group == kWelcomeSearchGroup) {
+      // Over the current screen, like the release notes below.
+      final host = Navigator.of(context, rootNavigator: true).context;
+      Navigator.of(context).pop();
+      unawaited(openWelcomeOnRequest(host));
       return;
     }
     if (r.group == kWhatsNewSearchGroup) {
@@ -898,6 +943,8 @@ class _CommandPaletteState extends State<_CommandPalette> {
                         ? Icons.link
                         : r.group == kReportsSearchGroup
                         ? Icons.bar_chart_outlined
+                        : r.group == kWelcomeSearchGroup
+                        ? Icons.waving_hand_outlined
                         : r.group == kWhatsNewSearchGroup
                         ? Icons.new_releases_outlined
                         : r.group == kRateAppSearchGroup

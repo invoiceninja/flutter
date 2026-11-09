@@ -283,6 +283,7 @@ void main() {
         'show_seconds',
         'downloads_folder',
         'review_prompt_json',
+        'welcome_json',
       };
       for (final key in DevicePrefKeys.all) {
         if (addedAfterV12.contains(key.name)) {

@@ -81,7 +81,17 @@ class MobileDashboardBody extends StatelessWidget {
     required this.onRecurringTap,
     required this.onAllRecurring,
     required this.onShowPanels,
+    this.leading,
+    this.forceHideEmpty = false,
   });
+
+  /// Drawn first, above the band — the setup checklist's slot, which is one
+  /// child whether or not it draws.
+  final Widget? leading;
+
+  /// Hide empty panels whatever the preference says (the checklist is leading
+  /// a company with no invoices yet).
+  final bool forceHideEmpty;
 
   final DashboardViewModel vm;
   final Formatter formatter;
@@ -158,6 +168,7 @@ class MobileDashboardBody extends StatelessWidget {
     return HiddenEmptyPanelsBuilder(
       vm: vm,
       pref: context.read<Services>().hideEmptyPanels,
+      force: forceHideEmpty,
       builder: (context, hidden) => _list(
         context,
         tokens,
@@ -185,6 +196,7 @@ class MobileDashboardBody extends StatelessWidget {
         gutter + fabClearance,
       ),
       children: [
+        ?leading,
         // The band leads, and it is ONE child either way — band and gap, or a
         // zero-size box: the list matches unkeyed children by index, so a slot
         // that came and went would shift, and rebuild, everything below it.

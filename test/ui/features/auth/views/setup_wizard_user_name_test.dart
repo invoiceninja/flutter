@@ -8,9 +8,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../shell/_shell_test_helpers.dart';
 
-/// The wizard asks for the user's own name only when the account has none —
-/// an Apple sign-up whose user hid their name, or an email sign-up — as
-/// admin-portal's wizard did.
+/// The wizard asks for the user's own name whenever the hosted account is
+/// missing one (`needsUserName`) — an Apple sign-up whose user hid their
+/// name, or an email sign-up. A save that needs a password the cache no
+/// longer holds asks for it at Finish (docs/first-run-welcome.md).
 void main() {
   Future<ShellFixture> fixtureWithUser({
     required String firstName,
@@ -50,6 +51,8 @@ void main() {
   ) async {
     final fixture = await fixtureWithUser(firstName: '', lastName: '');
     addTearDown(fixture.dispose);
+    // A fresh email sign-up primed it (`SignupViewModel`).
+    fixture.services.passwordCache.set('secret');
     await tester.pumpWidget(
       wrapWithShell(fixture.services, const SetupWizardScreen()),
     );
@@ -58,9 +61,27 @@ void main() {
     expect(find.byKey(const ValueKey('setup_last_name')), findsOneWidget);
   });
 
-  testWidgets('a named user is not asked again', (tester) async {
-    final fixture = await fixtureWithUser(firstName: 'Ada', lastName: '');
+  testWidgets('a user whose password lapsed is still asked — Finish asks '
+      'for the password', (tester) async {
+    // A login that landed on /setup: nothing cached. The wizard still
+    // collects the name; `nameNeedsPassword` puts the sheet before Finish.
+    final fixture = await fixtureWithUser(firstName: '', lastName: '');
     addTearDown(fixture.dispose);
+    await tester.pumpWidget(
+      wrapWithShell(fixture.services, const SetupWizardScreen()),
+    );
+    await tester.pump();
+    expect(find.byKey(const ValueKey('setup_first_name')), findsOneWidget);
+    expect(find.byKey(const ValueKey('setup_company_name')), findsOneWidget);
+  });
+
+  testWidgets('a named user is not asked again', (tester) async {
+    final fixture = await fixtureWithUser(
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+    );
+    addTearDown(fixture.dispose);
+    fixture.services.passwordCache.set('secret');
     await tester.pumpWidget(
       wrapWithShell(fixture.services, const SetupWizardScreen()),
     );

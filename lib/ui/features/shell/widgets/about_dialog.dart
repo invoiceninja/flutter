@@ -18,6 +18,7 @@ import 'package:admin/ui/features/mobile_promo/mobile_app_promo_dialog.dart';
 import 'package:admin/ui/features/review_prompt/review_listing.dart';
 import 'package:admin/ui/features/shell/widgets/keyboard_shortcuts_dialog.dart';
 import 'package:admin/ui/features/shell/widgets/self_update_dialog.dart';
+import 'package:admin/ui/features/welcome/welcome_dialog.dart';
 import 'package:admin/ui/features/whats_new/whats_new_dialog.dart';
 
 /// Pushes Flutter's bundled `LicensePage`. Modal sub-flow (not page
@@ -110,6 +111,14 @@ Future<void> showAppAboutDialog(BuildContext context) async {
           : null,
       // The notes' permanent way back (docs/whats-new-dialog.md): the
       // update's when one is waiting, else this build's release.
+      // The first-run Welcome's way back (docs/first-run-welcome.md) — only
+      // where a session can show it.
+      onShowWelcome: welcomeAvailable(context)
+          ? () {
+              Navigator.of(ctx).pop();
+              if (outerContext.mounted) openWelcomeOnRequest(outerContext);
+            }
+          : null,
       whatsNewVersion: whatsNew?.first.version,
       onShowWhatsNew: whatsNew == null
           ? null
@@ -147,6 +156,7 @@ class _AboutDialog extends StatelessWidget {
     this.onRateApp,
     this.whatsNewVersion,
     this.onShowWhatsNew,
+    this.onShowWelcome,
   });
 
   final ValueListenable<String?> serverVersion;
@@ -163,6 +173,7 @@ class _AboutDialog extends StatelessWidget {
   final VoidCallback? onRateApp;
   final String? whatsNewVersion;
   final VoidCallback? onShowWhatsNew;
+  final VoidCallback? onShowWelcome;
 
   /// Combined `v<server>-<platformLetter><clientBuild>` label (see
   /// [AppVersion.versionLabel]). [server] is the live `x-app-version` value.
@@ -253,7 +264,8 @@ class _AboutDialog extends StatelessWidget {
                   style: TextStyle(fontSize: 12, color: tokens.ink3),
                 ),
               ],
-              if (onShowWhatsNew != null ||
+              if (onShowWelcome != null ||
+                  onShowWhatsNew != null ||
                   onShowMobileApp != null ||
                   onRateApp != null) ...[
                 SizedBox(height: InSpacing.md(context)),
@@ -262,6 +274,16 @@ class _AboutDialog extends StatelessWidget {
                   spacing: InSpacing.sm,
                   runSpacing: InSpacing.sm,
                   children: [
+                    if (onShowWelcome != null)
+                      OutlinedButton.icon(
+                        key: const ValueKey('about_getting_started'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(64, 40),
+                        ),
+                        onPressed: onShowWelcome,
+                        icon: const Icon(Icons.waving_hand_outlined, size: 18),
+                        label: Text(context.tr('getting_started')),
+                      ),
                     if (onShowWhatsNew != null)
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(

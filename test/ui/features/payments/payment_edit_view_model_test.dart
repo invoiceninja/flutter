@@ -468,4 +468,44 @@ void main() {
       expect(vm.validateForSave(), isNull);
     });
   });
+
+  // Beta feedback: the converted amount was read-only, so a user holding the
+  // bank's settled figure had to work the rate out by hand. React and v1 both
+  // take the converted amount and set the rate from it.
+  group('PaymentEditViewModel — setConvertedAmount', () {
+    test('sets the rate that turns the amount into it', () {
+      final vm = vmFor()..setAmount('300');
+      vm.setConvertedAmount('265.50');
+      expect(vm.draft.exchangeRate, Decimal.parse('0.885'));
+      expect(vm.draft.amount, Decimal.parse('300'));
+    });
+
+    test('rounds the rate to the six places the server keeps', () {
+      final vm = vmFor()..setAmount('3');
+      vm.setConvertedAmount('1');
+      expect(vm.draft.exchangeRate, Decimal.parse('0.333333'));
+    });
+
+    test('a comma locale reads a comma as the decimal point', () {
+      final vm = PaymentEditViewModel(
+        repo: repo,
+        companyId: companyId,
+        useCommaAsDecimalPlace: true,
+      )..setAmount('200');
+      vm.setConvertedAmount('250,50');
+      expect(vm.draft.exchangeRate, Decimal.parse('1.2525'));
+    });
+
+    test('a blank or zero entry, or no amount, leaves the rate alone', () {
+      final vm = vmFor()
+        ..setAmount('100')
+        ..setExchangeRate('1.5');
+      vm.setConvertedAmount('');
+      vm.setConvertedAmount('0');
+      expect(vm.draft.exchangeRate, Decimal.parse('1.5'));
+
+      final empty = vmFor()..setConvertedAmount('50');
+      expect(empty.draft.exchangeRate, Decimal.one);
+    });
+  });
 }

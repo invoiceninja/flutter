@@ -18,10 +18,10 @@ import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
-import 'package:admin/ui/core/edit/entity_edit_field.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
+import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/payments/view_models/payment_edit_view_model.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
@@ -214,7 +214,7 @@ class _PaymentEditLayoutState extends State<PaymentEditLayout>
       children: [
         _PaymentMetaSection(vm: vm),
         SizedBox(height: InSpacing.lg(context)),
-        _CurrencyConversionSection(vm: vm, formatter: formatter),
+        PaymentCurrencyConversionSection(vm: vm, formatter: formatter),
         SizedBox(height: InSpacing.lg(context)),
         _NotesSection(vm: vm),
         if (vm.offersDocuments) ...[
@@ -539,32 +539,64 @@ class _PaymentTypePicker extends StatelessWidget {
   }
 }
 
-/// Optional currency-conversion sub-form, behind a "Convert currency" toggle.
-/// Hidden by default; reveals an exchange-currency picker + rate field + a
-/// read-only converted-amount preview when enabled. The toggle's initial
-/// state derives from whether the draft already carries an exchange currency
-/// (so editing a converted payment shows the fields). Mirrors
-/// `ExpenseEditCurrencyConversionSection` (incl. the auto-rate seed on
-/// currency pick); payments differ in that the converted amount is purely
-/// derived (`amount × rate`) — there is no stored foreign-amount field.
-class _CurrencyConversionSection extends StatefulWidget {
-  const _CurrencyConversionSection({required this.vm, required this.formatter});
+/// Optional currency-conversion sub-form, behind a "Convert currency" toggle:
+/// an exchange-currency picker, the rate, and the converted amount — either
+/// of the last two can be typed, and the other follows. The payment stores
+/// only the rate (there is no foreign-amount field), so a typed converted
+/// amount is turned into the rate that produces it
+/// ([PaymentEditViewModel.setConvertedAmount]), as React and v1 do.
+///
+/// Open from the start when the payment already converts (a currency, or a
+/// rate other than 1 — the server sets both for a client billed in another
+/// currency) or the company asks for it on every manual payment
+/// (`convert_payment_currency`, Settings → Online Payments, v1 parity);
+/// otherwise until the user flips the switch.
+class PaymentCurrencyConversionSection extends StatefulWidget {
+  const PaymentCurrencyConversionSection({
+    super.key,
+    required this.vm,
+    required this.formatter,
+  });
   final PaymentEditViewModel vm;
   final Formatter? formatter;
 
   @override
-  State<_CurrencyConversionSection> createState() =>
-      _CurrencyConversionSectionState();
+  State<PaymentCurrencyConversionSection> createState() =>
+      _PaymentCurrencyConversionSectionState();
 }
 
-class _CurrencyConversionSectionState
-    extends State<_CurrencyConversionSection> {
-  late bool _enabled = widget.vm.draft.exchangeCurrencyId.isNotEmpty;
+class _PaymentCurrencyConversionSectionState
+    extends State<PaymentCurrencyConversionSection> {
+  /// The user's own choice; null until they flip the switch.
+  bool? _toggled;
+  late final Stream<Company?> _company = context
+      .read<Services>()
+      .company
+      .watchCompany(widget.vm.companyId);
 
   PaymentEditViewModel get vm => widget.vm;
 
+  bool get _draftConverts {
+    final rate = vm.draft.exchangeRate;
+    return vm.draft.exchangeCurrencyId.isNotEmpty ||
+        (rate != Decimal.one && rate != Decimal.zero);
+  }
+
   @override
   Widget build(BuildContext context) {
+    return StreamBuilder<Company?>(
+      stream: _company,
+      builder: (context, snap) => _build(
+        context,
+        enabled:
+            _toggled ??
+            (_draftConverts ||
+                (vm.isCreate && (snap.data?.convertPaymentCurrency ?? false))),
+      ),
+    );
+  }
+
+  Widget _build(BuildContext context, {required bool enabled}) {
     final services = context.read<Services>();
     final currencies = services.statics.currencies.values.toList()
       ..sort((a, b) => a.code.compareTo(b.code));
@@ -575,6 +607,7 @@ class _CurrencyConversionSectionState
         break;
       }
     }
+    final useComma = widget.formatter?.settings.useCommaAsDecimalPlace ?? false;
 
     return _Section(
       title: context.tr('currency_conversion'),
@@ -582,9 +615,9 @@ class _CurrencyConversionSectionState
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(context.tr('convert_currency')),
-          value: _enabled,
+          value: enabled,
           onChanged: (v) {
-            setState(() => _enabled = v);
+            setState(() => _toggled = v);
             // Clearing the foreign currency + resetting the rate keeps the
             // wire payload single-currency when the user turns this off.
             if (!v) {
@@ -593,7 +626,7 @@ class _CurrencyConversionSectionState
             }
           },
         ),
-        if (_enabled) ...[
+        if (enabled) ...[
           const SizedBox(height: 12),
           SearchableDropdownField<Currency>(
             label: context.tr('exchange_currency'),
@@ -618,30 +651,117 @@ class _CurrencyConversionSectionState
             errorText: vm.fieldErrorFor('exchange_currency_id'),
           ),
           // Focus-aware so typing a decimal rate (e.g. `1.08`) isn't reseeded
-          // mid-keystroke; still updates when the currency-pick auto-seeds it.
-          _RateField(
+          // mid-keystroke; still updates when the currency-pick auto-seeds it
+          // or a typed converted amount sets it.
+          _RateField(vm: vm, useCommaAsDecimalPlace: useComma),
+          _ConvertedAmountField(
             vm: vm,
-            useCommaAsDecimalPlace:
-                widget.formatter?.settings.useCommaAsDecimalPlace ?? false,
-          ),
-          // Read-only preview in the foreign currency: amount × rate.
-          EntityEditField(
-            label: context.tr('converted_amount'),
-            initial: _convertedText(),
-            onChanged: (_) {},
-            readOnly: true,
+            formatter: widget.formatter,
+            currency: selected,
+            useCommaAsDecimalPlace: useComma,
           ),
         ],
       ],
     );
   }
+}
 
-  String _convertedText() {
-    final converted = vm.draft.amount * vm.draft.effectiveExchangeRate;
+/// The converted amount — `amount × rate` in the exchange currency — as an
+/// input. Typing it sets the rate ([PaymentEditViewModel.setConvertedAmount]);
+/// while it is not focused it follows the amount and the rate. Blank while
+/// nothing is converted yet (no currency, rate 1), as in v1, so the form
+/// doesn't present the unconverted amount as a conversion; disabled while the
+/// amount is zero, since no rate turns zero into anything.
+class _ConvertedAmountField extends StatefulWidget {
+  const _ConvertedAmountField({
+    required this.vm,
+    required this.formatter,
+    required this.currency,
+    required this.useCommaAsDecimalPlace,
+  });
+  final PaymentEditViewModel vm;
+  final Formatter? formatter;
+  final Currency? currency;
+  final bool useCommaAsDecimalPlace;
+
+  @override
+  State<_ConvertedAmountField> createState() => _ConvertedAmountFieldState();
+}
+
+class _ConvertedAmountFieldState extends State<_ConvertedAmountField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: _seed(),
+  );
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    widget.vm.addListener(_onVmChanged);
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  String _seed() {
+    final draft = widget.vm.draft;
+    if (draft.exchangeCurrencyId.isEmpty &&
+        draft.effectiveExchangeRate == Decimal.one) {
+      return '';
+    }
+    final converted = draft.amount * draft.effectiveExchangeRate;
     final f = widget.formatter;
-    return f == null
-        ? converted.toString()
-        : f.money(converted, clientCurrencyId: vm.draft.exchangeCurrencyId);
+    if (f != null) {
+      return f.inputMoney(converted, currencyId: draft.exchangeCurrencyId);
+    }
+    final precision = widget.currency?.precision ?? 2;
+    return decimalInputText(converted.round(scale: precision));
+  }
+
+  void _reseed() {
+    final next = _seed();
+    if (_controller.text == next) return;
+    _controller.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+    );
+  }
+
+  // Never under the user's cursor; the typed figure is what they meant.
+  void _onVmChanged() {
+    if (!_focusNode.hasFocus) _reseed();
+  }
+
+  // Leaving the field shows what the payment now holds — the typed figure,
+  // tidied to the currency's precision — or, when the entry set nothing (a
+  // blank, a zero), the figure the rate still gives.
+  void _onFocusChanged() {
+    if (!_focusNode.hasFocus) _reseed();
+  }
+
+  @override
+  void dispose() {
+    widget.vm.removeListener(_onVmChanged);
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final code = widget.currency?.code ?? '';
+    return TextFormField(
+      controller: _controller,
+      focusNode: _focusNode,
+      enabled: widget.vm.draft.amount != Decimal.zero,
+      decoration: InputDecoration(
+        labelText: context.tr('converted_amount'),
+        suffixText: code.isEmpty ? null : code,
+      ),
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      onChanged: widget.vm.setConvertedAmount,
+      // Enter saves, like every single-line field under the screen's scope.
+      textInputAction: TextInputAction.done,
+      onFieldSubmitted: (_) => FormSaveScope.maybeOf(context)?.trySubmit(),
+    );
   }
 }
 
@@ -661,27 +781,32 @@ class _Section extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: tokens.surface,
-        border: Border.all(color: tokens.border),
+    // A local Material, not a coloured Container: the switches in these cards
+    // are ListTiles, which paint hover and splash on the nearest Material —
+    // under a Container's fill they were hidden, and debug builds asserted.
+    return Material(
+      color: tokens.surface,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: tokens.border),
         borderRadius: BorderRadius.circular(InRadii.r3),
       ),
-      padding: EdgeInsets.all(InSpacing.lg(context)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: tokens.ink,
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
+      child: Padding(
+        padding: EdgeInsets.all(InSpacing.lg(context)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                color: tokens.ink,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          ...children,
-        ],
+            const SizedBox(height: 12),
+            ...children,
+          ],
+        ),
       ),
     );
   }
@@ -809,6 +934,9 @@ class _AmountFieldState extends State<_AmountField> {
       decoration: InputDecoration(labelText: context.tr('amount')),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       onChanged: widget.vm.setAmount,
+      // Enter saves, like every single-line field under the screen's scope.
+      textInputAction: TextInputAction.done,
+      onFieldSubmitted: (_) => FormSaveScope.maybeOf(context)?.trySubmit(),
     );
   }
 }
@@ -876,6 +1004,9 @@ class _RateFieldState extends State<_RateField> {
       ),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       onChanged: widget.vm.setExchangeRate,
+      // Enter saves, like every single-line field under the screen's scope.
+      textInputAction: TextInputAction.done,
+      onFieldSubmitted: (_) => FormSaveScope.maybeOf(context)?.trySubmit(),
     );
   }
 }

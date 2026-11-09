@@ -7,6 +7,7 @@ import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
+import 'package:admin/ui/features/payments/widgets/edit/open_amount.dart';
 import 'package:admin/ui/features/payments/widgets/edit/payment_allocations_section.dart';
 import 'package:admin/utils/formatting.dart'
     show decimalInputText, Formatter, parseDecimal;
@@ -159,18 +160,20 @@ class _PaymentAllocationEditDialogState
               ),
               items: widget.targets,
               initialValue: _selected,
-              displayString: (t) {
-                final number = t.number.isEmpty
-                    ? context.tr('pending')
-                    : '#${t.number}';
-                final amount = widget.formatter == null
-                    ? t.balance.toString()
-                    : widget.formatter!.money(
-                        t.balance,
-                        clientCurrencyId: widget.currencyId,
-                      );
-                return '$number · $amount';
-              },
+              displayString: (t) =>
+                  t.number.isEmpty ? context.tr('pending') : '#${t.number}',
+              // The open amount is the row's trailing value, as in v1 — at the
+              // tail of the label it was the first thing a long number lost.
+              optionTrailingBuilder: (context, t) => OpenAmountText(
+                amount: t.balance,
+                formatter: widget.formatter,
+                currencyId: widget.currencyId,
+              ),
+              searchTextOf: (t) => openAmountSearchText(
+                t.balance,
+                widget.formatter,
+                widget.currencyId,
+              ),
               idOf: (t) => t.id,
               onChanged: (target) {
                 if (target == null) return;

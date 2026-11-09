@@ -140,6 +140,8 @@ void main() {
       _invoice('i3', '0003', 'c1', '0'), // nothing left to pay
       _invoice('tmp_x', '', 'c1', '50'), // not on the server yet
       _invoice('d1', '0004', 'c1', '200', status: '1'), // a draft
+      // A label far wider than the 360 px popover.
+      _invoice('i5', 'RobWent-1238_2026-11-01', 'c3', '1234.56'),
     ]);
   });
   tearDown(() async => db.close());
@@ -163,6 +165,12 @@ void main() {
               const ClientApi(id: 'c1', name: 'Acme Ltd', currencyId: '3'),
             ),
             Client.fromApi(const ClientApi(id: 'c2', name: 'Globex')),
+            Client.fromApi(
+              const ClientApi(
+                id: 'c3',
+                name: 'Robert Wentworth Associates International Holdings',
+              ),
+            ),
           ]),
         ),
         child: MaterialApp(
@@ -194,11 +202,43 @@ void main() {
     await pump(tester);
     await openPicker(tester);
 
-    expect(find.text('#0001  ·  Acme Ltd  ·  120'), findsOneWidget);
-    expect(find.text('#0002  ·  Globex  ·  80'), findsOneWidget);
+    expect(find.text('#0001  ·  Acme Ltd'), findsOneWidget);
+    expect(find.text('#0002  ·  Globex'), findsOneWidget);
     expect(find.textContaining('#0003'), findsNothing);
     expect(find.textContaining('Pending'), findsNothing);
     expect(invoices.fetches, ['all:draft,unpaid']);
+  });
+
+  // Beta feedback: paying an agency's per-client invoices one by one, the
+  // amount was the tail of the row label and the popover ellipsized it off.
+  // It is now its own trailing value, laid out before the label truncates.
+  testWidgets('every row shows its open amount, however long the label', (
+    tester,
+  ) async {
+    await pump(tester);
+    await openPicker(tester);
+
+    for (final amount in ['120', '80', '200', '1234.56']) {
+      final finder = find.text(amount);
+      expect(finder, findsOneWidget);
+      expect(
+        tester.widget<Text>(finder).overflow,
+        isNot(TextOverflow.ellipsis),
+      );
+    }
+    // The long row: its label is the part that gives way, and the amount
+    // sits wholly inside the popover.
+    final label = find.text(
+      '#RobWent-1238_2026-11-01  ·  '
+      'Robert Wentworth Associates International Holdings',
+    );
+    expect(tester.widget<Text>(label).overflow, TextOverflow.ellipsis);
+    final popover = tester.getRect(
+      find.ancestor(of: label, matching: find.byType(ListView)),
+    );
+    final amount = tester.getRect(find.text('1234.56'));
+    expect(amount.right, lessThanOrEqualTo(popover.right));
+    expect(amount.width, greaterThan(0));
   });
 
   // invoiceninja/flutter beta feedback: a credit could not be applied to a
@@ -209,7 +249,7 @@ void main() {
     final vm = await pump(tester);
     await openPicker(tester);
 
-    final label = '#0004  ·  Draft  ·  Acme Ltd  ·  200';
+    final label = '#0004  ·  Draft  ·  Acme Ltd';
     expect(find.text(label), findsOneWidget);
     await tester.tap(find.text(label));
     await tester.pumpAndSettle();
@@ -223,7 +263,7 @@ void main() {
   ) async {
     final vm = await pump(tester);
     await openPicker(tester);
-    await tester.tap(find.text('#0001  ·  Acme Ltd  ·  120'));
+    await tester.tap(find.text('#0001  ·  Acme Ltd'));
     await tester.pumpAndSettle();
 
     expect(vm.draft.clientId, 'c1');
@@ -242,7 +282,7 @@ void main() {
     (tester) async {
       final vm = await pump(tester);
       await openPicker(tester);
-      await tester.tap(find.text('#0001  ·  Acme Ltd  ·  120'));
+      await tester.tap(find.text('#0001  ·  Acme Ltd'));
       await tester.pumpAndSettle();
 
       vm.setAmount('60');
@@ -279,9 +319,45 @@ void main() {
         ],
       ),
     );
-    expect(
-      find.widgetWithText(TextField, '#0001  ·  Acme Ltd  ·  120'),
-      findsOneWidget,
-    );
+    // The client is already chosen, so the label leaves its name out.
+    expect(find.widgetWithText(TextField, '#0001'), findsOneWidget);
+  });
+
+  // Beta feedback, the agency case: with the client chosen, every row
+  // repeated its name and pushed the invoice number into the ellipsis.
+  testWidgets('with a client chosen, a row is its number and amount', (
+    tester,
+  ) async {
+    await pump(tester, draft: emptyPayment().copyWith(clientId: 'c3'));
+    await openPicker(tester);
+
+    expect(find.text('#RobWent-1238_2026-11-01'), findsOneWidget);
+    expect(find.text('1234.56'), findsOneWidget);
+    expect(find.textContaining('Robert Wentworth'), findsNothing);
+  });
+
+  testWidgets('a picked invoice\'s label drops the client it just chose', (
+    tester,
+  ) async {
+    await pump(tester);
+    await openPicker(tester);
+    await tester.tap(find.text('#0001  ·  Acme Ltd'));
+    await tester.pumpAndSettle();
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextField, '#0001'), findsOneWidget);
+  });
+
+  // v1 matched an invoice by its amount too; moving the amount out of the
+  // label must not lose that.
+  testWidgets('typing an amount finds its invoice', (tester) async {
+    await pump(tester);
+    await openPicker(tester);
+    await tester.enterText(find.byType(TextField), '1234.56');
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('#RobWent'), findsOneWidget);
+    expect(find.textContaining('#0001'), findsNothing);
   });
 }

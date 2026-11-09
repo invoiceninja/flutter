@@ -327,6 +327,32 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
           Decimal.one,
     ),
   );
+
+  /// The converted amount, typed. The payment stores only the rate, so this
+  /// sets the rate that turns [Payment.amount] into it — what React and v1
+  /// both do. Beta feedback: with the converted figure read-only, a user
+  /// holding the bank's settled amount had to work the rate out by hand.
+  ///
+  /// The rate is rounded to the six places the server keeps
+  /// (`decimal(20,6)`), so the amount × rate the payment shows afterwards can
+  /// differ from what was typed by a cent only on very large amounts. A blank
+  /// or zero entry, or a zero amount to divide by, leaves the rate alone.
+  void setConvertedAmount(String input) {
+    final amount = draft.amount;
+    if (amount == Decimal.zero) return;
+    final converted = parseDecimal(
+      input,
+      zeroIsNull: true,
+      useCommaAsDecimalPlace: useCommaAsDecimalPlace,
+    );
+    if (converted == null) return;
+    final rate = (converted / amount)
+        .toDecimal(scaleOnInfinitePrecision: 12)
+        .round(scale: 6);
+    if (rate <= Decimal.zero) return;
+    updateDraft(draft.copyWith(exchangeRate: rate));
+  }
+
   void setCustomValue1(String v) =>
       updateDraft(draft.copyWith(customValue1: v));
   void setCustomValue2(String v) =>

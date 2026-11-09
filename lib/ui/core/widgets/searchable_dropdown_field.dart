@@ -64,6 +64,8 @@ class SearchableDropdownField<T extends Object> extends StatefulWidget {
     this.idleResults = 20,
     this.footerBuilder,
     this.optionLeadingBuilder,
+    this.optionTrailingBuilder,
+    this.searchTextOf,
     this.onCreateRequested,
     this.createLabelKey,
   });
@@ -115,6 +117,19 @@ class SearchableDropdownField<T extends Object> extends StatefulWidget {
   /// dot, say. Also used as the field's `prefixIcon` for the committed item, so
   /// the collapsed and open states match. Null keeps the plain text row.
   final Widget Function(BuildContext, T)? optionLeadingBuilder;
+
+  /// Optional value rendered after an option's label, at its natural width —
+  /// the label ellipsizes first, so this always shows in full. For the figure
+  /// a user picks by (an invoice's open amount), which as the tail of a long
+  /// [displayString] is the first thing the 360 px popover cuts off. Rows
+  /// only: it is not part of the field text or the search.
+  final Widget Function(BuildContext, T)? optionTrailingBuilder;
+
+  /// Extra text a query also matches, beyond [displayString] — the figure an
+  /// [optionTrailingBuilder] shows, so moving it out of the label doesn't stop
+  /// it being searchable. Partial matches only: an exact match (which hides
+  /// the create row) is still against the label alone.
+  final String Function(T)? searchTextOf;
 
   /// Opt-in inline create. When set, the popover carries a pinned "New …" /
   /// `Create "«query»"` row that calls this with the typed query (empty for an
@@ -273,6 +288,18 @@ class _SearchableDropdownFieldState<T extends Object>
     final newInitial = widget.initialValue;
     final oldId = oldInitial == null ? null : oldWidget.idOf(oldInitial);
     final newId = newInitial == null ? null : widget.idOf(newInitial);
+    // The same item can be relabelled under the field — a label that leaves
+    // out what the rest of the form already says (the invoice picker drops
+    // the client's name once one is chosen). Follow it while the field still
+    // shows the old label, never over text the user typed.
+    final committed = _committed;
+    if (oldId == newId &&
+        committed != null &&
+        !_focusNode.hasFocus &&
+        _controller.text == oldWidget.displayString(committed)) {
+      final relabelled = widget.displayString(committed);
+      if (_controller.text != relabelled) _controller.text = relabelled;
+    }
     if (oldId != newId && !_focusNode.hasFocus) {
       _committed = widget.initialValue;
       final expected = _committed == null
@@ -340,12 +367,7 @@ class _SearchableDropdownFieldState<T extends Object>
       // needs — and folds only the items it reaches, so a host that hands
       // over a fresh `items` list per build doesn't re-fold all of them.
       final matches = widget.items
-          .where(
-            (it) => containsEveryWord(
-              foldSearchText(widget.displayString(it)),
-              words,
-            ),
-          )
+          .where((it) => containsEveryWord(_haystack(it), words))
           .take(widget.maxResults)
           .toList(growable: false);
       return (matches, false);
@@ -364,7 +386,9 @@ class _SearchableDropdownFieldState<T extends Object>
       if (name == q) {
         exact.add(widget.items[i]);
       } else if (partial.length < widget.maxResults &&
-          containsEveryWord(name, words)) {
+          (containsEveryWord(name, words) ||
+              (widget.searchTextOf != null &&
+                  containsEveryWord(_haystack(widget.items[i]), words)))) {
         partial.add(widget.items[i]);
       }
     }
@@ -372,6 +396,16 @@ class _SearchableDropdownFieldState<T extends Object>
       [...exact, ...partial].take(widget.maxResults).toList(growable: false),
       exact.isNotEmpty,
     );
+  }
+
+  /// What a query's words are matched against: the label, plus
+  /// [SearchableDropdownField.searchTextOf] when the host gives one.
+  String _haystack(T item) {
+    final extra = widget.searchTextOf?.call(item);
+    final text = extra == null || extra.isEmpty
+        ? widget.displayString(item)
+        : '${widget.displayString(item)} $extra';
+    return foldSearchText(text);
   }
 
   List<T>? _foldedFor;
@@ -1032,6 +1066,8 @@ class _SearchableDropdownFieldState<T extends Object>
                                 context,
                                 item,
                               );
+                              final trailing = widget.optionTrailingBuilder
+                                  ?.call(context, item);
                               return Semantics(
                                 button: true,
                                 inMutuallyExclusiveGroup: true,
@@ -1080,6 +1116,14 @@ class _SearchableDropdownFieldState<T extends Object>
                                                   ?.copyWith(color: tokens.ink),
                                             ),
                                           ),
+                                          if (trailing != null) ...[
+                                            const SizedBox(width: InSpacing.sm),
+                                            trailing,
+                                          ],
+                                          if (isCommitted &&
+                                              trailing != null &&
+                                              label.isNotEmpty)
+                                            const SizedBox(width: InSpacing.xs),
                                           // A blank option (the custom-field
                                           // "none" row) would show a bare tick.
                                           if (isCommitted && label.isNotEmpty)

@@ -384,6 +384,9 @@ the honest default.
 | Payment — record manual payment | ✅ | ✅ | ✅ | ✅ | |
 | Payment — apply to specific invoice | ✅ | ✅ | ✅ | ✅ | |
 | Payment — new payment starts from an invoice (fills the client, currency and full balance) | ✅ | ❌ | ✅ | | v2: an Invoice picker under Client ("or"), unpaid invoices newest first, narrowed to the chosen client; it gives way to the allocations section once two invoices are allocated |
+| Payment — select several invoices at once: a checklist of the client's open invoices (number, date, open amount, Select All, a filter past six), with the total ticked and, once an amount is typed, what it leaves unapplied — rows stop being offered once it is used up, so no invoice is allocated zero | ✅ | ❌ | ✅ | | React: a ticked table on the create screen; v1 and v2 had only one picker row per invoice |
+| Payment — invoice pickers show each invoice's open amount on the right, never cut off, and match it when typed | 🟡 | ✅ | ✅ | | React's label shows the invoice total, not its balance, and searches the number only |
+| Payment — currency conversion: the converted amount is editable and sets the rate (6 places); the section opens itself when the company's Convert currency setting is on | ✅ | ✅ | ✅ | | React takes no notice of the setting; v1 rounds the rate to 2 places |
 | Payment — apply unapplied funds to the oldest unpaid invoice from the record, naming the invoice and the amount before anything moves | — | — | ✅ | | It applied on one tap before; an allocation cannot be undone from the app |
 | Payment — refund (partial / full) | ✅ | ✅ | ✅ | ✅ | |
 | Payment — email receipt | ✅ | ✅ | ✅ | ✅ | |

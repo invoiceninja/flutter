@@ -9,6 +9,7 @@ import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/payments/view_models/payment_edit_view_model.dart';
+import 'package:admin/ui/features/payments/widgets/edit/open_amount.dart';
 import 'package:admin/ui/features/payments/widgets/edit/payment_allocations_section.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -115,16 +116,27 @@ class PaymentInvoicePickerState extends State<PaymentInvoicePicker> {
     }
   }
 
-  String _label(BuildContext context, Invoice invoice, Client? client) {
-    final f = widget.formatter;
-    final amount = invoice.balanceOrAmount;
-    final name = client?.displayName ?? '';
+  /// The invoice's identity: number, draft marker, and, while no client is
+  /// chosen, the client. Once one is, every row would repeat its name, and on
+  /// an agency billed per end client that name pushed the invoice number
+  /// itself into the ellipsis (beta feedback). The open amount is not in it:
+  /// it is the row's trailing value ([OpenAmountText]), as in v1, so the
+  /// label can give way without taking the amount with it.
+  ///
+  /// [chosenClientId] is the one captured when the row list was built, never
+  /// read live: the field compares the old label against the new one to
+  /// follow a relabel, and a live read would make both agree.
+  String _label(
+    BuildContext context,
+    Invoice invoice,
+    Client? client, {
+    required String chosenClientId,
+  }) {
+    final name = chosenClientId.isEmpty ? client?.displayName ?? '' : '';
     return [
       invoice.number.isEmpty ? context.tr('pending') : '#${invoice.number}',
       if (invoice.isDraft) context.tr('draft'),
       if (name.isNotEmpty) name,
-      f?.money(amount, clientCurrencyId: client?.currencyId) ??
-          amount.toString(),
     ].join('  ·  ');
   }
 
@@ -198,8 +210,22 @@ class PaymentInvoicePickerState extends State<PaymentInvoicePicker> {
                 items: items,
                 initialValue: selected,
                 emptyHintKey: 'no_open_invoices',
-                displayString: (i) =>
-                    _label(context, i, clientsById[i.clientId]),
+                displayString: (i) => _label(
+                  context,
+                  i,
+                  clientsById[i.clientId],
+                  chosenClientId: clientId,
+                ),
+                optionTrailingBuilder: (context, i) => OpenAmountText(
+                  amount: i.balanceOrAmount,
+                  formatter: widget.formatter,
+                  currencyId: clientsById[i.clientId]?.currencyId,
+                ),
+                searchTextOf: (i) => openAmountSearchText(
+                  i.balanceOrAmount,
+                  widget.formatter,
+                  clientsById[i.clientId]?.currencyId,
+                ),
                 idOf: (i) => i.id,
                 onChanged: (i) =>
                     _onPicked(i, i == null ? null : clientsById[i.clientId]),

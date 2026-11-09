@@ -110,6 +110,9 @@ class _DnSignatureFieldState extends State<DnSignatureField> {
     final enabled = widget.enabled;
     final bytes = _preview;
     final has = bytes != null && bytes.isNotEmpty;
+    // Something is stored even when it is no image the app can show (a URL
+    // another client saved): it can still be cleared.
+    final stored = widget.value.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -152,7 +155,7 @@ class _DnSignatureFieldState extends State<DnSignatureField> {
               icon: const Icon(Icons.text_fields, size: 18),
               label: Text(context.tr('generate')),
             ),
-            if (has)
+            if (stored)
               TextButton(
                 style: TextButton.styleFrom(minimumSize: const Size(64, 40)),
                 onPressed: enabled ? () => widget.onChanged('') : null,
@@ -303,14 +306,21 @@ class _DrawDialogState extends State<_DrawDialog> {
               final size = c.biggest;
               return Semantics(
                 label: widget.title,
-                child: GestureDetector(
+                // Raw pointers, not a pan: a pan starts only once a finger
+                // has moved past the touch slop (36 px), which clipped the
+                // start of every stroke and never recorded a dot.
+                child: Listener(
                   key: const ValueKey('dn-signature-pad'),
-                  onPanStart: (d) => setState(
-                    () => _strokes.add([_norm(d.localPosition, size)]),
+                  behavior: HitTestBehavior.opaque,
+                  onPointerDown: (e) => setState(
+                    () => _strokes.add([_norm(e.localPosition, size)]),
                   ),
-                  onPanUpdate: (d) => setState(
-                    () => _strokes.last.add(_norm(d.localPosition, size)),
-                  ),
+                  onPointerMove: (e) {
+                    if (_strokes.isEmpty) return;
+                    setState(
+                      () => _strokes.last.add(_norm(e.localPosition, size)),
+                    );
+                  },
                   child: DecoratedBox(
                     // Paper is white in either theme: the ink is black.
                     decoration: BoxDecoration(
@@ -413,13 +423,16 @@ class _GenerateDialogState extends State<_GenerateDialog> {
     super.dispose();
   }
 
-  /// Whether [text] in [style] draws in its own font rather than the
-  /// fallback a font that never arrived leaves (a handwriting font is never
-  /// as wide as the default face).
-  static bool _drawsInFont(TextStyle style, String text) {
+  /// Whether [style]'s font arrived: a fixed Latin probe in it is never as
+  /// wide as in the default face it falls back to. Not the user's text: a
+  /// name in a script the handwriting font lacks (Hebrew, Arabic, CJK
+  /// initials) falls back to the same platform face either way, and would
+  /// read as never arrived on every attempt.
+  static bool _fontLoaded(TextStyle style) {
+    const probe = 'AaBbGgQq';
     double width(TextStyle s) {
       final p = TextPainter(
-        text: TextSpan(text: text, style: s),
+        text: TextSpan(text: probe, style: s),
         textDirection: TextDirection.ltr,
         maxLines: 1,
       )..layout();
@@ -430,6 +443,14 @@ class _GenerateDialogState extends State<_GenerateDialog> {
 
     return width(style) != width(TextStyle(fontSize: style.fontSize));
   }
+
+  static const _kMaxTextWidth = 2400.0;
+
+  static TextPainter _paint(String text, TextStyle style) => TextPainter(
+    text: TextSpan(text: text, style: style),
+    textDirection: TextDirection.ltr,
+    maxLines: 1,
+  )..layout();
 
   /// The previews' styles, asked for once: asking again on every keystroke
   /// would, offline, start all five downloads again each time.
@@ -461,31 +482,39 @@ class _GenerateDialogState extends State<_GenerateDialog> {
         _log.fine('Waiting for the signature fonts: $e');
       }
       if (!mounted) return;
-      if (!_drawsInFont(style, text)) {
+      if (!_fontLoaded(style)) {
         throw StateError('$_font is not loaded');
       }
-      final painter = TextPainter(
-        text: TextSpan(text: text, style: style),
-        textDirection: TextDirection.ltr,
-        maxLines: 1,
-      )..layout();
-      const pad = kDnSignaturePadding * 2.0;
-      final width = painter.width + pad * 2;
-      final height = painter.height + pad * 2;
-      final pixels = await _render(width.ceil(), height.ceil(), (canvas) {
-        canvas.drawRect(
-          Rect.fromLTWH(0, 0, width, height),
-          Paint()..color = Colors.white,
-        );
-        painter.paint(canvas, const Offset(pad, pad));
-      });
-      painter.dispose();
+      // Drawn at 200 px, smaller for a long text (React fits its text to
+      // its canvas): a long paste would otherwise be wider than an image
+      // can be.
+      var painter = _paint(text, style);
+      if (painter.width > _kMaxTextWidth) {
+        final size = 200 * _kMaxTextWidth / painter.width;
+        painter.dispose();
+        painter = _paint(text, _style(_font, size.clamp(24, 200)));
+      }
+      final img.Image pixels;
+      try {
+        const pad = kDnSignaturePadding * 2.0;
+        final width = painter.width + pad * 2;
+        final height = painter.height + pad * 2;
+        pixels = await _render(width.ceil(), height.ceil(), (canvas) {
+          canvas.drawRect(
+            Rect.fromLTWH(0, 0, width, height),
+            Paint()..color = Colors.white,
+          );
+          painter.paint(canvas, const Offset(pad, pad));
+        });
+      } finally {
+        painter.dispose();
+      }
       if (!mounted) return;
       Navigator.of(
         context,
       ).pop(dnSignatureDataUrl(dnTrimToInk(pixels), widget.kind));
     } on Object catch (e, st) {
-      // Offline, the font cannot be fetched.
+      // Offline, the font cannot be fetched: the generic error says so.
       _log.warning('Generating the signature failed', e, st);
       if (mounted) {
         setState(() => _saving = false);

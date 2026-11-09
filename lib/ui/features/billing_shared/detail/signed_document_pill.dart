@@ -38,8 +38,11 @@ bool docuNinjaPlanActive(AuthSession? session) =>
 /// Whether "Authorized to sign" means anything for [company]: the server's
 /// `docuninjaActive()` whole — `enable_modules` *and* a plan that still runs
 /// DocuNinja. With the plan lapsed the server ignores `can_sign` on a saved
-/// invitation, so a tick would look saved and then revert. React checks
-/// only `enable_modules`.
+/// invitation, so a tick there would look saved and then revert; a
+/// contact's own value would save, but means nothing until the plan comes
+/// back, and is kept on save while hidden. React checks only
+/// `enable_modules`. A self-hosted server counts as inactive too (the
+/// server's `docuninjaActive()` is hosted, or a developer's local server).
 ///
 /// A widget test whose `Services` fake has no `auth` gets the company flag
 /// alone, as `intakeOf` reads its folder.

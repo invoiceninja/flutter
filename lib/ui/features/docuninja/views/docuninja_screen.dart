@@ -450,9 +450,19 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           vm: vm,
           selectable: _bulkActions(state).isNotEmpty,
           onOpen: (doc) => context.go('/docuninja/${doc.id}'),
-          actionsFor: (doc) => EntityActionsPopupButton<_RowAction>(
-            items: _rowItems(state, vm, doc),
-          ),
+          actionsFor: (doc) {
+            final items = _rowItems(state, vm, doc);
+            // A row with nothing this role may do (a deleted document for
+            // a view-only role) keeps the slot, so the columns stay put,
+            // with no ⋮ that opens an empty menu.
+            return Visibility(
+              visible: items.isNotEmpty,
+              maintainSize: true,
+              maintainAnimation: true,
+              maintainState: true,
+              child: EntityActionsPopupButton<_RowAction>(items: items),
+            );
+          },
         );
     }
   }

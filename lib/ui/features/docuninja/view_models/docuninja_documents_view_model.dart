@@ -223,15 +223,25 @@ abstract class DnListViewModel<T> extends ChangeNotifier {
   /// a teammate's event or a return from the browser starts must not drop a
   /// user sixty rows down back to the first page.
   ///
-  /// A refresh while one for the same query is in flight shares it, so a
-  /// burst of live events never keeps restarting a five-page load.
+  /// A refresh asked while one for the same query is in flight waits for it
+  /// and then reads once more: that load started before the request (a
+  /// write just landed, a signature arrived), so its rows may predate what
+  /// the request is for. A burst still costs one extra load, never a stream
+  /// of restarted five-page ones.
   Future<void> refresh() {
     final inFlight = _inFlight;
     if (_loading && inFlight != null && _inFlightQuery == _query) {
-      return inFlight;
+      return _again ??= inFlight.then((_) {
+        _again = null;
+        if (_disposed || _inFlightQuery != _query) return null;
+        return _loadFirst(depth: _refreshDepth);
+      });
     }
     return _loadFirst(depth: _refreshDepth);
   }
+
+  /// The one read queued behind the load in flight.
+  Future<void>? _again;
 
   int get _refreshDepth => _page.clamp(1, kRefreshMaxPages);
   Future<void>? _inFlight;

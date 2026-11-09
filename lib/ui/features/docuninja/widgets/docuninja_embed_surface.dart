@@ -68,8 +68,9 @@ abstract class DnEmbedSurface {
 /// closed normally cleared after itself; this is for one the app was killed
 /// with open). A no-op where the builder is never embedded.
 Future<void> clearDocuNinjaWebStorage() async {
-  if (!kDnEmbeddedBuilder) return;
   try {
+    // On Windows the folder also holds the email previews' cache, so it goes
+    // whether or not the builder is embedded.
     if (isWindowsWebView) {
       // With no web view open, WebView2 has let its data folder go: remove
       // it whole. One still open (a 401 sign-out over the builder or a
@@ -81,7 +82,9 @@ Future<void> clearDocuNinjaWebStorage() async {
       if (await data.exists()) await data.delete(recursive: true);
       return;
     }
-    if (_flutterEmbedPlatform) await WebViewController().clearLocalStorage();
+    if (kDnEmbeddedBuilder && _flutterEmbedPlatform) {
+      await WebViewController().clearLocalStorage();
+    }
   } on Object catch (e) {
     // No web view (a test), or a file WebView2 still held.
     _log.fine('Clearing the builder storage: $e');
@@ -173,6 +176,8 @@ class _FlutterSurface implements DnEmbedSurface {
     } on Object catch (e) {
       _log.fine('Clearing before the builder: $e');
     }
+    // Closed meanwhile (a quick Back): nothing to load the page into.
+    if (_disposed) return;
     await _web.loadRequest(uri);
   }
 
@@ -189,7 +194,12 @@ class _FlutterSurface implements DnEmbedSurface {
   Widget build(BuildContext context) => WebViewWidget(controller: _web);
 
   @override
-  void dispose() => unawaited(_web.clearLocalStorage());
+  void dispose() {
+    _disposed = true;
+    unawaited(_web.clearLocalStorage());
+  }
+
+  bool _disposed = false;
 }
 
 /// WebView2 on Windows. It cannot refuse a navigation or name a channel the
@@ -247,6 +257,20 @@ class _WindowsSurface implements DnEmbedSurface {
     }
     _started = controller;
     if (_disposed) return _release();
+    try {
+      await _wire(controller, uri);
+    } on Object catch (e, st) {
+      // A WebView2 that started but would not take the bridge or the page
+      // (its browser process failed): let it go, and offer the browser.
+      _log.warning('The builder did not load in WebView2', e, st);
+      // Off the screen first, so a later dispose does not let it go twice.
+      if (!_disposed) _controller.value = null;
+      _release();
+      if (!_disposed) events.onLoadFailed();
+    }
+  }
+
+  Future<void> _wire(WebviewController controller, Uri uri) async {
     _subscriptions
       ..add(
         controller.webMessage.listen(
@@ -282,8 +306,12 @@ class _WindowsSurface implements DnEmbedSurface {
     _url = url;
     final uri = Uri.tryParse(url);
     if (uri == null || dnEmbedAllowed(uri)) return;
-    if (uri.scheme != 'https' && uri.scheme != 'http') return;
-    events.openExternal(uri);
+    // The page loaded from nothing yet: not a navigation away.
+    if (uri.scheme == 'about') return;
+    // A web page off the web app opens in the browser; anything else in the
+    // main frame (`blob:`, `data:`, `file:`), which `webview_flutter`
+    // refuses, is just undone.
+    if (uri.scheme == 'https' || uri.scheme == 'http') events.openExternal(uri);
     unawaited(controller.goBack());
   }
 

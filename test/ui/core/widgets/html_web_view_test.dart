@@ -28,10 +28,9 @@ void main() {
           ),
         ),
       );
-      final error = tester.takeException();
       expect(
-        error.toString(),
-        isNot(contains('opaque')),
+        tester.takeException(),
+        isNull,
         reason: 'the web view must build on macOS',
       );
       expect(find.text('fallback'), findsNothing);

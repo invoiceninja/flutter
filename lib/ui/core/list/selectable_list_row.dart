@@ -135,6 +135,10 @@ class SelectableListRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
+      // A row that opens nothing (it may still be long-pressed): no hand
+      // cursor and no ripple on a tap that does nothing.
+      mouseCursor: onTap == null ? SystemMouseCursors.basic : null,
+      splashFactory: onTap == null ? NoSplash.splashFactory : null,
       hoverColor: _rowHoverColor(context, tokens),
       child: body,
     );

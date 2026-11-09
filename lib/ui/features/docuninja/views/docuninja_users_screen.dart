@@ -341,7 +341,10 @@ class _UsersListState extends State<_UsersList> {
                 ),
               // React's table checkboxes, for its bulk actions; on touch a
               // long press on a row starts it too.
-              if (_vm.items.isNotEmpty && !_vm.isSelecting)
+              // Not when every listed user is the owner or the signed-in
+              // user, who take no bulk action.
+              if (!_vm.isSelecting &&
+                  _vm.items.any((u) => !_lifecycleLocked(u, widget.state)))
                 IconButton(
                   icon: const Icon(Icons.checklist),
                   tooltip: context.tr('select'),

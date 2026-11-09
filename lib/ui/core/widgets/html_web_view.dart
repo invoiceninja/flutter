@@ -21,8 +21,8 @@ const _kWindowsMaxDocumentBytes = 1900 * 1024;
 /// and on a Windows whose WebView2 runtime is missing, [fallback] is shown
 /// instead.
 ///
-/// It is a picture, not a page: no script runs ([htmlWithoutScripts]) and a
-/// tapped link leaves the document where it is. docs/windows-web-view.md.
+/// It is a picture, not a page ([previewHtml]): no script runs, a tapped
+/// link or form leaves the document where it is, and it reads light. docs/windows-web-view.md.
 class HtmlWebView extends StatefulWidget {
   const HtmlWebView({
     super.key,
@@ -66,11 +66,14 @@ class _HtmlWebViewState extends State<HtmlWebView> {
   WebviewController? _windows;
   StreamSubscription<String>? _windowsUrl;
 
-  /// WebView2 could not start, or the document is too large for it: the
-  /// fallback shows.
+  /// WebView2 could not start (no runtime): the fallback shows, for good.
   bool _failed = false;
 
-  String get _document => htmlWithoutScripts(widget.html);
+  /// The document is too large for WebView2: the fallback shows until a
+  /// smaller one comes.
+  bool _tooLarge = false;
+
+  String get _document => previewHtml(widget.html);
 
   @override
   void initState() {
@@ -79,7 +82,7 @@ class _HtmlWebViewState extends State<HtmlWebView> {
     if (isWindowsWebView) {
       // Too large for WebView2: the fallback, from the first frame.
       if (!_fitsWindows(_document)) {
-        _failed = true;
+        _tooLarge = true;
       } else {
         unawaited(_startWindows());
       }
@@ -98,8 +101,9 @@ class _HtmlWebViewState extends State<HtmlWebView> {
               : NavigationDecision.prevent,
         ),
       );
-    // macOS's WKWebView cannot be made non-opaque (the plugin throws), and
-    // is transparent there already.
+    // macOS's WKWebView cannot take a background colour (the plugin throws
+    // making it non-opaque); it draws the page's own, white for a preview
+    // ([previewHtml] sets the light colour scheme).
     if (defaultTargetPlatform != TargetPlatform.macOS) {
       controller.setBackgroundColor(widget.background);
     }
@@ -110,7 +114,6 @@ class _HtmlWebViewState extends State<HtmlWebView> {
       utf8.encode(document).length <= _kWindowsMaxDocumentBytes;
 
   Future<void> _startWindows() async {
-    final document = _document;
     final controller = await startWindowsWebView();
     if (controller == null) {
       if (mounted) setState(() => _failed = true);
@@ -128,9 +131,22 @@ class _HtmlWebViewState extends State<HtmlWebView> {
     });
     await controller.setBackgroundColor(widget.background);
     if (!mounted) return _release();
+    // The document as it is now: an edit while WebView2 was starting must
+    // not leave the one from before showing.
+    final document = _document;
+    if (!_fitsWindows(document)) {
+      _release();
+      setState(() => _tooLarge = true);
+      return;
+    }
     await controller.loadStringContent(document);
     if (!mounted) return _release();
     setState(() => _windows = controller);
+    // Changed during that last load: the newest one.
+    final now = _document;
+    if (now != document && _fitsWindows(now)) {
+      unawaited(controller.loadStringContent(now));
+    }
   }
 
   /// Lets WebView2 go (the widget left, or never needed it).
@@ -149,15 +165,22 @@ class _HtmlWebViewState extends State<HtmlWebView> {
     if (oldWidget.html == widget.html) return;
     final document = _document;
     unawaited(_flutter?.loadHtmlString(document));
+    if (!isWindowsWebView || _failed) return;
+    final fits = _fitsWindows(document);
     final windows = _windows;
     if (windows != null) {
-      if (_fitsWindows(document)) {
+      if (fits) {
         unawaited(windows.loadStringContent(document));
       } else {
         _release();
-        setState(() => _failed = true);
+        _tooLarge = true;
       }
+    } else if (_tooLarge && fits) {
+      // A smaller document after one too large: WebView2 again.
+      _tooLarge = false;
+      unawaited(_startWindows());
     }
+    // A WebView2 still starting loads the new document when it is up.
   }
 
   @override
@@ -172,7 +195,9 @@ class _HtmlWebViewState extends State<HtmlWebView> {
     if (flutter != null) return WebViewWidget(controller: flutter);
     final windows = _windows;
     if (windows != null) return Webview(windows);
-    if (_failed || !HtmlWebView.supported) return widget.fallback(context);
+    if (_failed || _tooLarge || !HtmlWebView.supported) {
+      return widget.fallback(context);
+    }
     // WebView2 is starting.
     return const SizedBox.expand();
   }

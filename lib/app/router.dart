@@ -1003,8 +1003,8 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
                 ),
                 routes: [
                   // The field builder, embedded (docs/docuninja.md). Where
-                  // it cannot be (the embed is off, or no web view: Windows,
-                  // Linux, the web), a restored or typed address lands on the
+                  // it cannot be (the embed is off, or no web view: Linux,
+                  // the web), a restored or typed address lands on the
                   // document instead of a screen that cannot draw.
                   GoRoute(
                     path: 'builder',

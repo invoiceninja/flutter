@@ -219,6 +219,9 @@ class _PreviewBody extends StatelessWidget {
         // elsewhere. See the class doc.
         final body = HtmlWebView(
           html: preview.wrapper,
+          // An email is read on white, whatever the app's theme: on a dark
+          // surface a transparent web view showed dark text on dark.
+          background: Colors.white,
           fallback: (_) => _HtmlPreview(body: preview.body),
         );
         return Column(

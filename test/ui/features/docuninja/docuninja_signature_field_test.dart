@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -85,5 +86,45 @@ void main() {
     expect(find.bySemanticsLabel('Signature'), findsWidgets);
     await tester.tap(find.text('Clear'));
     expect(values, ['']);
+  });
+
+  testWidgets('a tap on the pad is a dot, not nothing', (tester) async {
+    final fixture = await buildFixture(
+      companies: [FakeCompany(id: 'co1', name: 'Acme')],
+    );
+    addTearDown(fixture.dispose);
+    await tester.pumpWidget(
+      wrapWithShell(
+        fixture.services,
+        Scaffold(
+          body: SingleChildScrollView(
+            child: DnSignatureField(
+              label: 'Signature',
+              value: '',
+              kind: DnSignatureKind.initials,
+              onChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Draw'));
+    await tester.pumpAndSettle();
+    bool doneEnabled() => tester
+        .widgetList<ButtonStyleButton>(
+          find.ancestor(
+            of: find.text('Done'),
+            matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+          ),
+        )
+        .any((b) => b.onPressed != null);
+    expect(doneEnabled(), isFalse);
+    // A touch tap: no movement, so a pan would never start.
+    await tester.tapAt(
+      tester.getCenter(find.byKey(const ValueKey('dn-signature-pad'))),
+      kind: PointerDeviceKind.touch,
+    );
+    await tester.pump();
+    expect(doneEnabled(), isTrue, reason: 'the dot is ink');
   });
 }

@@ -119,13 +119,13 @@ Future<void> runDnBulkAction<T>(
 }) async {
   if (vm.bulkInFlight) return;
   // Captured now: the selection must not change under the dialog.
-  final selected = vm.countSelected;
-  final ids = vm.selectedIdsWhere(action.eligible);
+  var selected = vm.countSelected;
+  var ids = vm.selectedIdsWhere(action.eligible);
   if (ids.isEmpty) {
     Notify.info(context, context.tr('no_records_selected'));
     return;
   }
-  final skipped = selected - ids.length;
+  var skipped = selected - ids.length;
   final services = context.read<Services>();
   if (action.confirm && services.confirmActions.value) {
     final ok = await showConfirmActionDialog(
@@ -135,6 +135,16 @@ Future<void> runDnBulkAction<T>(
       destructive: action.action == 'delete',
     );
     if (!ok || !context.mounted) return;
+    // Read again: a refresh while the dialog was up (a teammate's change,
+    // a return from the browser) may have taken rows out of the list, and
+    // a bulk never reaches a record no longer shown.
+    selected = vm.countSelected;
+    ids = vm.selectedIdsWhere(action.eligible);
+    skipped = selected - ids.length;
+    if (ids.isEmpty) {
+      Notify.info(context, context.tr('no_records_selected'));
+      return;
+    }
   }
   try {
     // Another bulk already running: nothing was sent, so nothing to say.

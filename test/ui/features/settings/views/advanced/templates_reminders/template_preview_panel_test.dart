@@ -32,6 +32,21 @@ class _FakeTemplatesApi implements TemplatesApi {
   }
 }
 
+/// Answers after a moment, so the loading state shows.
+class _SlowTemplatesApi extends _FakeTemplatesApi {
+  @override
+  Future<TemplatePreview> render({
+    required String template,
+    required String subject,
+    required String body,
+    String entity = '',
+    String entityId = '',
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    return super.render(template: template, subject: subject, body: body);
+  }
+}
+
 void main() {
   Widget host(PreviewController controller) {
     return MaterialApp(
@@ -78,6 +93,44 @@ void main() {
         expect(find.byType(WebViewWidget), findsNothing);
         // Subject bar reflects the server-substituted subject.
         expect(find.text('Welcome'), findsOneWidget);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    },
+  );
+
+  testWidgets(
+    'the preview stays up under a progress bar while the next one loads',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        final controller = PreviewController(api: _SlowTemplatesApi());
+        addTearDown(controller.dispose);
+        controller.schedule(
+          template: 'invoice',
+          subject: 'One',
+          body: '<p>First</p>',
+          immediate: true,
+        );
+        await tester.pumpWidget(host(controller));
+        await tester.pumpAndSettle();
+        final before = tester.state(find.byType(HtmlWebView));
+
+        controller.schedule(
+          template: 'invoice',
+          subject: 'Two',
+          body: '<p>Second</p>',
+        );
+        // Past the debounce: loading.
+        await tester.pump(const Duration(milliseconds: 450));
+        // Loading: the same preview (its web view not torn down), with a bar.
+        expect(find.byType(LinearProgressIndicator), findsOneWidget);
+        expect(tester.state(find.byType(HtmlWebView)), same(before));
+
+        await tester.pumpAndSettle(const Duration(seconds: 2));
+        expect(find.byType(LinearProgressIndicator), findsNothing);
+        expect(find.text('Two'), findsOneWidget);
+        expect(tester.state(find.byType(HtmlWebView)), same(before));
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }

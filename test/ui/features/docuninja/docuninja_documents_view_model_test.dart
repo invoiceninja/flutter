@@ -77,11 +77,21 @@ void main() {
     expect(vm.items, hasLength(8));
   });
 
-  test('refreshes in a burst share one load', () async {
-    final api = _Api();
+  test('refreshes in a burst cost one extra load, never stale rows', () async {
+    var version = 0;
+    final api = _Api()
+      ..answer = (page, _) async {
+        final at = version;
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        return _page(page, 1, 'v$at-');
+      };
     final vm = DocuNinjaDocumentsViewModel(api: api);
-    await Future.wait([vm.refresh(), vm.refresh(), vm.refresh()]);
-    expect(api.calls.map((c) => c.page), [1]);
+    final first = vm.refresh();
+    // A write lands while the first read is out; three refreshes ask after.
+    version = 1;
+    await Future.wait([first, vm.refresh(), vm.refresh(), vm.refresh()]);
+    expect(api.calls.map((c) => c.page), [1, 1]);
+    expect(vm.items.first.id, startsWith('v1-'), reason: 'not the old read');
   });
 
   test('retrying a failed deep refresh keeps the depth', () async {

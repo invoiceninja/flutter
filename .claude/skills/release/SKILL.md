@@ -1,6 +1,6 @@
 ---
 name: release
-description: Ship a new release of the app end to end in three steps - write the release notes, run tools/bump_client_version.sh, then dispatch the "Deploy to all" GitHub Action. Use when Hillel asks to tag, build, cut, ship, deploy or publish a new release (or "do a release", "release it", "deploy to all"). Not for a request for release notes alone - that is docs/release-notes.md without the bump or deploy.
+description: Ship a new release of the app end to end in three steps - write the release notes, run tools/bump_client_version.sh, then dispatch the "Deploy to all" GitHub Action - and then resolve the Sentry issues that earlier releases fixed. Use when Hillel asks to tag, build, cut, ship, deploy or publish a new release (or "do a release", "release it", "deploy to all"). Not for a request for release notes alone - that is docs/release-notes.md without the bump or deploy.
 ---
 
 # Release
@@ -130,6 +130,30 @@ yet: run the list again in a separate call.
 - The run takes a while (one test gate, then the GitHub Release, then five stores
   in parallel). Don't poll it; give Hillel the run URL. Watch it only if asked.
 
+## 4. Resolve the Sentry issues that earlier releases fixed
+
+After the dispatch, so it can never hold the release up. A failure here is
+reported, not fixed around, and does not affect the release.
+
+```sh
+python3 -I tools/sentry_resolve_shipped.py            # dry run: what, and why not
+python3 -I tools/sentry_resolve_shipped.py --apply    # after reviewing the list
+```
+
+The script finds each unresolved issue named in a commit message
+(`Sentry FLUTTER-ADMIN-K`, or `FLUTTER-ADMIN-H, J, S, Z`), takes the first
+`vX.Y.Z` tag holding its newest fix, and resolves it `inRelease` that version.
+Sentry only knows a release once it has sent an event, so the fixes in the
+release just dispatched are resolved by the **next** release's run. It already
+leaves alone hang buckets and anything seen again in the fix release or later.
+
+Before `--apply`, read the commit behind each "would resolve" line
+(`git log -E --grep=FLUTTER-ADMIN-<id>`). Pass `--skip FLUTTER-ADMIN-<id>`
+for any commit that only mitigates its issue, or names it without fixing it.
+Never resolve with `inNextRelease`: this server reads it relative to the
+issue's last-seen release. The token is the `token=` line of `~/.sentryclirc`;
+if it is missing, skip this step and say so.
+
 ## Summary to give Hillel
 
 - The version (`X.Y.Z+B`) and the release-notes markdown (also in
@@ -140,5 +164,7 @@ yet: run the list again in a separate call.
 - That GitHub emails Hillel when the run finishes (he dispatched it via `gh`).
   Success emails need "Only notify for failed workflows" unticked at
   github.com/settings/notifications → Actions; by default only a failure emails.
+- The Sentry issues resolved, each with its release, and the ones left open
+  with the script's reason.
 - If a single store fails later: "Re-run failed jobs" on that run, never
   re-dispatch Deploy to all for the same version (`docs/store-deployment-setup.md` § 5).

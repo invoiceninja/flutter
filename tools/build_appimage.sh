@@ -143,8 +143,8 @@ cp -r "$bundle/data" "$appdir/usr/bin/"
 # linuxdeploy has no metainfo flag — install it ourselves. Its <releases> are
 # already real: tools/bump_client_version.sh writes each release's entry
 # (tools/metainfo_release.py), and the Flatpak installs the same file.
-install -Dm644 "$repo_root/appimage/com.invoiceninja.admin.metainfo.xml" \
-  "$appdir/usr/share/metainfo/com.invoiceninja.admin.metainfo.xml"
+install -Dm644 "$repo_root/appimage/com.invoiceninja.InvoiceNinja.metainfo.xml" \
+  "$appdir/usr/share/metainfo/com.invoiceninja.InvoiceNinja.metainfo.xml"
 
 # crashpad_handler (sentry_flutter) is installed mode 0644 by Flutter's
 # linux/CMakeLists.txt; without +x, posix_spawn of the handler fails with EACCES
@@ -211,8 +211,8 @@ export LDAI_RUNTIME_FILE="$tools_dir/runtime-x86_64"
 set -x
 linuxdeploy-x86_64.AppImage --appdir "$appdir" \
   --executable "$bundle/admin" \
-  --desktop-file "$repo_root/appimage/com.invoiceninja.admin.desktop" \
-  --icon-file "$repo_root/snap/gui/invoiceninja.png" --icon-filename com.invoiceninja.admin \
+  --desktop-file "$repo_root/appimage/com.invoiceninja.InvoiceNinja.desktop" \
+  --icon-file "$repo_root/snap/gui/invoiceninja.png" --icon-filename com.invoiceninja.InvoiceNinja \
   --plugin gtk --output appimage
 set +x
 

@@ -7,7 +7,14 @@ project(runner LANGUAGES CXX)
 set(BINARY_NAME "admin")
 # The unique GTK application identifier for this application. See:
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
-set(APPLICATION_ID "com.invoiceninja.admin")
+# It is the Flathub ID, v1's (docs/flatpak.md § The Linux app ID is v1's
+# Flathub ID), and it must match appimage/<id>.desktop and .metainfo.xml.
+set(APPLICATION_ID "com.invoiceninja.InvoiceNinja")
+# The ID before that rename. flutter_secure_storage_linux keys its keyring
+# entries by the APPLICATION_ID its own CMakeLists sees, and the database key
+# lives there, so the plugins keep seeing this one: a new ID would orphan every
+# existing install's key and with it the encrypted database. Never change it.
+set(KEYRING_APPLICATION_ID "com.invoiceninja.admin")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
@@ -72,7 +79,11 @@ set_target_properties(${BINARY_NAME}
 
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
+# The plugins see the keyring ID (above), then the app ID is restored.
+set(APPLICATION_ID_FOR_APP "${APPLICATION_ID}")
+set(APPLICATION_ID "${KEYRING_APPLICATION_ID}")
 include(flutter/generated_plugins.cmake)
+set(APPLICATION_ID "${APPLICATION_ID_FOR_APP}")
 
 
 # === Installation ===

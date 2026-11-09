@@ -130,8 +130,9 @@ void main() {
       call.value,
       contains("    if: vars.FLATHUB_ENABLED == 'true'\n"),
       reason:
-          'Until the submission is accepted there is no flathub/com.invoiceninja.admin, and every '
-          'deploy would fail waiting for it (docs/going-live.md).',
+          "Until v1's Flathub repo (flathub/com.invoiceninja.InvoiceNinja) builds this app, no "
+          'update PR ever opens there, and every deploy would fail waiting for one '
+          '(docs/going-live.md).',
     );
     expect(
       call.value,

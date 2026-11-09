@@ -98,7 +98,7 @@ tools/bump_client_version.sh            # patch +1, build +1 (or pass an explici
 flutter analyze lib/app/version.dart
 flutter test test/app/version_test.dart
 git add lib/app/version.dart pubspec.yaml snap/snapcraft.yaml tools/foss/com.invoiceninja.admin.yml \
-  appimage/com.invoiceninja.admin.metainfo.xml
+  appimage/com.invoiceninja.InvoiceNinja.metainfo.xml
 git commit -m "Update version"
 tools/check_release_ready.sh            # the same gate Deploy to all runs first
 ```

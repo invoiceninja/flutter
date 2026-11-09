@@ -197,8 +197,8 @@ jobs:
       # version-stamped AppDir copy (packaging skips validation anyway).
       - name: Validate desktop + AppStream metadata (non-fatal)
         run: |
-          desktop-file-validate appimage/com.invoiceninja.admin.desktop || true
-          appstreamcli validate appimage/com.invoiceninja.admin.metainfo.xml || true
+          desktop-file-validate appimage/com.invoiceninja.InvoiceNinja.desktop || true
+          appstreamcli validate appimage/com.invoiceninja.InvoiceNinja.metainfo.xml || true
 
       # IN_SENTRY_DSN is baked into the binary here (compile-time
       # String.fromEnvironment, inside `flutter build linux`); empty/unset is a

@@ -13,7 +13,7 @@ void main() {
 
     test('FLATPAK_ID or /.flatpak-info is a Flatpak', () {
       expect(
-        detect({'FLATPAK_ID': 'com.invoiceninja.admin'}),
+        detect({'FLATPAK_ID': 'com.invoiceninja.InvoiceNinja'}),
         LinuxPackage.flatpak,
       );
       expect(detect({}, flatpakInfo: true), LinuxPackage.flatpak);

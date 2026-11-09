@@ -168,7 +168,10 @@ void main() {
     );
 
     test('a Flatpak with no system bus socket is missing it', () {
-      expect(missing({'FLATPAK_ID': 'com.invoiceninja.admin'}, {}), isTrue);
+      expect(
+        missing({'FLATPAK_ID': 'com.invoiceninja.InvoiceNinja'}, {}),
+        isTrue,
+      );
     });
 
     test('the well-known socket, or its /var/run alias, is a bus', () {

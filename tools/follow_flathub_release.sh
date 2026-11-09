@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Follow one release onto Flathub, and say how far it got.
 #
-# Flathub builds the app itself, from flathub/com.invoiceninja.admin. That
+# Flathub builds the app itself, from flathub/com.invoiceninja.InvoiceNinja. That
 # repo's own update workflow (hand-written there, never by an agent: Flathub's
 # generative-AI policy, docs/flatpak.md) sees the new release within the hour,
 # regenerates the offline sources and opens branch update-v<version> with
@@ -26,7 +26,7 @@ set -euo pipefail
 # Run by .github/workflows/flathub.yml (Deploy to all's `flathub` leg). The
 # waits come from the environment so a test can shorten them.
 
-APP_ID="com.invoiceninja.admin"
+APP_ID="com.invoiceninja.InvoiceNinja"
 REPO="${FLATHUB_REPO:-flathub/$APP_ID}"
 APPSTREAM_URL="${FLATHUB_APPSTREAM_URL:-https://flathub.org/api/v2/appstream/$APP_ID}"
 POLL_SECONDS="${FLATHUB_POLL_SECONDS:-120}"

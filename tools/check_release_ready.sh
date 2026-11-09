@@ -101,7 +101,7 @@ if [[ "$recipe_version" != "$version" || "$recipe_code" != "$((build * 10 + 3))"
 fi
 
 if ! python3 tools/metainfo_release.py --check "$version" 2>/dev/null; then
-  fail "appimage/com.invoiceninja.admin.metainfo.xml has no <release> for $version: $bump_hint."
+  fail "appimage/com.invoiceninja.InvoiceNinja.metainfo.xml has no <release> for $version: $bump_hint."
 fi
 
 # --- 2. The bump: the version is new, and above the newest release ---

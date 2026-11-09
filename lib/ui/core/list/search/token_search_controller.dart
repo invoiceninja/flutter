@@ -751,6 +751,8 @@ class TokenSearchController {
   /// `acme status` used to be read as the key's name, match nothing, and stay
   /// a search for the literal `acme status:`. See [_trailingKey].
   bool adoptTypedPrefix() {
+    // Inside this adoption's own search write: see [_liftingSearch].
+    if (_liftingSearch) return true;
     final value = text.value;
     if (value.composing.isValid && !value.composing.isCollapsed) return false;
     final input = value.text;
@@ -776,7 +778,12 @@ class TokenSearchController {
         lifted,
       ].where((t) => t.isNotEmpty).join(' ');
       _searchInChip = true;
-      writeSearch(term, immediate: true);
+      _liftingSearch = true;
+      try {
+        writeSearch(term, immediate: true);
+      } finally {
+        _liftingSearch = false;
+      }
     }
     _pinnedValueKey = key;
     _pinnedFromChip = false;
@@ -791,6 +798,17 @@ class TokenSearchController {
     pinRevision.value++;
     return true;
   }
+
+  /// True while [adoptTypedPrefix] writes the lifted words to the search.
+  ///
+  /// The view model notifies synchronously, and the phone sheet listens to it
+  /// as well as to the box, so the write calls straight back into
+  /// [adoptTypedPrefix] — with the box still holding `acme name:` and nothing
+  /// pinned yet. That call used to lift the words again, write a longer search,
+  /// and recurse until the stack overflowed (Sentry FLUTTER-ADMIN-N). It is
+  /// part of the adoption already under way, so it reports `true` and the
+  /// host leaves the box alone; the rewrite of the box notifies again.
+  bool _liftingSearch = false;
 
   /// The key named by the LAST words before a colon, and the words in front
   /// of it — `acme due date` → Due Date and `acme`. The longest run of
@@ -1347,12 +1365,19 @@ class TokenSearchController {
     final term = [current, free].where((t) => t.isNotEmpty).join(' ');
     // Before the box is written, so the host's text listener sees the chip
     // and the pin and leaves the search alone.
-    if (term.isEmpty) {
-      _searchInChip = false;
-      writeSearch('');
-    } else {
-      _searchInChip = true;
-      writeSearch(term, immediate: true);
+    // Same re-entrancy as a lift (see [_liftingSearch]): the box still holds
+    // the text from before the paste while the view model notifies.
+    _liftingSearch = true;
+    try {
+      if (term.isEmpty) {
+        _searchInChip = false;
+        writeSearch('');
+      } else {
+        _searchInChip = true;
+        writeSearch(term, immediate: true);
+      }
+    } finally {
+      _liftingSearch = false;
     }
     final first = refused.first;
     _pinnedValueKey = first.key;

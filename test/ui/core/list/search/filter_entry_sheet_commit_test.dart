@@ -63,6 +63,25 @@ void main() {
   String boxText(WidgetTester tester) =>
       tester.widget<TextField>(find.byType(TextField)).controller!.text;
 
+  sheetTest('words typed before a key lift into the search once, with no '
+      'loop through the view model', (tester) async {
+    // The sheet listens to the view model as well as the box. Lifting `acme`
+    // used to write the search before the key was pinned and the box
+    // rewritten, so the view model's synchronous notify re-ran the lift on the
+    // same text — a longer search each time, until the stack overflowed
+    // (Sentry FLUTTER-ADMIN-N).
+    final vm = newHarnessVm(db);
+    await pumpSheet(tester, vm, const [IsFilterKey(), NameFilterKey()]);
+
+    await tester.enterText(find.byType(TextField), 'acme name:');
+    await tester.pump();
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(vm.search, 'acme');
+    expect(boxText(tester), '');
+  });
+
   sheetTest('a typed key:value + Search applies the filter', (tester) async {
     final vm = newHarnessVm(db);
     await pumpSheet(tester, vm, const [IsFilterKey(), NameFilterKey()]);

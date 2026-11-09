@@ -229,7 +229,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Issue / waiting on: no upstream issue filed yet (none found 2026-11-09). • Found: 2026-11-09 (Sentry FLUTTER-ADMIN-H, J, S, Z: 116 events, 13 users, macOS and Linux, 5.1.20–5.1.22) • Flutter: 3.47.7
 - Symptom: Tab, Shift+Tab (including macOS `insertTab:` from a text field) or an arrow key throws `Bad state: RenderBox was not laid out: RenderSemanticsAnnotations#…` from `FocusNode.rect`, and keeps throwing on every later press.
 - Root cause: the `Overlay` never lays out a page covered by an opaque page (every page below the top of a restored or deep-linked stack, and stacked pages in a `StatefulShellRoute` branch), and a widget mounted on a page after it was covered is never laid out either. `ModalRoute` marks only its own scope `skipTraversal`, so `DirectionalFocusTraversalPolicyMixin` (which reads `nearestScope.traversalDescendants`, expanding scopes) and a reading-order sort inside a covered page's own scope both call `FocusNode.rect` on those nodes. In release `RenderBox.size` throws `StateError`; in debug, an assertion.
-- Commit ref: not yet committed
+- Commit ref: 6c0e5833
 - Change(s):
   - `lib/ui/core/widgets/laid_out_traversal_policy.dart` — **MUST-REVERT**: `LaidOutReadingOrderTraversalPolicy`. `sortDescendants` drops never-laid-out nodes (an unmeasurable current node goes first, so Tab steps off it). `inDirection` sets them `skipTraversal` for the length of the synchronous call and is a no-op from an unmeasurable node.
   - `lib/main.dart` — **MUST-REVERT**: one `FocusTraversalGroup(policy: _traversalPolicy)` over the router builder's tree; each Navigator copies the enclosing policy.

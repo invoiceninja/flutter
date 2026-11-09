@@ -155,21 +155,15 @@ part of the first build.
 
 ## finish-args
 
-Each one is justified in the submission:
+Each one is justified in the PR:
 
 - `--share=ipc`, `--socket=wayland`, `--socket=fallback-x11`, `--device=dri`: the GTK window.
 - `--share=network`: the app is a client of an Invoice Ninja server.
 - `--filesystem=xdg-download`: PDFs and exports save to Downloads. `getDownloadsDirectory` runs
   `xdg-user-dir`, which Flatpak answers for a granted xdg dir. Pickers use the FileChooser portal
   (`file_picker_linux` talks D-Bus to it directly).
-- `--talk-name=org.freedesktop.secrets`, only where the Secret portal is missing (often KDE).
-  Inside a sandbox, libsecret always prefers the portal's file backend
-  (`~/.var/app/<id>/data/keyrings/`). With this name granted, `flutter_secure_storage_linux`
-  3.0.3 also unlocks the host keyring over D-Bus, and declining that prompt shows the keyring
-  screen (`SecureStorageUnavailableApp`, whose Flatpak hint covers both cases). Keep the
-  permission only if testing on GNOME and KDE shows it's needed.
 
-Two are deliberately absent:
+Three are deliberately absent:
 
 - No `--system-talk-name=org.freedesktop.NetworkManager`. `connectivity_plus` can't see network
   state from the sandbox, and the app assumes it is online, as it does on the Snap. It doesn't
@@ -179,6 +173,15 @@ Two are deliberately absent:
   run into its 5-second timeout. The first run of the Flatpak in Docker found it (2026-11-09).
 - No `pulseaudio`, `xdg-pictures` or `xdg-documents`, which v1 asked for and this app doesn't
   use.
+- No `--talk-name=org.freedesktop.secrets`. Flathub's permission review rejected it on
+  `flathub/com.invoiceninja.InvoiceNinja#31` (2026-11-09): app-owned secrets go through the
+  Secret portal, and the host keyring is for apps that need *existing* entries, which this one
+  doesn't (it stores only its own database key). Inside a sandbox, libsecret already prefers the
+  portal's file backend (`~/.var/app/<id>/data/keyrings/`), and KWallet now implements the
+  portal too (KDE bug 466197), so the name only ever covered a desktop with no Secret portal.
+  There the app shows the keyring screen (`SecureStorageUnavailableApp`), and the user can grant
+  the name themselves with
+  `flatpak override --user --talk-name=org.freedesktop.secrets com.invoiceninja.InvoiceNinja`.
 
 `lib/app/linux_package.dart` tells a Flatpak from a Snap (`FLATPAK_ID` or `/.flatpak-info`
 versus `SNAP`), for copy like the keyring hint.
@@ -303,8 +306,9 @@ Flathub commits (packaging, the no-system-bus network check, the screenshots, th
 rename). `main` held 48 unreleased commits at the time, and Flathub's first production build
 should ship exactly what every other store already had. It was tagged by hand in a detached
 worktree. Its name doesn't match the plain `vX.Y.Z` pattern that F-Droid's update check and
-`check_release_ready.sh` look for, so both ignore it. The PR on v1's repo needs a new hand tag in
-the same shape that also carries the app-ID commit. Every later release reaches Flathub through
+`check_release_ready.sh` look for, so both ignore it. The PR on v1's repo
+(`flathub/com.invoiceninja.InvoiceNinja#31`) builds **`v5.1.23-flathub.2`**, made the same way:
+`v5.1.23-flathub` plus the app-ID commit, cherry-picked with `-x`. Every later release reaches Flathub through
 the update workflow (§ Deploy to all follows the release).
 
 When it merges:

@@ -134,7 +134,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Issue / waiting on: no upstream issue filed — `serializeDocumentToMarkdown` (pinned FBH `2408aa52…`, and still on `8705fe9…` and `main` as of 2026-10-23) hard-wires `AttributedText.toMarkdown()`, which writes each inline placeholder as a literal U+FFFC; there is no attribution or placeholder serializer parameter (the Quill serializer has `serializeInlinePlaceholder`, the markdown one doesn't). Copy (`TextNode.copyContent` → `toPlainText()`) puts U+FFFC on the clipboard for the same reason. • Found: 2026-09-11 (invoiceninja/flutter#139) • Flutter: 3.44.1
 - Symptom: a template-variable chip (a `TemplateVariablePlaceholder`) would serialize as `￼` instead of its `$token`; a copied chip pastes back as a stray `￼`.
 - Root cause: no placeholder hook in the markdown serializer.
-- Commit ref: 28eb37cc
+- Commit ref: not yet committed
 - Change(s):
   - `lib/ui/core/widgets/template_variables/markdown_template_variables.dart` — **MUST-REVERT** (the detokenize half): `detokenizeTemplateVariables` widens every chip back into its token (and drops a stray U+FFFC) before each serialize; `MarkdownTextField._serialize()` routes every serialize through it. **KEEP**: tokenize-on-seed, the chip builder, the tap delegate and hit-test — those are the feature, not the workaround.
 - Revert: when the serializer can encode a placeholder, serialize `TemplateVariablePlaceholder` through that hook instead and delete `detokenizeTemplateVariables`/`detokenizeTemplateVariableText`; keep the byte-identical round-trip test (`test/ui/core/widgets/template_variables/markdown_template_variables_test.dart`) and make it pass. A chip that copies as its token would also lift the copy/paste limitation.
@@ -145,7 +145,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Issue / waiting on: not filed upstream — `LinkifyReaction` (`default_document_editor_reactions.dart`) runs linkify with `looseUrl: true`, whose pattern (`…{2,256}\.[a-z]{2,4}\b`) accepts `client.name`, `client.city`, `invoice.date`, and links the whole space-delimited word as `https://` + the word (paste goes through the same loose match). • Found: 2026-09-11 (invoiceninja/flutter#139) • Flutter: 3.44.1
 - Symptom: typing `Dear $client.name, ` in any markdown field saved `[$client.name,](https://$client.name,)`; the server substitutes the token in both halves and the email or PDF shows broken link markup.
 - Root cause: a loose-URL heuristic meeting Invoice Ninja's `$entity.field` variable syntax.
-- Commit ref: 28eb37cc
+- Commit ref: not yet committed
 - Change(s):
   - `markdown_template_variables.dart` — **KEEP**: `TemplateVariableLinkScrubReaction` (installed right after `LinkifyReaction` on every `MarkdownTextField`) removes a link whose URL is `https://` + its own text when that text holds a variable; `healTemplateVariableLinks` applies the same predicate on seed. Correct whatever linkify does — a real URL never matches.
 - Revert: nothing to revert; if super_editor ever stops linking such words, the reaction simply finds nothing. Keep the regression tests ("the unguarded editor links a typed variable — the bug" will then fail and should be flipped, not deleted).
@@ -157,7 +157,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - **iOS half retired 2026-10-23** (app_links 7.2.2, Flutter 3.47.7): 7.x registers `addSceneDelegate` and reads the launch URL from `connectionOptions` itself, so the `ios/Runner/SceneDelegate.swift` override was deleted (the file is an empty `FlutterSceneDelegate` subclass again). Verified on the iOS 26.4 simulator: a terminated app opened by `xcrun simctl openurl … invoiceninja://app/zzz_nope` logged `DeepLinkRouter` "unrecognised deep link" — delivered twice, 20 ms apart, as on macOS / Windows, which `DeepLinkRouter`'s in-flight de-dup already handles (`docs/deep-links.md`). `test/lint/universal_links_test.dart` now fails if the hand-over comes back.
 - Symptom (macOS, still open): a claimed https link brings the app forward and then does nothing, which is worse than not claiming it. (iOS, before 7.x: a link tapped with the app **not running** did nothing at all.)
 - Root cause: on macOS there is no built-in deep linking to fall back on (no `FlutterDeepLinkingEnabled` exists in that embedder), and the plugin's handler is commented out. On iOS 6.x the plugin registered only as a `UIApplicationDelegate`, and under `UIScene` the launch URL arrives only in `connectionOptions`.
-- Commit ref: 28eb37cc
+- Commit ref: not yet committed
 - Change(s):
   - `macos/Runner/AppDelegate.swift` — **MUST-REVERT** once the plugin ships its macOS handler: implements `application(_:continue:restorationHandler:)` and forwards to `AppLinks.shared.handleLink(link:)`. **Revert it together with the `applinks:` entry in `macos/Runner/Release.entitlements`** — the entitlement without a handler is the regression described above.
 - Revert: delete the override (leaving `AppDelegate` with its two existing overrides), then confirm a universal link on a macOS release build. `test/lint/universal_links_test.dart` asserts the shim exists, so it fails first and points here.
@@ -168,7 +168,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Issue / waiting on: <https://github.com/DavBfr/dart_pdf> — no sanitisation on any platform and no error surfaced on three of four. macOS `PrintJob.swift:195-203` concatenates `NSTemporaryDirectory() + name` and `catch { print(…); return }`; iOS `PrintJob.swift:256-264` uses `appendingPathComponent(name)` with the same silent `return`; Android `PrintingJob.java:329,360` does `new File(shareDirectory, name)` inside `catch (IOException e) { e.printStackTrace(); }`; Windows `print_job.cpp:298-304` does `temp + "\\" + name` with an **unchecked** `ofstream` and then `ShellExecute`s a path that was never written. • Found: 2026-09-19 • printing: 5.14.3, **unchanged in 5.15.1** (rechecked 2026-10-23: macOS `PrintJob.swift:230`, iOS `:299`, Android `PrintingJob.java:329`, Windows `print_job.cpp:342-345` — the line numbers moved, nothing else did)
 - Symptom: Share / Download on a PDF does **nothing at all** — no share sheet, no file, no error, nothing in the log the user can see. Reachable with ordinary data: a saved-version label on the History tab is rendered through the company's `date_format_id`, which is `/`-separated on four of the fourteen formats **including the server's default** (`dd/MMM/yyyy`) and `:`-separated on all of them; and a document *number* pattern is a company setting, so `INV/2026/0001` is an ordinary European scheme. On Windows the colon alone breaks it for every company.
 - Root cause: `/` and `\` are path separators, so the name becomes a path into a directory that does not exist; `:*?"<>|` are rejected outright by Win32. None of the four implementations validates, and three catch-and-discard the write error.
-- Commit ref: 28eb37cc
+- Commit ref: not yet committed
 - Change(s):
   - `lib/utils/file_names.dart` — **KEEP**: `sanitizeFileName`, which is correct regardless of what `printing` does. Also handles the Win32 reserved device names (`NUL.pdf` cannot be created even though every character is legal), a leading dot, a trailing dot or space, and a length cap.
   - the eleven call sites that interpolate a number or a date into a PDF file name (`lib/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart`, `clients/views/client_statement_screen.dart`, and the download action + bulk-list action for each of invoice / quote / credit / purchase order / recurring invoice) — **KEEP**: route the name through it.
@@ -182,7 +182,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Issue / waiting on: none filed as of 2026-10-15. F-Droid's Flutter template works around it rather than citing an issue (`templates/build-flutter.yml` in fdroiddata: "Use the same build path as upstream for reproducible build"). • Found: 2026-10-15 (invoiceninja/flutter#175) • Flutter: 3.44.1, still present in 3.47.7 (a release arm64 `libapp.so` carries `file:///<project>/.dart_tool/flutter_build/dart_plugin_registrant.dart`)
 - Symptom: two builds of one commit at different paths differ in `lib/<abi>/libapp.so` alone (measured on the arm64 split: 1 of 522 entries). F-Droid publishes our signed APK only when its own rebuild is byte-identical, so a build at any other path is a version F-Droid silently skips.
 - Root cause: the generated `.dart_tool/flutter_build/dart_plugin_registrant.dart` is compiled in as a `file://<project>/…` URI rather than a package-relative one, and the URI survives into the snapshot (`strings libapp.so | grep file://`).
-- Commit ref: 28eb37cc
+- Commit ref: not yet committed
 - Change(s):
   - `tools/foss/com.invoiceninja.admin.yml` — **MUST-REVERT**: every block's `prebuild:` and `build:` move the source to `/build/com.invoiceninja.admin` (`sudo:` creates `/build`), export `PUB_CACHE=$(pwd)/.pub-cache`, and move it back.
   - `test/lint/fdroid_recipe_test.dart` — **MUST-REVERT** with it: the assertions that both steps run at that path.
@@ -194,7 +194,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Issue / waiting on: <https://github.com/DavBfr/dart_pdf> — none filed as of 2026-10-27. `PdfPreviewRaster._raster` begins `if (_rastering) return;` and nothing re-queues the skipped request (`lib/src/preview/raster.dart:97-101`). • Found: 2026-10-27 • printing: 5.15.1
 - Symptom: a PDF preview keeps showing the previous document after new bytes arrived. `PdfPreviewCustom.didUpdateWidget` re-rasters whenever the `build` callback changes identity (`custom.dart:157-166`), 300 ms later; if a raster of the old bytes is still running then (a multi-page document, slow Android, web pdf.js), the new one is skipped and never retried.
 - Root cause: a single-flight guard with no "dirty" flag to run again once the in-flight raster ends.
-- Commit ref: 28eb37cc
+- Commit ref: not yet committed
 - Change(s):
   - `lib/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart` — **KEEP**: `_build`, the callback handed to `PdfPreview.build`, is created only where `_bytes` is assigned. The view used to pass `(_) => bytes` from `build()`, so the scrim's own `setState` and every parent rebuild queued a raster of the *old* bytes just ahead of the new ones. A stable callback is right regardless of the bug (it also stops each rebuild resetting the preview's zoom); it narrows the race to two real byte changes inside one raster, which is what remains open. Pinned by "PdfPreview gets a new build callback only with new bytes" in `test/ui/features/billing_shared/billing_doc_pdf_view_test.dart`. See `docs/pdf-preview-refresh.md`.
 - Revert: nothing to revert when upstream fixes it — keep the stable callback; delete this entry.
@@ -205,7 +205,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Issue / waiting on: <https://github.com/DavBfr/dart_pdf> — none filed as of 2026-10-29. Windows `print_job.cpp:334-360` writes `%TEMP%\<name>` and `ShellExecute "open"`s it; Linux `linux/print_job.cc:250-264` writes `/tmp/<name>` and `xdg-open`s it. `PdfPreview`'s Share button (`PdfShareAction`, `lib/src/preview/actions.dart`) calls it. • Found: 2026-10-29 (beta report) • printing: 5.15.1
 - Symptom: Download PDF, and the preview's Share, "just launch the PDF" and save nothing the user can find.
 - Root cause: desktop has no share sheet, so the package falls back to opening the file.
-- Commit ref: 28eb37cc
+- Commit ref: not yet committed
 - Change(s):
   - `lib/ui/core/utils/save_bytes.dart` / `save_download.dart` — **KEEP**: a desktop download is written into the downloads folder (`bytesSaver`, `downloadPdf`), the old app's behaviour; correct whatever the package does.
   - `allowSharing: … && !pdfShareOpensTempCopy()` on every `PdfPreview` (`billing_doc_pdf_view.dart`, `client_statement_screen.dart`, `document_viewer.dart`, `design_live_preview_pane.dart`, `live_pdf_preview_pane.dart`, `wysiwyg_preview_sheet.dart`) — **MUST-REVERT** if the package gains a real desktop share: drop the `pdfShareOpensTempCopy()` term (the Download buttons stay).

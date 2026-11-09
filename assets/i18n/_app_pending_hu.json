@@ -1687,5 +1687,11 @@
   "before_event": "az esemény előtt",
   "created_reminder_schedule": "Emlékeztető ütemezés létrehozva",
   "updated_reminder_schedule": "Emlékeztető ütemezés frissítve",
-  "deleted_reminder_schedule": "Emlékeztető ütemezés törölve"
+  "deleted_reminder_schedule": "Emlékeztető ütemezés törölve",
+  "open_in_browser": "Megnyitás böngészőben",
+  "docuninja_builder_unavailable": "A szerkesztőt nem sikerült itt megnyitni. Folytassa a böngészőben.",
+  "archived_templates": ":value sablon sikeresen archiválva",
+  "deleted_templates": ":value sablon sikeresen törölve",
+  "restored_templates": ":value sablon sikeresen visszaállítva",
+  "draw": "Rajzolás"
 }

@@ -1728,5 +1728,12 @@
   "before_event": "prima dell'evento",
   "created_reminder_schedule": "creato di promemoria",
   "updated_reminder_schedule": "Programma dei promemoria aggiornato",
-  "deleted_reminder_schedule": "Programma promemoria Eliminato"
+  "deleted_reminder_schedule": "Programma promemoria Eliminato",
+  "open_in_browser": "Apri nel browser",
+  "docuninja_builder_unavailable": "Impossibile aprire l'editor qui. Continua nel browser.",
+  "archived_templates": ":value modelli archiviati correttamente",
+  "deleted_templates": ":value modelli eliminati correttamente",
+  "restored_templates": ":value modelli ripristinati correttamente",
+  "draw": "Disegna",
+  "enter_initials": "Inserisci le iniziali"
 }

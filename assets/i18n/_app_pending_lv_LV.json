@@ -1728,5 +1728,12 @@
   "before_event": "pirms notikuma",
   "created_reminder_schedule": "Atgādinājumu grafiks izveidots",
   "updated_reminder_schedule": "Atgādinājumu grafiks atjaunināts",
-  "deleted_reminder_schedule": "Atgādinājumu grafiks dzēsts"
+  "deleted_reminder_schedule": "Atgādinājumu grafiks dzēsts",
+  "open_in_browser": "Atvērt pārlūkā",
+  "docuninja_builder_unavailable": "Redaktoru šeit neizdevās atvērt. Turpiniet pārlūkā.",
+  "archived_templates": "Veiksmīgi arhivētas veidnes: :value",
+  "deleted_templates": "Veiksmīgi dzēstas veidnes: :value",
+  "restored_templates": "Veiksmīgi atjaunotas veidnes: :value",
+  "draw": "Zīmēt",
+  "enter_initials": "Ievadiet iniciāļus"
 }

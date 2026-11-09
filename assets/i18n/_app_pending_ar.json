@@ -1648,5 +1648,11 @@
   "review_opens_store": "يفتح :store",
   "review_thanks": "شكرًا لدعمك!",
   "no_thanks": "لا، شكرًا",
-  "docuninja_company_setup_help": "حسابك موجود ولكن هذه الشركة لم يتم إعدادها بعد. يرجى النقر على الزر أدناه لإعدادها."
+  "docuninja_company_setup_help": "حسابك موجود ولكن هذه الشركة لم يتم إعدادها بعد. يرجى النقر على الزر أدناه لإعدادها.",
+  "open_in_browser": "فتح في المتصفح",
+  "docuninja_builder_unavailable": "تعذّر فتح المحرر هنا. تابع في المتصفح.",
+  "archived_templates": "تمت أرشفة :value قوالب بنجاح",
+  "deleted_templates": "تم حذف :value قوالب بنجاح",
+  "restored_templates": "تمت استعادة :value قوالب بنجاح",
+  "draw": "رسم"
 }

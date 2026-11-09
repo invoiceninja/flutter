@@ -1649,5 +1649,11 @@
   "review_opens_store": "Maak :store oop",
   "review_thanks": "Dankie vir jou ondersteuning!",
   "no_thanks": "Nee dankie",
-  "docuninja_company_setup_help": "Jou rekening bestaan, maar hierdie maatskappy is nog nie opgestel nie. Klik asseblief op die knoppie hieronder om dit op te stel."
+  "docuninja_company_setup_help": "Jou rekening bestaan, maar hierdie maatskappy is nog nie opgestel nie. Klik asseblief op die knoppie hieronder om dit op te stel.",
+  "open_in_browser": "Maak oop in blaaier",
+  "docuninja_builder_unavailable": "Die redigeerder kon nie hier oopmaak nie. Gaan voort in jou blaaier.",
+  "archived_templates": "Suksesvol :value sjablone geargiveer",
+  "deleted_templates": "Suksesvol :value sjablone uitgevee",
+  "restored_templates": "Suksesvol :value sjablone herstel",
+  "draw": "Teken"
 }

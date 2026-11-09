@@ -1649,5 +1649,11 @@
   "review_opens_store": "Avab :store",
   "review_thanks": "Aitäh toetuse eest!",
   "no_thanks": "Ei, aitäh",
-  "docuninja_company_setup_help": "Teie konto on olemas, kuid see ettevõte pole veel seadistatud. Selle seadistamiseks klõpsake allolevat nuppu."
+  "docuninja_company_setup_help": "Teie konto on olemas, kuid see ettevõte pole veel seadistatud. Selle seadistamiseks klõpsake allolevat nuppu.",
+  "open_in_browser": "Ava brauseris",
+  "docuninja_builder_unavailable": "Redaktorit ei õnnestunud siin avada. Jätkake brauseris.",
+  "archived_templates": ":value malli edukalt arhiveeritud",
+  "deleted_templates": ":value malli edukalt kustutatud",
+  "restored_templates": ":value malli edukalt taastatud",
+  "draw": "Joonista"
 }

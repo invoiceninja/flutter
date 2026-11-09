@@ -10,6 +10,9 @@ import 'package:admin/app/entity_modules.dart';
 import 'package:admin/app/router.dart' show buildRouter;
 import 'package:admin/data/models/docuninja/dn_models.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
+import 'package:admin/domain/docuninja/docuninja_access.dart';
+import 'package:admin/data/services/docuninja/docuninja_login_api.dart';
+import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/features/docuninja/view_models/docuninja_documents_view_model.dart';
@@ -77,6 +80,44 @@ DnDocument _doc({int status = 5, bool deleted = false, bool files = true}) {
     ..['is_deleted'] = deleted;
   if (!files) json['files'] = <Object>[];
   return DnDocument.fromJson(json);
+}
+
+/// A session answered with [admin] or a view-only role, that never runs a
+/// handshake of its own.
+class _Session extends DocuNinjaSession {
+  _Session({required bool admin})
+    : super(
+        loginApi: _NoLoginApi(),
+        auth: ValueNotifier(null),
+        companyKeyOf: (_) async => null,
+      ) {
+    final json =
+        jsonDecode(
+              File('test/fixtures/docuninja/login.json').readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    final data = Map<String, dynamic>.from(json['data'] as Map? ?? json);
+    data['company_user'] = {
+      ...Map<String, dynamic>.from(data['company_user'] as Map),
+      'is_admin': admin,
+      'is_owner': admin,
+    };
+    data['permissions'] = [
+      {'model': 'documents', 'permission_id': 1, 'permissionable_id': null},
+    ];
+    value = DocuNinjaState(
+      DocuNinjaAccess.ready,
+      login: DnLogin.fromJson(data),
+    );
+  }
+
+  @override
+  Future<void> load({bool force = false}) async {}
+}
+
+class _NoLoginApi implements DocuNinjaLoginApi {
+  @override
+  Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
 /// The DocuNinja document page (`/docuninja/:id`): which of React's actions
@@ -154,17 +195,27 @@ void main() {
   group('actions', () {
     late ShellFixture fixture;
 
-    Future<void> pump(WidgetTester tester, DnDocument doc) async {
+    Future<void> pump(
+      WidgetTester tester,
+      DnDocument doc, {
+      DocuNinjaSession? session,
+    }) async {
       fixture = await buildFixture(
         companies: [FakeCompany(id: 'co1', name: 'Acme')],
       );
       addTearDown(fixture.dispose);
+      const screen = DocuNinjaDocumentScreen(id: 'doc1');
       await tester.pumpWidget(
         wrapWithShell(
           fixture.services,
           Provider<DocuNinjaApi>.value(
             value: _Api(doc),
-            child: const DocuNinjaDocumentScreen(id: 'doc1'),
+            child: session == null
+                ? screen
+                : ChangeNotifierProvider<DocuNinjaSession?>.value(
+                    value: session,
+                    child: screen,
+                  ),
           ),
         ),
       );
@@ -190,6 +241,29 @@ void main() {
         matching: find.byType(IconButton),
       ),
     );
+
+    testWidgets('a view-only DocuNinja role is offered nothing it would be '
+        'refused', (tester) async {
+      final viewer = _Session(admin: false);
+      addTearDown(viewer.dispose);
+      await pump(tester, _doc(status: 5), session: viewer);
+      expect(find.byTooltip('Edit'), findsNothing);
+      await openMenu(tester);
+      for (final label in ['Clone', 'Void', 'Archive', 'Delete', 'Options']) {
+        expect(find.text(label), findsNothing, reason: label);
+      }
+      await dispose(tester);
+
+      final admin = _Session(admin: true);
+      addTearDown(admin.dispose);
+      await pump(tester, _doc(status: 5), session: admin);
+      expect(find.byTooltip('Edit'), findsOneWidget);
+      await openMenu(tester);
+      for (final label in ['Clone', 'Void', 'Archive', 'Delete']) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+      await dispose(tester);
+    });
 
     testWidgets('Edit (the builder) is beside the menu until completed', (
       tester,

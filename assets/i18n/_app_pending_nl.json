@@ -1728,5 +1728,12 @@
   "before_event": "voor het evenement",
   "created_reminder_schedule": "Herinneringsschema aangemaakt",
   "updated_reminder_schedule": "Herinneringsschema bijgewerkt",
-  "deleted_reminder_schedule": "Herinneringsschema verwijderd"
+  "deleted_reminder_schedule": "Herinneringsschema verwijderd",
+  "open_in_browser": "Openen in browser",
+  "docuninja_builder_unavailable": "De editor kon hier niet worden geopend. Ga verder in uw browser.",
+  "archived_templates": ":value sjablonen gearchiveerd",
+  "deleted_templates": ":value sjablonen verwijderd",
+  "restored_templates": ":value sjablonen hersteld",
+  "draw": "Tekenen",
+  "enter_initials": "Voer initialen in"
 }

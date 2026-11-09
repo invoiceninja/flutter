@@ -1650,5 +1650,11 @@
   "review_thanks": "Dziękujemy za wsparcie!",
   "no_thanks": "Nie, dziękuję",
   "docuninja_company_setup_help": "Twoje konto istnieje, ale ta firma nie jest jeszcze skonfigurowana. Kliknij przycisk poniżej, aby ją skonfigurować.",
-  "before_event": "przed zdarzeniem"
+  "before_event": "przed zdarzeniem",
+  "open_in_browser": "Otwórz w przeglądarce",
+  "docuninja_builder_unavailable": "Nie udało się tu otworzyć edytora. Kontynuuj w przeglądarce.",
+  "archived_templates": "Pomyślnie zarchiwizowano szablony: :value",
+  "deleted_templates": "Pomyślnie usunięto szablony: :value",
+  "restored_templates": "Pomyślnie przywrócono szablony: :value",
+  "draw": "Rysuj"
 }

@@ -1649,5 +1649,11 @@
   "review_opens_store": "Otvara :store",
   "review_thanks": "Hvala na podršci!",
   "no_thanks": "Ne, hvala",
-  "docuninja_company_setup_help": "Vaš račun postoji, ali ova tvrtka još nije postavljena. Kliknite gumb u nastavku da biste je postavili."
+  "docuninja_company_setup_help": "Vaš račun postoji, ali ova tvrtka još nije postavljena. Kliknite gumb u nastavku da biste je postavili.",
+  "open_in_browser": "Otvori u pregledniku",
+  "docuninja_builder_unavailable": "Uređivač se ovdje nije mogao otvoriti. Nastavite u pregledniku.",
+  "archived_templates": "Uspješno arhivirano predložaka: :value",
+  "deleted_templates": "Uspješno izbrisano predložaka: :value",
+  "restored_templates": "Uspješno vraćeno predložaka: :value",
+  "draw": "Crtaj"
 }

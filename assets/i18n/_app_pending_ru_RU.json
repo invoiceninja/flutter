@@ -1728,5 +1728,12 @@
   "before_event": "до события",
   "created_reminder_schedule": "Расписание напоминаний создано",
   "updated_reminder_schedule": "Расписание напоминаний обновлено",
-  "deleted_reminder_schedule": "Расписание напоминаний удалено"
+  "deleted_reminder_schedule": "Расписание напоминаний удалено",
+  "open_in_browser": "Открыть в браузере",
+  "docuninja_builder_unavailable": "Не удалось открыть редактор здесь. Продолжите в браузере.",
+  "archived_templates": "Шаблонов успешно архивировано: :value",
+  "deleted_templates": "Шаблонов успешно удалено: :value",
+  "restored_templates": "Шаблонов успешно восстановлено: :value",
+  "draw": "Нарисовать",
+  "enter_initials": "Введите инициалы"
 }

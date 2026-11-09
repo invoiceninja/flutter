@@ -333,6 +333,15 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
     final idle = !vm.isBusy && !_downloading;
     final completed = dnIsCompleted(doc);
     final title = _title(context, doc);
+    // DocuNinja's own role (React offers every action and lets DocuNinja
+    // refuse it with an error): what this user may not do is not offered.
+    // Send keeps React's Invoice Ninja permission check (`_sendable`).
+    // With no session to ask (none provided), DocuNinja decides, as React
+    // always lets it.
+    final session = context.read<DocuNinjaSession?>()?.value;
+    bool can(String model, DnAction action) =>
+        session?.can(model, action) ?? true;
+    final canEdit = can('documents', DnAction.edit);
     EntityActionItem<_Action> item(
       _Action kind,
       IconData icon,
@@ -359,7 +368,7 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
     return [
       // React's Edit (the field builder): beside the menu, disabled once the
       // document is completed or voided. It opens in the browser for now.
-      if (!doc.isDeleted)
+      if (!doc.isDeleted && canEdit)
         item(
           _Action.edit,
           Icons.edit_outlined,
@@ -382,7 +391,7 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
         item(_Action.download, Icons.download_outlined, 'download'),
       // Unlike the app's other Clones (an unsaved edit screen), this creates
       // the copy on DocuNinja at once, so it confirms as React's does.
-      if (!doc.isDeleted)
+      if (!doc.isDeleted && can('documents', DnAction.create))
         item(
           _Action.clone,
           Icons.copy_outlined,
@@ -392,12 +401,7 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
         ),
       // React's Clone to Template: a template from this document, opened in
       // the template builder. It creates the template at once, so it asks.
-      if (!doc.isDeleted &&
-          (context.read<DocuNinjaSession?>()?.value.can(
-                'blueprints',
-                DnAction.create,
-              ) ??
-              false))
+      if (!doc.isDeleted && can('blueprints', DnAction.create))
         item(
           _Action.makeTemplate,
           Icons.copy_all_outlined,
@@ -413,7 +417,7 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
         enabled: true,
         onTap: () => _onAction(context, vm, doc, _Action.copyLink),
       ),
-      if (dnCanVoid(doc))
+      if (dnCanVoid(doc) && canEdit)
         item(
           _Action.voidIt,
           Icons.block_outlined,
@@ -421,8 +425,9 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
           confirm: true,
           destructive: true,
         ),
-      if (!doc.isDeleted) item(_Action.options, Icons.tune_outlined, 'options'),
-      if (!doc.isArchived && !doc.isDeleted)
+      if (!doc.isDeleted && canEdit)
+        item(_Action.options, Icons.tune_outlined, 'options'),
+      if (!doc.isArchived && !doc.isDeleted && canEdit)
         item(
           _Action.archive,
           Icons.archive_outlined,
@@ -431,14 +436,14 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
           confirmMessageKey: 'archive_document_description',
           lifecycle: true,
         ),
-      if (doc.isArchived || doc.isDeleted)
+      if ((doc.isArchived || doc.isDeleted) && canEdit)
         item(
           _Action.restore,
           Icons.restore_outlined,
           'restore',
           lifecycle: true,
         ),
-      if (!doc.isDeleted)
+      if (!doc.isDeleted && can('documents', DnAction.delete))
         item(
           _Action.delete,
           Icons.delete_outline,

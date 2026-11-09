@@ -1728,5 +1728,12 @@
   "before_event": "イベント前",
   "created_reminder_schedule": "リマインダースケジュールが作成されました",
   "updated_reminder_schedule": "リマインダーのスケジュールが更新されました",
-  "deleted_reminder_schedule": "リマインダーのスケジュールが削除されました"
+  "deleted_reminder_schedule": "リマインダーのスケジュールが削除されました",
+  "open_in_browser": "ブラウザで開く",
+  "docuninja_builder_unavailable": "ここではエディターを開けませんでした。ブラウザで続行してください。",
+  "archived_templates": ":value 件のテンプレートをアーカイブしました",
+  "deleted_templates": ":value 件のテンプレートを削除しました",
+  "restored_templates": ":value 件のテンプレートを復元しました",
+  "draw": "描く",
+  "enter_initials": "イニシャルを入力"
 }

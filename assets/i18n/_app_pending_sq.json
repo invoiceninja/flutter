@@ -1728,5 +1728,12 @@
   "before_event": "para ngjarjes",
   "created_reminder_schedule": "Orari i kujtesave u krijua",
   "updated_reminder_schedule": "Orari i kujtesave u përditësua",
-  "deleted_reminder_schedule": "Orari i kujtesave u fshi"
+  "deleted_reminder_schedule": "Orari i kujtesave u fshi",
+  "open_in_browser": "Hape në shfletues",
+  "docuninja_builder_unavailable": "Redaktori nuk mund të hapej këtu. Vazhdoni në shfletues.",
+  "archived_templates": "U arkivuan me sukses :value shabllone",
+  "deleted_templates": "U fshinë me sukses :value shabllone",
+  "restored_templates": "U rikthyen me sukses :value shabllone",
+  "draw": "Vizato",
+  "enter_initials": "Shkruani inicialet"
 }

@@ -1650,5 +1650,11 @@
   "review_opens_store": "Avaa :store",
   "review_thanks": "Kiitos tuestasi!",
   "no_thanks": "Ei kiitos",
-  "docuninja_company_setup_help": "Tilisi on olemassa, mutta tätä yritystä ei ole vielä otettu käyttöön. Ota se käyttöön napsauttamalla alla olevaa painiketta."
+  "docuninja_company_setup_help": "Tilisi on olemassa, mutta tätä yritystä ei ole vielä otettu käyttöön. Ota se käyttöön napsauttamalla alla olevaa painiketta.",
+  "open_in_browser": "Avaa selaimessa",
+  "docuninja_builder_unavailable": "Editoria ei voitu avata tässä. Jatka selaimessasi.",
+  "archived_templates": ":value mallia arkistoitu",
+  "deleted_templates": ":value mallia poistettu",
+  "restored_templates": ":value mallia palautettu",
+  "draw": "Piirrä"
 }

@@ -1728,5 +1728,12 @@
   "before_event": "před událostí",
   "created_reminder_schedule": "Plán připomenutí vytvořen",
   "updated_reminder_schedule": "Plán připomenutí aktualizován",
-  "deleted_reminder_schedule": "Plán připomenutí smazán"
+  "deleted_reminder_schedule": "Plán připomenutí smazán",
+  "open_in_browser": "Otevřít v prohlížeči",
+  "docuninja_builder_unavailable": "Editor se zde nepodařilo otevřít. Pokračujte v prohlížeči.",
+  "archived_templates": "Úspěšně archivováno :value šablon",
+  "deleted_templates": "Úspěšně smazáno :value šablon",
+  "restored_templates": "Úspěšně obnoveno :value šablon",
+  "draw": "Kreslit",
+  "enter_initials": "Zadejte iniciály"
 }

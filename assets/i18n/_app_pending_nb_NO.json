@@ -1728,5 +1728,12 @@
   "before_event": "før hendelsen",
   "created_reminder_schedule": "Påminnelsesplan opprettet",
   "updated_reminder_schedule": "Påminnelsesplan oppdatert",
-  "deleted_reminder_schedule": "Påminnelsesplan slettet"
+  "deleted_reminder_schedule": "Påminnelsesplan slettet",
+  "open_in_browser": "Åpne i nettleser",
+  "docuninja_builder_unavailable": "Redigeringsprogrammet kunne ikke åpnes her. Fortsett i nettleseren.",
+  "archived_templates": ":value maler ble arkivert",
+  "deleted_templates": ":value maler ble slettet",
+  "restored_templates": ":value maler ble gjenopprettet",
+  "draw": "Tegn",
+  "enter_initials": "Skriv inn initialer"
 }

@@ -1649,5 +1649,11 @@
   "review_opens_store": "Abre :store",
   "review_thanks": "Obrigado pelo seu apoio!",
   "no_thanks": "Não, obrigado",
-  "docuninja_company_setup_help": "A sua conta existe, mas esta empresa ainda não está configurada. Clique no botão abaixo para a configurar."
+  "docuninja_company_setup_help": "A sua conta existe, mas esta empresa ainda não está configurada. Clique no botão abaixo para a configurar.",
+  "open_in_browser": "Abrir no navegador",
+  "docuninja_builder_unavailable": "Não foi possível abrir o editor aqui. Continue no seu navegador.",
+  "archived_templates": ":value modelos arquivados com sucesso",
+  "deleted_templates": ":value modelos eliminados com sucesso",
+  "restored_templates": ":value modelos restaurados com sucesso",
+  "draw": "Desenhar"
 }

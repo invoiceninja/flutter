@@ -1649,5 +1649,11 @@
   "review_opens_store": "Otvorí :store",
   "review_thanks": "Ďakujeme za podporu!",
   "no_thanks": "Nie, ďakujem",
-  "docuninja_company_setup_help": "Váš účet existuje, ale táto spoločnosť ešte nie je nastavená. Kliknite na tlačidlo nižšie a nastavte ju."
+  "docuninja_company_setup_help": "Váš účet existuje, ale táto spoločnosť ešte nie je nastavená. Kliknite na tlačidlo nižšie a nastavte ju.",
+  "open_in_browser": "Otvoriť v prehliadači",
+  "docuninja_builder_unavailable": "Editor sa tu nepodarilo otvoriť. Pokračujte v prehliadači.",
+  "archived_templates": "Úspešne archivovaných šablón: :value",
+  "deleted_templates": "Úspešne odstránených šablón: :value",
+  "restored_templates": "Úspešne obnovených šablón: :value",
+  "draw": "Kresliť"
 }

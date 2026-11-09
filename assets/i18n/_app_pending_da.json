@@ -1653,5 +1653,11 @@
   "review_opens_store": "Åbner :store",
   "review_thanks": "Tak for din støtte!",
   "no_thanks": "Nej tak",
-  "docuninja_company_setup_help": "Din konto findes, men denne virksomhed er ikke sat op endnu. Klik på knappen nedenfor for at sætte den op."
+  "docuninja_company_setup_help": "Din konto findes, men denne virksomhed er ikke sat op endnu. Klik på knappen nedenfor for at sætte den op.",
+  "open_in_browser": "Åbn i browser",
+  "docuninja_builder_unavailable": "Editoren kunne ikke åbnes her. Fortsæt i din browser.",
+  "archived_templates": ":value skabeloner blev arkiveret",
+  "deleted_templates": ":value skabeloner blev slettet",
+  "restored_templates": ":value skabeloner blev gendannet",
+  "draw": "Tegn"
 }

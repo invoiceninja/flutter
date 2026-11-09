@@ -1728,5 +1728,12 @@
   "before_event": "vor dem Ereignis",
   "created_reminder_schedule": "Erinnerungsplan erstellt",
   "updated_reminder_schedule": "Erinnerungsplan aktualisiert",
-  "deleted_reminder_schedule": "Erinnerungsplan gelöscht"
+  "deleted_reminder_schedule": "Erinnerungsplan gelöscht",
+  "open_in_browser": "Im Browser öffnen",
+  "docuninja_builder_unavailable": "Der Editor konnte hier nicht geöffnet werden. Fahren Sie in Ihrem Browser fort.",
+  "archived_templates": ":value Vorlagen erfolgreich archiviert",
+  "deleted_templates": ":value Vorlagen erfolgreich gelöscht",
+  "restored_templates": ":value Vorlagen erfolgreich wiederhergestellt",
+  "draw": "Zeichnen",
+  "enter_initials": "Initialen eingeben"
 }

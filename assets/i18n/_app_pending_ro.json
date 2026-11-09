@@ -1718,5 +1718,12 @@
   "before_event": "înainte de eveniment",
   "created_reminder_schedule": "Programare de mementouri creată",
   "updated_reminder_schedule": "Programare de mementouri actualizată",
-  "deleted_reminder_schedule": "Programare de mementouri ștearsă"
+  "deleted_reminder_schedule": "Programare de mementouri ștearsă",
+  "open_in_browser": "Deschide în browser",
+  "docuninja_builder_unavailable": "Editorul nu a putut fi deschis aici. Continuați în browser.",
+  "archived_templates": ":value șabloane arhivate cu succes",
+  "deleted_templates": ":value șabloane șterse cu succes",
+  "restored_templates": ":value șabloane restaurate cu succes",
+  "draw": "Desenează",
+  "enter_initials": "Introduceți inițialele"
 }

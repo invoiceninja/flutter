@@ -1717,5 +1717,12 @@
   "before_event": "före händelsen",
   "created_reminder_schedule": "Påminnelseschema skapat",
   "updated_reminder_schedule": "Påminnelseschema uppdaterat",
-  "deleted_reminder_schedule": "Påminnelseschema raderat"
+  "deleted_reminder_schedule": "Påminnelseschema raderat",
+  "open_in_browser": "Öppna i webbläsaren",
+  "docuninja_builder_unavailable": "Redigeraren kunde inte öppnas här. Fortsätt i webbläsaren.",
+  "archived_templates": ":value mallar har arkiverats",
+  "deleted_templates": ":value mallar har tagits bort",
+  "restored_templates": ":value mallar har återställts",
+  "draw": "Rita",
+  "enter_initials": "Ange initialer"
 }

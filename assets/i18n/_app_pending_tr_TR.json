@@ -1728,5 +1728,12 @@
   "before_event": "olaydan önce",
   "created_reminder_schedule": "Hatırlatma planı oluşturuldu",
   "updated_reminder_schedule": "Hatırlatma planı güncellendi",
-  "deleted_reminder_schedule": "Hatırlatma planı silindi"
+  "deleted_reminder_schedule": "Hatırlatma planı silindi",
+  "open_in_browser": "Tarayıcıda aç",
+  "docuninja_builder_unavailable": "Düzenleyici burada açılamadı. Tarayıcınızda devam edin.",
+  "archived_templates": ":value şablon başarıyla arşivlendi",
+  "deleted_templates": ":value şablon başarıyla silindi",
+  "restored_templates": ":value şablon başarıyla geri yüklendi",
+  "draw": "Çiz",
+  "enter_initials": "Baş harfleri girin"
 }

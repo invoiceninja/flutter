@@ -1728,5 +1728,12 @@
   "before_event": "ก่อนเหตุการณ์",
   "created_reminder_schedule": "สร้างกำหนดการแจ้งเตือนแล้ว",
   "updated_reminder_schedule": "อัปเดตกำหนดการแจ้งเตือนแล้ว",
-  "deleted_reminder_schedule": "ลบกำหนดการแจ้งเตือนแล้ว"
+  "deleted_reminder_schedule": "ลบกำหนดการแจ้งเตือนแล้ว",
+  "open_in_browser": "เปิดในเบราว์เซอร์",
+  "docuninja_builder_unavailable": "ไม่สามารถเปิดตัวแก้ไขที่นี่ได้ โปรดดำเนินการต่อในเบราว์เซอร์ของคุณ",
+  "archived_templates": "เก็บถาวรเทมเพลต :value รายการเรียบร้อยแล้ว",
+  "deleted_templates": "ลบเทมเพลต :value รายการเรียบร้อยแล้ว",
+  "restored_templates": "กู้คืนเทมเพลต :value รายการเรียบร้อยแล้ว",
+  "draw": "วาด",
+  "enter_initials": "ป้อนอักษรย่อ"
 }

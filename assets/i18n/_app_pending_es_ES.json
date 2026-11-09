@@ -1649,5 +1649,11 @@
   "review_opens_store": "Abre :store",
   "review_thanks": "¡Gracias por tu apoyo!",
   "no_thanks": "No, gracias",
-  "docuninja_company_setup_help": "Tu cuenta existe, pero esta empresa aún no está configurada. Haz clic en el botón de abajo para configurarla."
+  "docuninja_company_setup_help": "Tu cuenta existe, pero esta empresa aún no está configurada. Haz clic en el botón de abajo para configurarla.",
+  "open_in_browser": "Abrir en el navegador",
+  "docuninja_builder_unavailable": "No se ha podido abrir el editor aquí. Continúa en tu navegador.",
+  "archived_templates": "Se han archivado :value plantillas correctamente",
+  "deleted_templates": "Se han eliminado :value plantillas correctamente",
+  "restored_templates": "Se han restaurado :value plantillas correctamente",
+  "draw": "Dibujar"
 }

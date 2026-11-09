@@ -1728,5 +1728,12 @@
   "before_event": "avant l'événement",
   "created_reminder_schedule": "Plan de rappel créé",
   "updated_reminder_schedule": "Calendrier des rappels mis à jour",
-  "deleted_reminder_schedule": "Rappel supprimé"
+  "deleted_reminder_schedule": "Rappel supprimé",
+  "open_in_browser": "Ouvrir dans le navigateur",
+  "docuninja_builder_unavailable": "L'éditeur n'a pas pu s'ouvrir ici. Continuez dans votre navigateur.",
+  "archived_templates": ":value modèles archivés avec succès",
+  "deleted_templates": ":value modèles supprimés avec succès",
+  "restored_templates": ":value modèles restaurés avec succès",
+  "draw": "Dessiner",
+  "enter_initials": "Saisir les initiales"
 }

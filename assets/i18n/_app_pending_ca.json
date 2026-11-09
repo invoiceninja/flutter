@@ -1649,5 +1649,11 @@
   "review_opens_store": "Obre :store",
   "review_thanks": "Gràcies pel teu suport!",
   "no_thanks": "No, gràcies",
-  "docuninja_company_setup_help": "El vostre compte existeix, però aquesta empresa encara no està configurada. Feu clic al botó de sota per configurar-la."
+  "docuninja_company_setup_help": "El vostre compte existeix, però aquesta empresa encara no està configurada. Feu clic al botó de sota per configurar-la.",
+  "open_in_browser": "Obre al navegador",
+  "docuninja_builder_unavailable": "L'editor no s'ha pogut obrir aquí. Continua al navegador.",
+  "archived_templates": "S'han arxivat :value plantilles correctament",
+  "deleted_templates": "S'han suprimit :value plantilles correctament",
+  "restored_templates": "S'han restaurat :value plantilles correctament",
+  "draw": "Dibuixa"
 }

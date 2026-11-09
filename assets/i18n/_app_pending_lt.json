@@ -1686,5 +1686,11 @@
   "before_event": "prieš įvykį",
   "created_reminder_schedule": "Priminimų tvarkaraštis sukurtas",
   "updated_reminder_schedule": "Priminimų tvarkaraštis atnaujintas",
-  "deleted_reminder_schedule": "Priminimų tvarkaraštis ištrintas"
+  "deleted_reminder_schedule": "Priminimų tvarkaraštis ištrintas",
+  "open_in_browser": "Atidaryti naršyklėje",
+  "docuninja_builder_unavailable": "Redaktoriaus čia atidaryti nepavyko. Tęskite naršyklėje.",
+  "archived_templates": "Sėkmingai archyvuota šablonų: :value",
+  "deleted_templates": "Sėkmingai ištrinta šablonų: :value",
+  "restored_templates": "Sėkmingai atkurta šablonų: :value",
+  "draw": "Piešti"
 }

@@ -1649,5 +1649,11 @@
   "review_opens_store": "開啟 :store",
   "review_thanks": "感謝您的支持！",
   "no_thanks": "不用了，謝謝",
-  "docuninja_company_setup_help": "您的帳戶已存在，但此公司尚未設定。請點擊下方按鈕進行設定。"
+  "docuninja_company_setup_help": "您的帳戶已存在，但此公司尚未設定。請點擊下方按鈕進行設定。",
+  "open_in_browser": "在瀏覽器中開啟",
+  "docuninja_builder_unavailable": "無法在此處開啟編輯器。請在瀏覽器中繼續。",
+  "archived_templates": "已成功封存 :value 個範本",
+  "deleted_templates": "已成功刪除 :value 個範本",
+  "restored_templates": "已成功還原 :value 個範本",
+  "draw": "繪製"
 }

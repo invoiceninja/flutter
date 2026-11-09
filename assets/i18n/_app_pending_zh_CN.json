@@ -1728,5 +1728,12 @@
   "before_event": "事件之前",
   "created_reminder_schedule": "提醒计划已创建",
   "updated_reminder_schedule": "提醒计划已更新",
-  "deleted_reminder_schedule": "提醒计划已删除"
+  "deleted_reminder_schedule": "提醒计划已删除",
+  "open_in_browser": "在浏览器中打开",
+  "docuninja_builder_unavailable": "无法在此处打开编辑器。请在浏览器中继续。",
+  "archived_templates": "已成功归档 :value 个模板",
+  "deleted_templates": "已成功删除 :value 个模板",
+  "restored_templates": "已成功恢复 :value 个模板",
+  "draw": "绘制",
+  "enter_initials": "输入姓名首字母"
 }

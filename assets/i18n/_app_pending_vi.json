@@ -1615,5 +1615,11 @@
   "review_opens_store": "Mở :store",
   "review_thanks": "Cảm ơn bạn đã ủng hộ!",
   "no_thanks": "Không, cảm ơn",
-  "docuninja_company_setup_help": "Tài khoản của bạn đã tồn tại nhưng công ty này chưa được thiết lập. Vui lòng nhấp vào nút bên dưới để thiết lập."
+  "docuninja_company_setup_help": "Tài khoản của bạn đã tồn tại nhưng công ty này chưa được thiết lập. Vui lòng nhấp vào nút bên dưới để thiết lập.",
+  "open_in_browser": "Mở trong trình duyệt",
+  "docuninja_builder_unavailable": "Không thể mở trình chỉnh sửa tại đây. Hãy tiếp tục trong trình duyệt.",
+  "archived_templates": "Đã lưu trữ thành công :value mẫu",
+  "deleted_templates": "Đã xóa thành công :value mẫu",
+  "restored_templates": "Đã khôi phục thành công :value mẫu",
+  "draw": "Vẽ"
 }

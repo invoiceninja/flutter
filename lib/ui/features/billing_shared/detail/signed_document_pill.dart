@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/domain/docuninja/docuninja_signed.dart';
@@ -32,6 +34,23 @@ bool showSignedDocumentPill(
 /// Pro, Enterprise or a trial. DocuNinja is a hosted service.
 bool docuNinjaPlanActive(AuthSession? session) =>
     session != null && session.isHosted && session.hasProAccess;
+
+/// Whether "Authorized to sign" means anything for [company]: the server's
+/// `docuninjaActive()` whole — `enable_modules` *and* a plan that still runs
+/// DocuNinja. With the plan lapsed the server ignores `can_sign` on a saved
+/// invitation, so a tick would look saved and then revert. React checks
+/// only `enable_modules`.
+///
+/// A widget test whose `Services` fake has no `auth` gets the company flag
+/// alone, as `intakeOf` reads its folder.
+bool docuNinjaSigningActive(BuildContext context, Company? company) {
+  if (!(company?.enableModules ?? false)) return false;
+  try {
+    return docuNinjaPlanActive(context.read<Services>().auth.session.value);
+  } catch (_) {
+    return true;
+  }
+}
 
 /// React's green "Signed Document" badge, beside a signed invoice's, quote's
 /// or purchase order's status pill (see [showSignedDocumentPill]).

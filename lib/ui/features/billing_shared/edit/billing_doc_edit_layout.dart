@@ -45,6 +45,7 @@ import 'package:admin/ui/features/billing_shared/view_models/billing_doc_edit_vi
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/tasks/widgets/create_task_from_line_item_sheet.dart';
 import 'package:admin/utils/notes_html.dart';
+import 'package:admin/ui/features/billing_shared/detail/signed_document_pill.dart';
 
 /// Enter in a single-line field saves the document (§ Forms — Enter to
 /// save), through the `FormSaveScope` the edit scaffold wraps the form in.
@@ -720,7 +721,8 @@ class _PartyContactsState<T extends BillingDocFields>
     return StreamBuilder<Company?>(
       stream: _company,
       builder: (context, companySnapshot) {
-        final eSign = companySnapshot.data?.enableModules ?? false;
+        // DocuNinja on for the company, on a plan that still runs it.
+        final eSign = docuNinjaSigningActive(context, companySnapshot.data);
         return StreamBuilder<List<BillingContact>?>(
           stream: _contacts,
           builder: (context, snapshot) {

@@ -1728,5 +1728,12 @@
   "before_event": "ກ່ອນເຫດການ",
   "created_reminder_schedule": "ສ້າງກຳນົດເວລາແຈ້ງເຕືອນແລ້ວ",
   "updated_reminder_schedule": "ອັບເດດກຳນົດເວລາແຈ້ງເຕືອນແລ້ວ",
-  "deleted_reminder_schedule": "ລຶບກຳນົດເວລາແຈ້ງເຕືອນແລ້ວ"
+  "deleted_reminder_schedule": "ລຶບກຳນົດເວລາແຈ້ງເຕືອນແລ້ວ",
+  "open_in_browser": "ເປີດໃນໂປຣແກຣມທ່ອງເວັບ",
+  "docuninja_builder_unavailable": "ບໍ່ສາມາດເປີດຕົວແກ້ໄຂຢູ່ທີ່ນີ້ໄດ້. ສືບຕໍ່ໃນໂປຣແກຣມທ່ອງເວັບຂອງທ່ານ.",
+  "archived_templates": "ເກັບແມ່ແບບ :value ລາຍການສຳເລັດແລ້ວ",
+  "deleted_templates": "ລຶບແມ່ແບບ :value ລາຍການສຳເລັດແລ້ວ",
+  "restored_templates": "ກູ້ຄືນແມ່ແບບ :value ລາຍການສຳເລັດແລ້ວ",
+  "draw": "ແຕ້ມ",
+  "enter_initials": "ປ້ອນຕົວອັກສອນຫຍໍ້"
 }

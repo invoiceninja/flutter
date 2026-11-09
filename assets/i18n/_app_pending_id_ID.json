@@ -1650,5 +1650,11 @@
   "review_opens_store": "Membuka :store",
   "review_thanks": "Terima kasih atas dukungan Anda!",
   "no_thanks": "Tidak, terima kasih",
-  "docuninja_company_setup_help": "Akun Anda sudah ada, tetapi perusahaan ini belum disiapkan. Klik tombol di bawah untuk menyiapkannya."
+  "docuninja_company_setup_help": "Akun Anda sudah ada, tetapi perusahaan ini belum disiapkan. Klik tombol di bawah untuk menyiapkannya.",
+  "open_in_browser": "Buka di peramban",
+  "docuninja_builder_unavailable": "Editor tidak dapat dibuka di sini. Lanjutkan di peramban Anda.",
+  "archived_templates": "Berhasil mengarsipkan :value templat",
+  "deleted_templates": "Berhasil menghapus :value templat",
+  "restored_templates": "Berhasil memulihkan :value templat",
+  "draw": "Gambar"
 }

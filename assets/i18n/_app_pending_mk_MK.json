@@ -1728,5 +1728,12 @@
   "before_event": "пред настанот",
   "created_reminder_schedule": "Распоредот за потсетници е креиран",
   "updated_reminder_schedule": "Распоредот за потсетници е ажуриран",
-  "deleted_reminder_schedule": "Распоредот за потсетници е избришан"
+  "deleted_reminder_schedule": "Распоредот за потсетници е избришан",
+  "open_in_browser": "Отвори во прелистувач",
+  "docuninja_builder_unavailable": "Уредувачот не можеше да се отвори тука. Продолжете во прелистувачот.",
+  "archived_templates": "Успешно архивирани :value шаблони",
+  "deleted_templates": "Успешно избришани :value шаблони",
+  "restored_templates": "Успешно вратени :value шаблони",
+  "draw": "Цртај",
+  "enter_initials": "Внесете иницијали"
 }

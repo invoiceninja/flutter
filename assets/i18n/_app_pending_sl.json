@@ -1728,5 +1728,12 @@
   "before_event": "pred dogodkom",
   "created_reminder_schedule": "Urnik opomnikov je ustvarjen",
   "updated_reminder_schedule": "Urnik opomnikov je posodobljen",
-  "deleted_reminder_schedule": "Urnik opomnikov je izbrisan"
+  "deleted_reminder_schedule": "Urnik opomnikov je izbrisan",
+  "open_in_browser": "Odpri v brskalniku",
+  "docuninja_builder_unavailable": "Urejevalnika tukaj ni bilo mogoče odpreti. Nadaljujte v brskalniku.",
+  "archived_templates": "Uspešno arhiviranih predlog: :value",
+  "deleted_templates": "Uspešno izbrisanih predlog: :value",
+  "restored_templates": "Uspešno obnovljenih predlog: :value",
+  "draw": "Riši",
+  "enter_initials": "Vnesite začetnice"
 }

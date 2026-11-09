@@ -12,6 +12,7 @@ import 'package:admin/ui/core/widgets/labeled_switch_group.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/vendors/view_models/vendor_edit_view_model.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/features/billing_shared/detail/signed_document_pill.dart';
 
 /// "Contacts" card on the vendor edit screen. Renders every contact inline,
 /// each with its own First/Last/Email/Phone block plus a header row carrying
@@ -264,7 +265,8 @@ class _ContactEditor extends StatelessWidget {
             // so it shows only while DocuNinja is on for the company
             // (`enable_modules`), as React's contact form does. The value is
             // kept on save regardless (`VendorContact.toApiJson` still emits `can_sign`).
-            final eSignEnabled = snapshot.data?.enableModules ?? false;
+            // ...and on a plan that still runs DocuNinja.
+            final eSignEnabled = docuNinjaSigningActive(context, snapshot.data);
             return LabeledSwitchGroup(
               items: [
                 LabeledSwitchItem(

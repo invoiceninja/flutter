@@ -248,3 +248,15 @@ Widget? dnSelectLeading({
 
 /// The width [dnSelectLeading] takes on a wide pane, for a header to line up.
 const double kDnSelectSlotWidth = 32 + InSpacing.sm;
+
+/// [actions] this user's DocuNinja role allows: archive and restore need
+/// edit, delete needs delete. React offers all three and lets DocuNinja
+/// refuse; the app leaves out what would be refused.
+List<DnBulkAction<T>> dnPermittedBulkActions<T>(
+  List<DnBulkAction<T>> actions, {
+  required bool canEdit,
+  required bool canDelete,
+}) => [
+  for (final a in actions)
+    if (a.action == 'delete' ? canDelete : canEdit) a,
+];

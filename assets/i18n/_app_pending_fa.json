@@ -1727,5 +1727,12 @@
   "before_event": "پیش از رویداد",
   "created_reminder_schedule": "زمان‌بندی یادآوری ایجاد شد",
   "updated_reminder_schedule": "زمان‌بندی یادآوری به‌روزرسانی شد",
-  "deleted_reminder_schedule": "زمان‌بندی یادآوری حذف شد"
+  "deleted_reminder_schedule": "زمان‌بندی یادآوری حذف شد",
+  "open_in_browser": "باز کردن در مرورگر",
+  "docuninja_builder_unavailable": "ویرایشگر در اینجا باز نشد. در مرورگر خود ادامه دهید.",
+  "archived_templates": ":value الگو با موفقیت بایگانی شد",
+  "deleted_templates": ":value الگو با موفقیت حذف شد",
+  "restored_templates": ":value الگو با موفقیت بازیابی شد",
+  "draw": "رسم",
+  "enter_initials": "حروف اول نام را وارد کنید"
 }

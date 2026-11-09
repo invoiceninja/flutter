@@ -273,7 +273,9 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
                         items: [
                           // React's table checkboxes, for its bulk actions; on
                           // touch a long press on a row starts it too.
-                          if (vm.items.isNotEmpty && !vm.isSelecting)
+                          if (vm.items.isNotEmpty &&
+                              !vm.isSelecting &&
+                              _bulkActions(state).isNotEmpty)
                             EntityActionItem(
                               kind: _MenuAction.select,
                               icon: Icons.checklist,
@@ -345,7 +347,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
                           LayoutBuilder(
                             builder: (context, c) => DnSelectionBar<DnDocument>(
                               vm: vm,
-                              actions: _kBulkActions,
+                              actions: _bulkActions(state),
                               wide: c.maxWidth >= kDocuNinjaTableMinWidth,
                             ),
                           )
@@ -446,7 +448,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           // once, at mount) and the top of the scroll.
           key: ObjectKey(vm),
           vm: vm,
-          selectable: true,
+          selectable: _bulkActions(state).isNotEmpty,
           onOpen: (doc) => context.go('/docuninja/${doc.id}'),
           actionsFor: (doc) => EntityActionsPopupButton<_RowAction>(
             items: _rowItems(state, vm, doc),
@@ -456,6 +458,14 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
   }
 
   bool _rowBusy = false;
+
+  /// The bulk actions this user's DocuNinja role allows.
+  List<DnBulkAction<DnDocument>> _bulkActions(DocuNinjaState state) =>
+      dnPermittedBulkActions(
+        _kBulkActions,
+        canEdit: state.can('documents', DnAction.edit),
+        canDelete: state.can('documents', DnAction.delete),
+      );
 
   /// React's list row actions (`documents/common/hooks/useActions.tsx`)
   /// that act at once; Send, Options and the downloads open dialogs that
@@ -469,6 +479,11 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
         ? context.tr('untitled_document')
         : doc.description;
     final completed = dnIsCompleted(doc);
+    // DocuNinja's own role (React offers every action and lets DocuNinja
+    // refuse it with an error): what this user may not do is not offered.
+    final canEdit = state.can('documents', DnAction.edit);
+    final canCreate = state.can('documents', DnAction.create);
+    final canDelete = state.can('documents', DnAction.delete);
     EntityActionItem<_RowAction> item(
       _RowAction kind,
       IconData icon,
@@ -492,7 +507,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
       onTap: run,
     );
     return [
-      if (!doc.isDeleted)
+      if (!doc.isDeleted && canEdit)
         item(
           _RowAction.edit,
           Icons.edit_outlined,
@@ -515,7 +530,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           'view_pdf',
           () async => context.go('/docuninja/${doc.id}/pdf'),
         ),
-      if (!doc.isDeleted)
+      if (!doc.isDeleted && canCreate)
         item(
           _RowAction.clone,
           Icons.copy_outlined,
@@ -565,7 +580,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           }),
           confirm: true,
         ),
-      if (dnCanVoid(doc))
+      if (dnCanVoid(doc) && canEdit)
         item(
           _RowAction.voidIt,
           Icons.block_outlined,
@@ -582,7 +597,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           confirm: true,
           destructive: true,
         ),
-      if (!doc.isArchived && !doc.isDeleted)
+      if (!doc.isArchived && !doc.isDeleted && canEdit)
         item(
           _RowAction.archive,
           Icons.archive_outlined,
@@ -592,7 +607,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           confirmMessageKey: 'archive_document_description',
           lifecycle: true,
         ),
-      if (doc.isArchived || doc.isDeleted)
+      if ((doc.isArchived || doc.isDeleted) && canEdit)
         item(
           _RowAction.restore,
           Icons.restore_outlined,
@@ -600,7 +615,7 @@ class _DocuNinjaScreenState extends State<DocuNinjaScreen> {
           () => _rowBulk(vm, doc, 'restore', 'document_restored'),
           lifecycle: true,
         ),
-      if (!doc.isDeleted)
+      if (!doc.isDeleted && canDelete)
         item(
           _RowAction.delete,
           Icons.delete_outline,

@@ -1648,5 +1648,11 @@
   "review_opens_store": "Otvara :store",
   "review_thanks": "Hvala na podršci!",
   "no_thanks": "Ne, hvala",
-  "docuninja_company_setup_help": "Vaš nalog postoji, ali ova kompanija još nije podešena. Kliknite na dugme ispod da biste je podesili."
+  "docuninja_company_setup_help": "Vaš nalog postoji, ali ova kompanija još nije podešena. Kliknite na dugme ispod da biste je podesili.",
+  "open_in_browser": "Otvori u pregledaču",
+  "docuninja_builder_unavailable": "Uređivač nije mogao da se otvori ovde. Nastavite u pregledaču.",
+  "archived_templates": "Uspešno arhivirano šablona: :value",
+  "deleted_templates": "Uspešno obrisano šablona: :value",
+  "restored_templates": "Uspešno vraćeno šablona: :value",
+  "draw": "Crtaj"
 }

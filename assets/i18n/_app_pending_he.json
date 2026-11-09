@@ -1648,5 +1648,11 @@
   "review_opens_store": "פותח את :store",
   "review_thanks": "תודה על התמיכה!",
   "no_thanks": "לא, תודה",
-  "docuninja_company_setup_help": "החשבון שלך קיים, אך החברה הזו עדיין לא הוגדרה. לחץ על הכפתור למטה כדי להגדיר אותה."
+  "docuninja_company_setup_help": "החשבון שלך קיים, אך החברה הזו עדיין לא הוגדרה. לחץ על הכפתור למטה כדי להגדיר אותה.",
+  "open_in_browser": "פתח בדפדפן",
+  "docuninja_builder_unavailable": "לא ניתן היה לפתוח כאן את העורך. המשך בדפדפן.",
+  "archived_templates": "הועברו לארכיון :value תבניות בהצלחה",
+  "deleted_templates": "נמחקו :value תבניות בהצלחה",
+  "restored_templates": "שוחזרו :value תבניות בהצלחה",
+  "draw": "ציור"
 }

@@ -1728,5 +1728,12 @@
   "before_event": "antes del evento",
   "created_reminder_schedule": "Se ha creado un calendario de recordatorios.",
   "updated_reminder_schedule": "Calendario de recordatorios actualizado",
-  "deleted_reminder_schedule": "Se eliminó el calendario de recordatorios."
+  "deleted_reminder_schedule": "Se eliminó el calendario de recordatorios.",
+  "open_in_browser": "Abrir en el navegador",
+  "docuninja_builder_unavailable": "El editor no se pudo abrir aquí. Continúe en su navegador.",
+  "archived_templates": "Se archivaron :value plantillas correctamente",
+  "deleted_templates": "Se eliminaron :value plantillas correctamente",
+  "restored_templates": "Se restauraron :value plantillas correctamente",
+  "draw": "Dibujar",
+  "enter_initials": "Ingrese las iniciales"
 }

@@ -173,7 +173,8 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
               if (vm != null)
                 ListenableBuilder(
                   listenable: vm,
-                  builder: (context, _) => vm.items.isEmpty || vm.isSelecting
+                  builder: (context, _) =>
+                      vm.items.isEmpty || vm.isSelecting || _bulkActions.isEmpty
                       ? const SizedBox.shrink()
                       : IconButton(
                           icon: const Icon(Icons.checklist),
@@ -268,7 +269,7 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
               if (vm.isSelecting)
                 DnSelectionBar<DnBlueprint>(
                   vm: vm,
-                  actions: _kBulkActions,
+                  actions: _bulkActions,
                   wide: c.maxWidth >= _kWide,
                 )
               else
@@ -347,10 +348,11 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
                       : canCreate
                       ? () => _edit(t)
                       : null,
-                  onLongPress: toggle,
+                  // No selection where no bulk action is allowed.
+                  onLongPress: _bulkActions.isEmpty ? null : toggle,
                   selected: vm.isSelected(t),
                   leading: dnSelectLeading(
-                    wide: wide,
+                    wide: wide && _bulkActions.isNotEmpty,
                     selecting: selecting,
                     selected: vm.isSelected(t),
                     onToggle: toggle,
@@ -374,7 +376,20 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
     );
   }
 
-  /// React's template row actions (`blueprints/common/hooks/useActions.tsx`).
+  /// Whether this user's DocuNinja role allows [action] on [model].
+  bool _can(String model, DnAction action) =>
+      _session?.value.can(model, action) ?? false;
+
+  /// The bulk actions this user's DocuNinja role allows.
+  List<DnBulkAction<DnBlueprint>> get _bulkActions => dnPermittedBulkActions(
+    _kBulkActions,
+    canEdit: _can('blueprints', DnAction.edit),
+    canDelete: _can('blueprints', DnAction.delete),
+  );
+
+  /// React's template row actions (`blueprints/common/hooks/useActions.tsx`),
+  /// less what this user's DocuNinja role would have refused (React offers
+  /// them all).
   List<EntityActionItem<_Action>> _items(
     BuildContext context,
     DocuNinjaTemplatesViewModel vm,
@@ -399,11 +414,12 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
       confirmSubject: title,
       onTap: () => _onAction(vm, t, kind),
     );
+    final canEdit = _can('blueprints', DnAction.edit);
     return [
-      if (!t.isDeleted)
+      if (!t.isDeleted && _can('documents', DnAction.create))
         item(_Action.use, Icons.note_add_outlined, 'use_template'),
-      item(_Action.options, Icons.tune_outlined, 'options'),
-      if (t.isActive)
+      if (canEdit) item(_Action.options, Icons.tune_outlined, 'options'),
+      if (t.isActive && canEdit)
         item(
           _Action.archive,
           Icons.archive_outlined,
@@ -411,14 +427,14 @@ class _DocuNinjaTemplatesScreenState extends State<DocuNinjaTemplatesScreen> {
           confirm: true,
           lifecycle: true,
         ),
-      if (!t.isActive)
+      if (!t.isActive && canEdit)
         item(
           _Action.restore,
           Icons.restore_outlined,
           'restore',
           lifecycle: true,
         ),
-      if (!t.isDeleted)
+      if (!t.isDeleted && _can('blueprints', DnAction.delete))
         item(
           _Action.delete,
           Icons.delete_outline,

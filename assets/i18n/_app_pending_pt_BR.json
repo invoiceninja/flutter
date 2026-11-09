@@ -1728,5 +1728,12 @@
   "before_event": "antes do evento",
   "created_reminder_schedule": "Cronograma de lembretes criado",
   "updated_reminder_schedule": "Cronograma de lembretes atualizado",
-  "deleted_reminder_schedule": "Agendamento de lembretes excluído"
+  "deleted_reminder_schedule": "Agendamento de lembretes excluído",
+  "open_in_browser": "Abrir no navegador",
+  "docuninja_builder_unavailable": "Não foi possível abrir o editor aqui. Continue no seu navegador.",
+  "archived_templates": ":value modelos arquivados com sucesso",
+  "deleted_templates": ":value modelos excluídos com sucesso",
+  "restored_templates": ":value modelos restaurados com sucesso",
+  "draw": "Desenhar",
+  "enter_initials": "Digite as iniciais"
 }

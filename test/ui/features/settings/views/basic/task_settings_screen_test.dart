@@ -105,6 +105,26 @@ class _FakeServices implements Services {
       throw UnimplementedError(invocation.memberName.toString());
 }
 
+/// A session whose company has every module on — Tasks included, which the
+/// Chrome extension card needs.
+AuthSession _sessionWithTasks(String companyId) => AuthSession(
+  baseUrl: 'https://example.test',
+  isHosted: false,
+  accountId: 'acct',
+  companies: [
+    AuthCompany(
+      id: companyId,
+      name: 'Acme',
+      displayName: 'Acme',
+      permissions: '',
+      isAdmin: true,
+      isOwner: true,
+      enabledModules: 0x7fffffff,
+    ),
+  ],
+  currentCompanyId: companyId,
+);
+
 AuthSession _sessionWith(String companyId) => AuthSession(
   baseUrl: 'https://example.test',
   isHosted: false,
@@ -360,5 +380,96 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
+  });
+
+  // docs/companion-apps.md: a link to the Chrome extension, at company scope,
+  // where the extension can run — never native macOS (Apple 2.3.10).
+  group('Chrome extension card', () {
+    Finder card() =>
+        find.text(bundledLocalization().lookup('get_the_extension'));
+
+    Future<void> pumpAt(
+      WidgetTester tester,
+      TargetPlatform platform, {
+      SettingsLevelController? level,
+    }) async {
+      tester.view.physicalSize = const Size(1200, 4000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await db.companiesDao.upsertAll([
+        CompaniesCompanion.insert(
+          id: 'co-A',
+          name: 'Acme',
+          settings: '{}',
+          permissions: '',
+          accountId: 'acct',
+          token: 'tok',
+          updatedAt: 1700000000,
+          enabledModules: const Value(32767),
+        ),
+      ]);
+      final services = _FakeServices(
+        auth: _FakeAuth(ValueNotifier(_sessionWithTasks('co-A'))),
+        company: companyRepo,
+        clients: clientRepo,
+        db: db,
+        settingsLevel: level ?? SettingsLevelController(),
+        unsavedChangesGuard: UnsavedChangesGuard(),
+      );
+      debugDefaultTargetPlatformOverride = platform;
+      await tester.pumpWidget(host(services));
+      await tester.pump();
+      companyRepo.emit('co-A', const Company(id: 'co-A', name: 'Acme'));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> unmount(WidgetTester tester) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      debugDefaultTargetPlatformOverride = null;
+    }
+
+    testWidgets('on Windows, the last card at company scope', (tester) async {
+      await pumpAt(tester, TargetPlatform.windows);
+      expect(card(), findsOneWidget);
+      final l10n = bundledLocalization();
+      final sections = tester
+          .widgetList<FormSection>(find.byType(FormSection))
+          .toList();
+      expect(sections.last.title, l10n.lookup('chrome_extension'));
+      await unmount(tester);
+    });
+
+    testWidgets('never on native macOS', (tester) async {
+      await pumpAt(tester, TargetPlatform.macOS);
+      expect(
+        find.text(bundledLocalization().lookup('show_task_billable')),
+        findsOneWidget,
+        reason: 'the body rendered',
+      );
+      expect(card(), findsNothing);
+      expect(find.textContaining('Chrome'), findsNothing);
+      await unmount(tester);
+    });
+
+    testWidgets('not at client scope', (tester) async {
+      await pumpAt(
+        tester,
+        TargetPlatform.windows,
+        level: SettingsLevelController()
+          ..setLevel(
+            SettingsLevel.client,
+            targetId: 'client-1',
+            targetName: 'Client One',
+          ),
+      );
+      expect(
+        find.byKey(const ValueKey('round-enable-false')),
+        findsOneWidget,
+        reason: 'the body rendered',
+      );
+      expect(card(), findsNothing);
+      await unmount(tester);
+    });
   });
 }

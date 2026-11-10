@@ -9,6 +9,7 @@ export 'package:admin/domain/plan_gate.dart'
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
+import 'package:admin/domain/companion_apps.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/bank_accounts/views/bank_account_list_screen.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
@@ -16,6 +17,7 @@ import 'package:admin/ui/features/settings/views/advanced/generated_numbers/bodi
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/bodies/general_settings_body.dart';
 import 'package:admin/ui/features/settings/views/advanced/tags_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/account_management/danger_zone_screen.dart';
+import 'package:admin/ui/features/settings/views/basic/account_management/integrations_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/account_management/plan_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/account_management/quickbooks_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/backup_restore/widgets/backup_tab.dart';
@@ -561,6 +563,23 @@ bool _mobileAppShown(SettingsSearchScope? scope) =>
 bool _peppolStatusShown(SettingsSearchScope? scope) =>
     scope?.sendsPeppol ?? true;
 
+bool _wordPressPluginShown(SettingsSearchScope? scope) =>
+    scope?.showsWordPressPlugin ?? true;
+
+bool _chromeExtensionShown(SettingsSearchScope? scope) =>
+    scope?.showsChromeExtension ?? true;
+
+/// The Integrations tab's "More from Invoice Ninja" card renders when any of
+/// its rows does (`AccountManagementIntegrationsScreen`).
+bool _companionAppsShown(SettingsSearchScope? scope) =>
+    _wordPressPluginShown(scope) ||
+    _chromeExtensionShown(scope) ||
+    _mobileAppShown(scope);
+
+/// Task Settings' Chrome extension card is company-scope only.
+bool _taskSettingsChromeExtensionShown(SettingsSearchScope? scope) =>
+    _chromeExtensionShown(scope) && !(scope?.isCascade ?? false);
+
 const kSettingsSearchCatalog = <String, List<SettingsSearchTab>>{
   'company_details': [
     SettingsSearchTab(
@@ -649,7 +668,13 @@ const kSettingsSearchCatalog = <String, List<SettingsSearchTab>>{
   ],
   'tax_settings': [SettingsSearchTab('', kTaxSettingsSearchKeys)],
   'product_settings': [SettingsSearchTab('', kProductSettingsSearchKeys)],
-  'task_settings': [SettingsSearchTab('', kTaskSettingsSearchKeys)],
+  'task_settings': [
+    SettingsSearchTab(
+      '',
+      kTaskSettingsSearchKeys,
+      keyGates: {'chrome_extension': _taskSettingsChromeExtensionShown},
+    ),
+  ],
   'tags': [SettingsSearchTab('', kTagsSearchKeys)],
   'expense_settings': [SettingsSearchTab('', kExpenseSettingsSearchKeys)],
   // With only Quotes on, the shell renders the Quotes body at the bare path
@@ -689,7 +714,16 @@ const kSettingsSearchCatalog = <String, List<SettingsSearchTab>>{
     // The Integrations hub and the screens it opens — reached via Account
     // Management → Integrations (the top-level Integrations section was
     // removed to match React).
-    SettingsSearchTab('integrations', ['api_docs'], titleKey: 'integrations'),
+    SettingsSearchTab(
+      'integrations',
+      kAccountManagementIntegrationsSearchKeys,
+      titleKey: 'integrations',
+      keyGates: {
+        'companion_apps_section': _companionAppsShown,
+        'wordpress_plugin': _wordPressPluginShown,
+        'chrome_extension': _chromeExtensionShown,
+      },
+    ),
     SettingsSearchTab('integrations/api_tokens', [
       'api_tokens',
     ], titleKey: 'api_tokens'),
@@ -1186,6 +1220,8 @@ class SettingsSearchScope {
     required this.isHosted,
     this.showsMobileApp = true,
     this.sendsPeppol = true,
+    this.showsWordPressPlugin = true,
+    this.showsChromeExtension = true,
   });
 
   /// [session] null (not loaded yet) fails open on hosted, matching
@@ -1205,6 +1241,8 @@ class SettingsSearchScope {
       isHosted: session?.isHosted ?? true,
       showsMobileApp: mobileAppSectionShown(session),
       sendsPeppol: company == null || peppolStatusSectionShown(company),
+      showsWordPressPlugin: wordPressPluginOffered(session),
+      showsChromeExtension: chromeExtensionOffered(session),
     );
   }
 
@@ -1225,6 +1263,16 @@ class SettingsSearchScope {
   /// Whether the active company sends by PEPPOL, the one case Device Settings
   /// shows Hide Peppol Sent Status (`peppolStatusSectionShown`).
   final bool sendsPeppol;
+
+  /// Whether this session is offered the WordPress plugin
+  /// (`wordPressPluginOffered`) — the Integrations row and the API Tokens
+  /// card.
+  final bool showsWordPressPlugin;
+
+  /// Whether this session is offered the Chrome extension
+  /// (`chromeExtensionOffered`) — the Integrations row and the Task Settings
+  /// card.
+  final bool showsChromeExtension;
 
   bool allowsSection(SettingsSectionDef section) =>
       (!isCascade || section.clientEditable) &&

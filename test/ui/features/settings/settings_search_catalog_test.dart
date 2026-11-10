@@ -382,6 +382,85 @@ void main() {
       });
     });
 
+    group('companion-app links, only where offered', () {
+      final l10n = bundledLocalization();
+      // Every key of [keys] that reaches [route] under [scope].
+      Set<String> offered(
+        List<String> keys,
+        String route,
+        SettingsSearchScope scope,
+      ) => {
+        for (final key in keys)
+          for (final h in searchSettings(l10n.lookup(key), l10n, scope: scope))
+            if (h.route == route && h.fieldKey == key) key,
+      };
+      const integrations = '/settings/account_management/integrations';
+      const taskSettings = '/settings/task_settings';
+      SettingsSearchScope scope({
+        bool wordPress = true,
+        bool chrome = true,
+        bool mobile = true,
+        bool cascade = false,
+      }) => SettingsSearchScope(
+        enabledModules: _allModules,
+        isAdminOrOwner: true,
+        isCascade: cascade,
+        isHosted: true,
+        showsMobileApp: mobile,
+        showsWordPressPlugin: wordPress,
+        showsChromeExtension: chrome,
+      );
+
+      test('Integrations offers each row only where it renders', () {
+        const keys = ['wordpress_plugin', 'chrome_extension'];
+        expect(offered(keys, integrations, scope()), keys.toSet());
+        expect(offered(keys, integrations, scope(wordPress: false)), {
+          'chrome_extension',
+        });
+        expect(offered(keys, integrations, scope(chrome: false)), {
+          'wordpress_plugin',
+        });
+      });
+
+      test('the card title goes when every row does', () {
+        const keys = ['companion_apps_section'];
+        expect(
+          offered(keys, integrations, scope(wordPress: false, chrome: false)),
+          keys.toSet(),
+          reason: 'the phone-app row still shows',
+        );
+        expect(
+          offered(
+            keys,
+            integrations,
+            scope(wordPress: false, chrome: false, mobile: false),
+          ),
+          isEmpty,
+        );
+        expect(offered(['api_docs'], integrations, scope(wordPress: false)), {
+          'api_docs',
+        }, reason: 'API Docs is not gated');
+      });
+
+      test('Task Settings offers Chrome at company scope only', () {
+        const keys = ['chrome_extension'];
+        expect(offered(keys, taskSettings, scope()), keys.toSet());
+        expect(offered(keys, taskSettings, scope(chrome: false)), isEmpty);
+        expect(offered(keys, taskSettings, scope(cascade: true)), isEmpty);
+      });
+
+      test('no ungated keyword map names them', () {
+        for (final word in ['wordpress', 'chrome']) {
+          final hits = searchSettings(
+            word,
+            l10n,
+            scope: scope(wordPress: false, chrome: false, mobile: false),
+          );
+          expect(hits, isEmpty, reason: word);
+        }
+      });
+    });
+
     test('Spell check is offered only where its section renders', () {
       // The Spell Check row renders nothing without a platform checker (web,
       // Linux), so a hit there would open Device Settings on nothing.

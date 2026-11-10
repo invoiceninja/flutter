@@ -10,6 +10,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/domain/mobile_app_promo.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
+import 'package:admin/ui/core/widgets/copy_value_row.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/feature_row.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
@@ -532,11 +533,11 @@ class _MobileAppPromoDialogState extends State<MobileAppPromoDialog> {
         ),
         const SizedBox(height: InSpacing.sm),
         Text(context.tr('mobile_app_promo_sign_in_with'), style: small),
-        if (a.email.isNotEmpty) _CopyRow(value: a.email),
+        if (a.email.isNotEmpty) CopyValueRow(value: a.email),
         if (a.serverUrl case final url?) ...[
           const SizedBox(height: InSpacing.sm),
           Text(context.tr('mobile_app_promo_server_url_line'), style: small),
-          _CopyRow(value: url),
+          CopyValueRow(value: url),
         ],
         if (a.privateNetwork) ...[
           const SizedBox(height: InSpacing.sm),
@@ -664,50 +665,6 @@ class _PhonePeek extends StatelessWidget {
             alignment: Alignment.topCenter,
             excludeFromSemantics: true,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A value to type on the phone, with a copy button that is always visible —
-/// `CopyableValue`'s hover-only icon can't be reached on a touch browser.
-class _CopyRow extends StatelessWidget {
-  const _CopyRow({required this.value});
-
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return Padding(
-      padding: const EdgeInsets.only(top: InSpacing.xs),
-      child: Container(
-        padding: EdgeInsetsDirectional.only(start: InSpacing.md(context)),
-        decoration: BoxDecoration(
-          color: tokens.surface,
-          border: Border.all(color: tokens.border),
-          borderRadius: BorderRadius.circular(InRadii.r2),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: SelectableText(
-                value,
-                maxLines: 1,
-                style: TextStyle(fontSize: 13, color: tokens.ink),
-              ),
-            ),
-            IconButton(
-              visualDensity: VisualDensity.standard,
-              style: IconButton.styleFrom(
-                minimumSize: const Size.square(InSizes.touchTarget),
-              ),
-              tooltip: context.tr('copy'),
-              icon: Icon(Icons.copy_outlined, size: 18, color: tokens.ink3),
-              onPressed: () => unawaited(copyToClipboard(context, value)),
-            ),
-          ],
         ),
       ),
     );

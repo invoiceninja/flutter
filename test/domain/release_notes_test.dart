@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/version.dart';
+import 'package:admin/domain/companion_apps.dart';
 import 'package:admin/domain/release_notes.dart';
 
 /// The bundled release notes (docs/whats-new-dialog.md): a well-formed
@@ -81,9 +82,11 @@ void main() {
   group('the App Store builds (Apple guideline 2.3.10)', () {
     // Names of other mobile platforms and app marketplaces — what reviewers
     // reject in a Mac or iPhone App Store build (docs/mobile-app-promo.md).
+    // Chrome too: its extension is installed from the Chrome Web Store
+    // (docs/companion-apps.md).
     final forbidden = RegExp(
-      r'android|google|play store|f-droid|fdroid|microsoft store|\bsnap\b|'
-      r'appimage',
+      r'android|google|chrome|play store|f-droid|fdroid|microsoft store|'
+      r'\bsnap\b|appimage',
       caseSensitive: false,
     );
 
@@ -147,6 +150,30 @@ void main() {
         isEmpty,
       );
     }
+  });
+
+  test('the companion-app highlights: WordPress everywhere, Chrome only off '
+      'the App Store and the phones', () {
+    final release = kReleaseNotes.firstWhere((r) => r.version == '5.1.24');
+    List<CompanionApp> apps(Set<ReleaseNoteSurface> surfaces) => [
+      for (final h in release.visibleOn(surfaces).highlights)
+        if (h.target case ReleaseHighlightCompanionApp(:final app)) app,
+    ];
+    for (final platform in TargetPlatform.values) {
+      final surfaces = releaseNoteSurfaces(isWeb: false, platform: platform);
+      final chrome =
+          platform == TargetPlatform.windows ||
+          platform == TargetPlatform.linux ||
+          platform == TargetPlatform.fuchsia;
+      expect(apps(surfaces), [
+        CompanionApp.wordPress,
+        if (chrome) CompanionApp.chromeExtension,
+      ], reason: platform.name);
+    }
+    expect(
+      apps(releaseNoteSurfaces(isWeb: true, platform: TargetPlatform.macOS)),
+      [CompanionApp.wordPress, CompanionApp.chromeExtension],
+    );
   });
 
   group('releaseNoteDisplayText', () {

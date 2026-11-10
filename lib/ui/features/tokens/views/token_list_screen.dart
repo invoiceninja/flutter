@@ -6,9 +6,14 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/token.dart';
+import 'package:admin/data/repositories/auth/auth_session.dart';
+import 'package:admin/domain/companion_apps.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
+import 'package:admin/ui/core/widgets/copy_value_row.dart';
 import 'package:admin/ui/core/widgets/unsynced_pill.dart';
+import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/plan_gate_banner.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart';
@@ -77,6 +82,61 @@ class TokenListScreen extends StatelessWidget {
       rowBuilder: (t) => _TokenRow(key: ValueKey(t.id), token: t),
       archivedRowBuilder: (t) =>
           _TokenRow.archived(key: ValueKey(t.id), token: t),
+      footer: wordPressPluginOffered(session)
+          ? WordPressSetupCard(session: session)
+          : null,
+    );
+  }
+}
+
+/// How to connect the WordPress plugin, under the token list: the plugin
+/// asks for a token from this page and — self-hosted only — this server's
+/// address, which hosted users never type (the plugin defaults to
+/// `https://invoicing.co`). Shown where `wordPressPluginOffered` holds
+/// (docs/companion-apps.md).
+class WordPressSetupCard extends StatelessWidget {
+  const WordPressSetupCard({required this.session, super.key});
+
+  final AuthSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final selfHosted = session.isSelfHosted;
+    return FormSection(
+      title: context.tr('wordpress_plugin'),
+      children: [
+        Text(
+          selfHosted
+              ? context.tr('wordpress_setup_body')
+              : context.tr('wordpress_setup_body_hosted'),
+          style: TextStyle(color: tokens.ink2, height: 1.4),
+        ),
+        if (selfHosted)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.tr('server_url'),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: tokens.ink2,
+                ),
+              ),
+              CopyValueRow(value: wordPressServerAddress(session.baseUrl)),
+            ],
+          ),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: OutlinedButton.icon(
+            onPressed: () => openExternalUrl(context, kWordPressPluginUrl),
+            icon: const Icon(Icons.open_in_new, size: 16),
+            label: Text(context.tr('get_the_plugin')),
+            style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+          ),
+        ),
+      ],
     );
   }
 }

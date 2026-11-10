@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:store_services/store_services.dart';
 
 import 'package:admin/app/version.dart';
+import 'package:admin/domain/companion_apps.dart';
 import 'package:admin/domain/entity_type.dart';
 
 /// The release notes the "What's new" dialog shows after an update
@@ -135,6 +136,16 @@ final class ReleaseHighlightMobileApp extends ReleaseHighlightTarget {
   const ReleaseHighlightMobileApp();
 }
 
+/// One of Invoice Ninja's other apps (docs/companion-apps.md). Shown only
+/// where the app is offered to this session (`companionAppOffered`), and it
+/// opens their in-app home — Account Management → Integrations — never the
+/// store page: the dialog never links out.
+final class ReleaseHighlightCompanionApp extends ReleaseHighlightTarget {
+  const ReleaseHighlightCompanionApp(this.app);
+
+  final CompanionApp app;
+}
+
 /// A headline change, shown above the full list.
 @immutable
 class ReleaseHighlight {
@@ -246,6 +257,49 @@ List<ReleaseNotes> releasesToShow({
 }
 
 const List<ReleaseNotes> kReleaseNotes = [
+  ReleaseNotes(
+    version: '5.1.24',
+    highlights: [
+      ReleaseHighlight(
+        icon: Icons.storefront_outlined,
+        title: 'Invoice Ninja for WordPress',
+        body: 'Add a store, quote requests and client accounts to your site.',
+        target: ReleaseHighlightCompanionApp(CompanionApp.wordPress),
+      ),
+      // Apple guideline 2.3.10: no Chrome Web Store on an App Store build,
+      // and a phone has no Chrome extensions (docs/companion-apps.md).
+      ReleaseHighlight(
+        icon: Icons.extension_outlined,
+        title: 'Track time from Chrome',
+        body:
+            'Our new extension creates tasks and runs timers in your browser.',
+        target: ReleaseHighlightCompanionApp(CompanionApp.chromeExtension),
+        hiddenOn: {
+          ReleaseNoteSurface.appleStore,
+          ReleaseNoteSurface.nativePhone,
+        },
+      ),
+    ],
+    items: [
+      ReleaseNoteItem(
+        'Added: Settings > Account Management > Integrations links to our '
+        'WordPress plugin, for admins on a Pro, Enterprise or self-hosted '
+        'account, and API Tokens shows how to connect it.',
+      ),
+      ReleaseNoteItem(
+        'Added: Integrations and Task Settings link to the Invoice Ninja: '
+        'Tasks extension for Chrome.',
+        hiddenOn: {
+          ReleaseNoteSurface.appleStore,
+          ReleaseNoteSurface.nativePhone,
+        },
+      ),
+      ReleaseNoteItem(
+        'Updated: Android 8 or newer is now required.',
+        hiddenOn: {ReleaseNoteSurface.appleStore},
+      ),
+    ],
+  ),
   ReleaseNotes(
     version: '5.1.23',
     highlights: [

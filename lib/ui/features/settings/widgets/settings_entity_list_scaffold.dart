@@ -53,6 +53,7 @@ class SettingsEntityListScaffold<T> extends StatefulWidget {
     this.extraAppBarActions = const <Widget>[],
     this.starters,
     this.banner,
+    this.footer,
     this.canCreate = true,
     this.createEntityType,
   }) : assert(
@@ -151,6 +152,13 @@ class SettingsEntityListScaffold<T> extends StatefulWidget {
   /// AppBar and the first FormSection). Used by plan-gated screens to
   /// render a `PlanGateBanner`.
   final Widget? banner;
+
+  /// Optional card drawn after the list — or after the empty state — in the
+  /// same column, so it scrolls with the rows. API Tokens uses it for the
+  /// WordPress plugin's setup card. Pass null, never an empty widget, when
+  /// there is nothing to show: a section costs a gap even when it draws
+  /// nothing.
+  final Widget? footer;
 
   /// When false, the "+ New" CTAs in both the populated list and the
   /// empty-state are disabled (visible but non-tappable). Used by
@@ -328,8 +336,12 @@ class _SettingsEntityListScaffoldState<T>
     // empty state (and, now, a Show archived button to go find them).
     if (active.isEmpty && (!_showArchived || archived.isEmpty)) {
       final starters = widget.starters;
+      final showStarters = starters != null && starters.isNotEmpty && mayCreate;
+      final footer = widget.footer;
       final Widget emptyBody;
-      if (starters != null && starters.isNotEmpty && mayCreate) {
+      // With starters or a footer the empty state sits in a card in the
+      // settings column, so whatever follows it scrolls with it.
+      if (showStarters || footer != null) {
         emptyBody = SettingsFormShell(
           sections: [
             FormSection(
@@ -341,10 +353,13 @@ class _SettingsEntityListScaffoldState<T>
                   subtitle: context.tr(widget.emptyHintKey),
                   action: mayCreate ? newButton() : null,
                 ),
-                const SizedBox(height: 16),
-                _StarterCards(starters: starters),
+                if (showStarters) ...[
+                  const SizedBox(height: 16),
+                  _StarterCards(starters: starters),
+                ],
               ],
             ),
+            ?footer,
           ],
         );
       } else {
@@ -399,6 +414,7 @@ class _SettingsEntityListScaffoldState<T>
                   (widget.archivedRowBuilder ?? widget.rowBuilder!)(item),
               ],
             ),
+          ?widget.footer,
         ],
       ),
     );

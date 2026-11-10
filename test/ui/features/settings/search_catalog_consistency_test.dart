@@ -30,6 +30,7 @@ import 'package:admin/ui/features/settings/views/basic/company_details/defaults_
 import 'package:admin/ui/features/settings/views/basic/company_details/documents_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/company_details/logo_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/account_management/danger_zone_screen.dart';
+import 'package:admin/ui/features/settings/views/basic/account_management/integrations_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/backup_restore/widgets/backup_tab.dart';
 import 'package:admin/ui/features/settings/views/basic/backup_restore/widgets/restore_tab.dart';
 import 'package:admin/ui/features/settings/views/basic/expense_settings_screen.dart';
@@ -93,6 +94,8 @@ void main() {
         'workflow_settings/quotes': kWorkflowSettingsQuotesSearchKeys,
         'account_management/danger_zone':
             kAccountManagementDangerZoneSearchKeys,
+        'account_management/integrations':
+            kAccountManagementIntegrationsSearchKeys,
         'account_management/integrations/quickbooks':
             kAccountManagementQuickbooksSearchKeys,
         'backup_restore/': kBackupTabSearchKeys,
@@ -495,6 +498,13 @@ final List<_TabUnderTest> _tabsUnderTest = [
       'lib/ui/features/settings/views/advanced/tags_edit_screen.dart',
     ],
     keys: kTagsSearchKeys,
+  ),
+  const _TabUnderTest(
+    label: 'account_management/integrations',
+    sourcePaths: [
+      'lib/ui/features/settings/views/basic/account_management/integrations_screen.dart',
+    ],
+    keys: kAccountManagementIntegrationsSearchKeys,
   ),
   const _TabUnderTest(
     label: 'account_management/integrations/quickbooks',

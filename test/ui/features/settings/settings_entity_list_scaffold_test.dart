@@ -24,7 +24,7 @@ class _Row {
 void main() {
   // The shared chrome renders a SettingsScopeBanner, which reads the scope
   // controller off the settings shell in production.
-  Widget host(List<_Row> rows, {bool supportsArchive = true}) =>
+  Widget host(List<_Row> rows, {bool supportsArchive = true, Widget? footer}) =>
       ChangeNotifierProvider<SettingsLevelController>(
         create: (_) => SettingsLevelController(),
         child: MaterialApp(
@@ -46,6 +46,7 @@ void main() {
             isArchivedOf: (r) => r.archived,
             isDeletedOf: (r) => r.deleted,
             rowBuilder: (r) => ListTile(key: ValueKey(r.id), title: Text(r.id)),
+            footer: footer,
           ),
         ),
       );
@@ -129,5 +130,42 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(archiveToggle(), findsNothing);
+  });
+
+  group('footer', () {
+    const footer = Text('the footer', key: ValueKey('footer'));
+
+    testWidgets('follows the rows', (tester) async {
+      await tester.pumpWidget(host(const [_Row('a')], footer: footer));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('footer')), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('the footer')).dy,
+        greaterThan(tester.getTopLeft(find.text('a')).dy),
+      );
+    });
+
+    testWidgets('follows the empty state too', (tester) async {
+      await tester.pumpWidget(host(const [], footer: footer));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No schedules yet'), findsOneWidget);
+      expect(find.byKey(const ValueKey('footer')), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('the footer')).dy,
+        greaterThan(tester.getTopLeft(find.text('No schedules yet')).dy),
+      );
+    });
+
+    testWidgets('without one, the empty state is drawn as before', (
+      tester,
+    ) async {
+      await tester.pumpWidget(host(const []));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No schedules yet'), findsOneWidget);
+      expect(find.byKey(const ValueKey('footer')), findsNothing);
+    });
   });
 }

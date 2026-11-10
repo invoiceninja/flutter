@@ -1185,6 +1185,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | API Webhooks (CRUD) | ✅ | ✅ | ✅ | ✅ | |
 | API Docs (link) | ✅ | ✅ | ✅ | ✅ | |
 | Zapier integration | ✅ | ✅ | ✅ | ✅ | |
+| More from Invoice Ninja: WordPress plugin link (admins on Pro / Enterprise / self-hosted, plus a setup card on API Tokens) and Chrome extension link (desktop Chrome, never native macOS / iOS; also on Task Settings) — `docs/companion-apps.md` | — | — | ✅ | | |
 | QuickBooks integration | ✅ | ❌ | ✅ | ✅ | |
 | QuickBooks — 10-entity sync directions + import + income/tax mapping | ✅ | ❌ | ✅ | | |
 | QuickBooks — invoice tab: sync status + Check Record / Force Link / Force Pull / Force Push | ✅ | — | ✅ | | |

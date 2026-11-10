@@ -1,9 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme.dart';
+import 'package:admin/data/repositories/auth/auth_session.dart';
+import 'package:admin/domain/companion_apps.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/release_notes.dart';
 import 'package:admin/ui/core/widgets/feature_row.dart';
@@ -45,6 +48,44 @@ const _withHighlights = ReleaseNotes(
 const _fixesOnly = ReleaseNotes(
   version: '2.0.1',
   items: [ReleaseNoteItem('Fixed: A crash on save.')],
+);
+
+const _companionApps = ReleaseNotes(
+  version: '2.0.3',
+  highlights: [
+    ReleaseHighlight(
+      icon: Icons.storefront_outlined,
+      title: 'Invoice Ninja for WordPress',
+      body: 'A store on your site.',
+      target: ReleaseHighlightCompanionApp(CompanionApp.wordPress),
+    ),
+    ReleaseHighlight(
+      icon: Icons.extension_outlined,
+      title: 'Track time from Chrome',
+      body: 'Timers in your browser.',
+      target: ReleaseHighlightCompanionApp(CompanionApp.chromeExtension),
+    ),
+  ],
+  items: [ReleaseNoteItem('Added: Links to our other apps.')],
+);
+
+AuthSession _session({bool admin = true, bool pro = true}) => AuthSession(
+  baseUrl: 'https://invoicing.co',
+  isHosted: true,
+  accountId: 'acct',
+  plan: pro ? 'pro' : '',
+  companies: [
+    AuthCompany(
+      id: 'co',
+      name: 'Co',
+      displayName: 'Co',
+      permissions: '',
+      isAdmin: admin,
+      isOwner: false,
+      enabledModules: 0x7fffffff,
+    ),
+  ],
+  currentCompanyId: 'co',
 );
 
 /// Opens the dialog the way the app does — through `showDialog` with the
@@ -156,6 +197,58 @@ void main() {
     final result = await h.result;
     expect(result, isA<WhatsNewOpenRoute>());
     expect((result! as WhatsNewOpenRoute).path, '/reports');
+  });
+
+  group('companion-app highlights', () {
+    test('reachable only where the app is offered', () {
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      const wordPress = ReleaseHighlightCompanionApp(CompanionApp.wordPress);
+      const chrome = ReleaseHighlightCompanionApp(CompanionApp.chromeExtension);
+
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      expect(whatsNewTargetReachable(wordPress, _session()), isTrue);
+      expect(whatsNewTargetReachable(chrome, _session()), isTrue);
+      // A member, or a free hosted account, is not offered WordPress; Chrome
+      // has no role or plan gate.
+      expect(
+        whatsNewTargetReachable(wordPress, _session(admin: false)),
+        isFalse,
+      );
+      expect(whatsNewTargetReachable(wordPress, _session(pro: false)), isFalse);
+      expect(whatsNewTargetReachable(chrome, _session(pro: false)), isTrue);
+
+      // Native macOS never offers Chrome (Apple guideline 2.3.10).
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      expect(whatsNewTargetReachable(chrome, _session()), isFalse);
+      expect(whatsNewTargetReachable(wordPress, _session()), isTrue);
+    });
+
+    testWidgets('an unreachable one is left out', (tester) async {
+      await _Harness().open(
+        tester,
+        releases: const [_companionApps],
+        reachable: (t) =>
+            t is ReleaseHighlightCompanionApp &&
+            t.app == CompanionApp.wordPress,
+      );
+      expect(find.text('Invoice Ninja for WordPress'), findsOneWidget);
+      expect(find.text('Track time from Chrome'), findsNothing);
+    });
+
+    testWidgets('tapping one opens Integrations, never the store page', (
+      tester,
+    ) async {
+      final h = _Harness();
+      await h.open(tester, releases: const [_companionApps]);
+      await tester.tap(find.text('Track time from Chrome'));
+      await tester.pumpAndSettle();
+      final result = await h.result;
+      expect(result, isA<WhatsNewOpenRoute>());
+      expect(
+        (result! as WhatsNewOpenRoute).path,
+        '/settings/account_management/integrations',
+      );
+    });
   });
 
   group('every way out', () {

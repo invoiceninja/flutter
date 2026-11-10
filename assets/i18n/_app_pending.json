@@ -1963,5 +1963,16 @@
   "terminal_plan_ask_owner": "In-person card payments need the Pro or Enterprise plan. Ask the account owner to upgrade.",
   "terminal_pending_title": "A card payment is still being checked",
   "terminal_pending_warning": "A card payment taken on this invoice may have been charged, and Stripe hasn't confirmed it yet. Recording another payment now could count it twice.",
-  "terminal_server_collection_open_no_age": "A card payment by :user is still open on this invoice."
+  "terminal_server_collection_open_no_age": "A card payment by :user is still open on this invoice.",
+  "companion_apps_section": "More from Invoice Ninja",
+  "wordpress_plugin": "WordPress plugin",
+  "wordpress_plugin_body": "Add a store, quote requests and client accounts to your WordPress site.",
+  "chrome_extension": "Chrome extension",
+  "chrome_extension_body": "Create tasks and track time from any browser tab.",
+  "mobile_app_hub_body": "Caller ID, call logs and receipt capture on your phone.",
+  "wordpress_setup_body_hosted": "Create a token above, then paste it into the plugin's settings in WordPress.",
+  "wordpress_setup_body": "Create a token above, then paste it and this server URL into the plugin's settings in WordPress.",
+  "get_the_plugin": "Get the plugin",
+  "chrome_extension_tasks_body": "Track time from any browser tab. It syncs straight to your tasks.",
+  "get_the_extension": "Get the extension"
 }

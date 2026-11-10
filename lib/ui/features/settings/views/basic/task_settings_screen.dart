@@ -3,7 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/services.dart';
+import 'package:admin/domain/companion_apps.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
@@ -43,6 +47,9 @@ const kTaskSettingsSearchKeys = <String>[
   'add_documents_to_invoice',
   'show_tasks_in_client_portal',
   'tasks_shown_in_portal',
+  // Gated in the catalog like the card: company scope, and
+  // `chromeExtensionOffered`.
+  'chrome_extension',
 ];
 
 /// Preset values (seconds) the granularity dropdown offers besides the
@@ -261,6 +268,38 @@ class _TaskSettingsBody extends StatelessWidget {
               ),
             ),
           ],
+        ),
+        // A link, not a setting, so it has nothing to say for one client or
+        // group (docs/companion-apps.md).
+        if (isCompanyScope &&
+            chromeExtensionOffered(context.read<Services>().auth.session.value))
+          const _ChromeExtensionSection(),
+      ],
+    );
+  }
+}
+
+/// The Chrome extension, where its timers land: Task Settings.
+class _ChromeExtensionSection extends StatelessWidget {
+  const _ChromeExtensionSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return FormSection(
+      title: context.tr('chrome_extension'),
+      children: [
+        Text(
+          context.tr('chrome_extension_tasks_body'),
+          style: TextStyle(color: context.inTheme.ink2, height: 1.4),
+        ),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: OutlinedButton.icon(
+            onPressed: () => openExternalUrl(context, kChromeExtensionUrl),
+            icon: const Icon(Icons.open_in_new, size: 16),
+            label: Text(context.tr('get_the_extension')),
+            style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+          ),
         ),
       ],
     );

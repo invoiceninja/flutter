@@ -8,6 +8,8 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/whats_new_controller.dart';
+import 'package:admin/data/repositories/auth/auth_session.dart';
+import 'package:admin/domain/companion_apps.dart';
 import 'package:admin/domain/mobile_app_promo.dart';
 import 'package:admin/domain/release_notes.dart';
 import 'package:admin/l10n/localization.dart';
@@ -54,25 +56,39 @@ Future<WhatsNewResult?> showWhatsNewDialog(
   String? since,
 }) {
   final session = context.read<Services>().auth.session.value;
+  return showDialog<WhatsNewResult>(
+    context: context,
+    // A stray click beside the card isn't an answer; ✕, Esc and the footer
+    // are — the same as the mobile-app promo.
+    barrierDismissible: false,
+    builder: (_) => WhatsNewDialog(
+      releases: releases,
+      since: since,
+      reachable: (target) => whatsNewTargetReachable(target, session),
+    ),
+  );
+}
+
+/// Whether [session] can use where a highlight leads — the rules the sidebar
+/// applies to the same rows, so a highlight never leads somewhere this user
+/// can't open, and a companion app only where it is offered.
+bool whatsNewTargetReachable(
+  ReleaseHighlightTarget target,
+  AuthSession? session,
+) {
   final company = session?.currentCompany;
-  // The rules the sidebar applies to the same rows, so a highlight never
-  // leads somewhere this user can't open.
-  bool reachable(ReleaseHighlightTarget target) => switch (target) {
+  return switch (target) {
     ReleaseHighlightRoute(:final module, :final permission) =>
       company != null &&
           (module == null || company.moduleEnabled(module)) &&
           (permission == null || company.can(permission)),
     ReleaseHighlightMobileApp() =>
       currentMobilePromoTargets().isNotEmpty && mobilePromoEligible(session),
+    ReleaseHighlightCompanionApp(:final app) => companionAppOffered(
+      app,
+      session,
+    ),
   };
-  return showDialog<WhatsNewResult>(
-    context: context,
-    // A stray click beside the card isn't an answer; ✕, Esc and the footer
-    // are — the same as the mobile-app promo.
-    barrierDismissible: false,
-    builder: (_) =>
-        WhatsNewDialog(releases: releases, since: since, reachable: reachable),
-  );
 }
 
 /// The notes About and the command palette open — the update's when one is
@@ -196,6 +212,10 @@ class _WhatsNewDialogState extends State<WhatsNewDialog> {
   WhatsNewResult _resultFor(ReleaseHighlightTarget target) => switch (target) {
     ReleaseHighlightRoute(:final path) => WhatsNewOpenRoute(path),
     ReleaseHighlightMobileApp() => const WhatsNewOpenMobileApp(),
+    // Their in-app home, never the store page: the dialog never links out.
+    ReleaseHighlightCompanionApp() => const WhatsNewOpenRoute(
+      kCompanionAppsRoute,
+    ),
   };
 
   /// The divider above the footer marks a body that scrolls under it.

@@ -184,17 +184,6 @@ class TerminalController extends ChangeNotifier {
     return recorded ? PendingRecovery.recorded : PendingRecovery.none;
   }
 
-  /// Pending payments the user was already warned about and chose to go on
-  /// regardless — Enter Payment, then the new payment's Save, asks once.
-  /// For the session only.
-  final Set<String> _warned = {};
-
-  bool wasWarned(Iterable<String> paymentIntentIds) =>
-      paymentIntentIds.every(_warned.contains);
-
-  void noteWarned(Iterable<String> paymentIntentIds) =>
-      _warned.addAll(paymentIntentIds);
-
   /// A `complete` answer after which nothing more will happen to the charge.
   static bool isFinalCompletion(String status) => const {
     'recorded',
@@ -460,7 +449,6 @@ class TerminalController extends ChangeNotifier {
   Future<void> reset() async {
     // The session's own state goes now, so nothing new starts on it.
     _configs.clear();
-    _warned.clear();
     _reader = null;
     _account = null;
     final prepared = _prepared;

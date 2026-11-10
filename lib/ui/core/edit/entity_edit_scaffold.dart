@@ -201,6 +201,10 @@ class EntityEditScaffold<T> extends StatelessWidget {
   /// failure. Does **not** toast success or navigate — the caller decides
   /// (plain Save navigates via [onSaved]; an AFTER-SAVE action dispatches
   /// instead).
+  /// A [confirmSave] under way, per form (this widget is rebuilt; its view
+  /// model is not).
+  static final Expando<bool> _confirmingSave = Expando('confirmingSave');
+
   Future<T?> _runSave(BuildContext context) async {
     // Commit any typed-but-unblurred field before reading the draft. InDateField
     // / InTimeField / MarkdownTextField only commit on blur or Enter, but ⌘S and
@@ -215,8 +219,19 @@ class EntityEditScaffold<T> extends StatelessWidget {
       if (!context.mounted) return null;
     }
     final confirm = confirmSave;
-    if (confirm != null && (!await confirm(context) || !context.mounted)) {
-      return null;
+    if (confirm != null) {
+      // The check can take a network round trip before `vm.save()` marks
+      // the form busy: a second Save (a double tap, Enter) meanwhile is
+      // dropped, not asked twice.
+      if (_confirmingSave[vm] == true) return null;
+      _confirmingSave[vm] = true;
+      final bool ok;
+      try {
+        ok = await confirm(context);
+      } finally {
+        _confirmingSave[vm] = null;
+      }
+      if (!ok || !context.mounted) return null;
     }
     final result = await vm.save();
     if (!context.mounted) return null;

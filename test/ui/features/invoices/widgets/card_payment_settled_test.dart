@@ -57,9 +57,8 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
   });
 
-  testWidgets('an unanswered charge warns once, then lets the user go on', (
-    tester,
-  ) async {
+  testWidgets('an unanswered charge is warned about every time a payment '
+      'would be recorded', (tester) async {
     // The fixture's client fails fast: the server can't be asked.
     final fixture = await buildFixture(
       companies: [FakeCompany(id: 'co1', name: 'Co')],
@@ -73,21 +72,54 @@ void main() {
     );
     final answer = await pumpCheck(tester, fixture.services, ['inv1', 'inv2']);
 
-    await tester.tap(find.text('check'));
-    await tester.pumpAndSettle();
-    // The title, and the confirm button restating it.
-    expect(find.text('A card payment is still being checked'), findsWidgets);
-    await tester.tap(find.byType(PrimaryDialogAction));
-    await tester.pumpAndSettle();
-    expect(answer(), isTrue);
+    for (var i = 0; i < 2; i++) {
+      await tester.tap(find.text('check'));
+      await tester.pumpAndSettle();
+      // The title, and the confirm button restating it.
+      expect(find.text('A card payment is still being checked'), findsWidgets);
+      await tester.tap(find.byType(PrimaryDialogAction));
+      await tester.pumpAndSettle();
+      expect(answer(), isTrue);
+    }
     expect(terminal.pendingFor('co1', 'inv1'), 'pi_1');
+  });
 
-    // The same charge, asked again (Enter Payment, then its Save): no
-    // second warning.
-    await tester.tap(find.text('check'));
+  testWidgets('Enter Payment only recovers: the warning waits for the '
+      "payment's Save", (tester) async {
+    final fixture = await buildFixture(
+      companies: [FakeCompany(id: 'co1', name: 'Co')],
+    );
+    addTearDown(fixture.dispose);
+    final services = fixture.services;
+    await services.terminal.notePending(
+      companyId: 'co1',
+      invoiceId: 'inv1',
+      paymentIntentId: 'pi_1',
+    );
+    bool? answer;
+    await tester.pumpWidget(
+      wrapWithShell(
+        services,
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              answer = await InvoiceActions.cardPaymentsSettled(
+                context,
+                services,
+                'co1',
+                ['inv1'],
+                warn: false,
+              );
+            },
+            child: const Text('enter payment'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('enter payment'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
-    expect(answer(), isTrue);
+    expect(answer, isTrue);
   });
 
   testWidgets('a charge that turns out to have been recorded stops the '

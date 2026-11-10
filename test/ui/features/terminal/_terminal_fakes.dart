@@ -95,8 +95,11 @@ class FakeTerminalRepo implements TerminalRepository {
   /// What a connection-token fetch throws instead of answering.
   Object? tokenError;
 
+  int configCalls = 0;
+
   @override
   Future<TerminalConfig> config(String companyId) async {
+    configCalls++;
     final answer = configAnswer;
     if (answer is TerminalConfig) return answer;
     if (answer != null) throw answer;
@@ -284,10 +287,13 @@ class FakeTerminalPlatform implements TerminalPlatform {
   Future<TerminalDeviceSupport> deviceSupport() async =>
       const TerminalDeviceSupport(tapToPay: true, bluetooth: true);
 
+  void Function()? onPermissionRequest;
+
   @override
-  Future<TerminalPermission> requestPermissions(
-    TerminalReaderKind kind,
-  ) async => permission;
+  Future<TerminalPermission> requestPermissions(TerminalReaderKind kind) async {
+    onPermissionRequest?.call();
+    return permission;
+  }
 
   Future<String> Function()? _fetchToken;
 

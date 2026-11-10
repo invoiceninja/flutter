@@ -1036,6 +1036,23 @@ void main() {
       expect(vm.problem?.serverCode, TerminalServerError.notEnabled);
       // The cached config is out of date too: asked again.
       await pumpEventQueue();
+      expect(repo.configCalls, 2);
+    });
+
+    test('a screen closed while the gateway loads asks for nothing', () async {
+      var asked = false;
+      final vm = vmFor(
+        currency: () async {
+          // Closed while the currency was being worked out.
+          return null;
+        },
+      );
+      platform.onPermissionRequest = () => asked = true;
+      final starting = vm.start();
+      vm.dispose();
+      await starting;
+      expect(asked, isFalse);
+      expect(repo.calls, isNot(contains(startsWith('quote'))));
     });
 
     test('every pending charge on an invoice is asked about', () async {

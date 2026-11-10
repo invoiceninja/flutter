@@ -76,19 +76,26 @@ class PaymentEditScreen extends StatelessWidget {
                 ? '${ctx.tr('edit')} · #${vm.draft.number}'
                 : ctx.tr('edit')),
       bodyBuilder: (ctx, vm) => PaymentEditLayout(vm: vm),
-      // A new payment on an invoice where a card payment this device took
-      // may have been charged could count the money twice.
+      // Paying an invoice where a card payment this device took may have
+      // been charged could count the money twice: a new payment, or an
+      // existing one newly applied to it.
       confirmSave: (ctx, vm) {
-        if (!vm.isCreate) return Future.value(true);
+        final before = {
+          for (final p in vm.original?.paymentables ?? const <Paymentable>[])
+            p.invoiceId,
+        };
+        final invoiceIds = [
+          for (final p in vm.draft.paymentables)
+            if (p.invoiceId.isNotEmpty && !before.contains(p.invoiceId))
+              p.invoiceId,
+        ];
+        if (invoiceIds.isEmpty) return Future.value(true);
         final services = ctx.read<Services>();
         return InvoiceActions.cardPaymentsSettled(
           ctx,
           services,
           services.auth.session.value!.currentCompanyId,
-          [
-            for (final p in vm.draft.paymentables)
-              if (p.invoiceId.isNotEmpty) p.invoiceId,
-          ],
+          invoiceIds,
         );
       },
       resetToEmpty: (vm) => vm.resetToEmpty(),

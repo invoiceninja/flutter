@@ -147,7 +147,9 @@ a payment by hand checks first — `InvoiceActions.cardPaymentsSettled`, from Ma
 Payment on the record screen, Mark Paid in the editor (`confirmSaveParam`), a bulk Mark Paid
 (`preflight`) and a new payment's Save (`confirmSave`, whichever screen opened it): a charge that
 turns out recorded stops the action and says so (the balance it was about to pay is gone); one
-that still can't be answered is warned about, once per charge per session. A deliberate sign-out
+that still can't be answered is warned about every time a payment would be recorded over it — Enter
+Payment only recovers, and the warning comes at the payment's Save. A Save the check is still
+asking about is never run twice. A deliberate sign-out
 forgets the list (account scope), as it forgets everything else on the device. The Checking, Recording and "couldn't be
 recorded" screens show the PaymentIntent as a copyable reference.
 

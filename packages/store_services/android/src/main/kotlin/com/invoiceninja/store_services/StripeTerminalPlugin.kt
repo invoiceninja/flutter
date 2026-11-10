@@ -47,7 +47,7 @@ class StripeTerminalPlugin :
 
   /// Whether Android would have explained each permission before this
   /// request: a refusal that leaves no rationale behind is final only if
-  /// there was one, or if the app had asked before (a first dialog that was
+  /// there was one, or if a real refusal was seen before (a dialog that was
   /// dismissed, not answered, leaves none either).
   private var pendingRationale: Map<String, Boolean> = emptyMap()
 
@@ -131,7 +131,8 @@ class StripeTerminalPlugin :
 
   private fun requestPermissions(kind: String?, result: MethodChannel.Result) {
     val activity: Activity = binding?.activity ?: return result.success("denied")
-    // The Dart side shares one request; a second can't be answered by this one.
+    // Android shows one permission dialog at a time; the Dart side shares a
+    // request per reader kind, and nothing asks for both kinds at once.
     if (pending != null) return result.success("denied")
     val needed = buildList {
       add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -171,13 +172,18 @@ class StripeTerminalPlugin :
           refused.isEmpty() -> "granted"
           // A rationale left: Android will ask again.
           refused.any { activity.shouldShowRequestPermissionRationale(it) } -> "denied"
-          // None left after one was there, or after an earlier request:
+          // None left after one was there, or after a refusal seen before:
           // Android won't show the dialog again.
-          refused.any { pendingRationale[it] == true || askedBefore(activity, it) } -> "blocked"
-          // The first dialog was dismissed, not answered.
+          refused.any { pendingRationale[it] == true || refusedBefore(activity, it) } -> "blocked"
+          // A dialog that was dismissed, not answered.
           else -> "denied"
         })
-    activity?.let { a -> pendingNeeded.forEach { noteAsked(a, it) } }
+    // Only a real refusal leaves a rationale; a dismissal is never counted.
+    if (activity != null) {
+      refused
+          ?.filter { pendingRationale[it] == true || activity.shouldShowRequestPermissionRationale(it) }
+          ?.forEach { noteRefused(activity, it) }
+    }
     pending = null
     return true
   }
@@ -185,10 +191,10 @@ class StripeTerminalPlugin :
   private fun prefs(context: Context) =
       context.getSharedPreferences("invoice_ninja_terminal_permissions", Context.MODE_PRIVATE)
 
-  private fun askedBefore(context: Context, permission: String) =
+  private fun refusedBefore(context: Context, permission: String) =
       prefs(context).getBoolean(permission, false)
 
-  private fun noteAsked(context: Context, permission: String) =
+  private fun noteRefused(context: Context, permission: String) =
       prefs(context).edit().putBoolean(permission, true).apply()
 
   private fun openSettings(): Boolean {

@@ -655,14 +655,17 @@ class InvoiceActions {
   /// checked with the server first. If it turns out to have been charged it
   /// is recorded now, and the user is told and stopped — the balance they
   /// were about to pay isn't owed any more. If it still can't be answered
-  /// they are warned that recording a payment by hand could count it twice.
+  /// they are warned that recording a payment by hand could count it twice
+  /// — unless [warn] is false: Enter Payment only opens the editor, and the
+  /// warning comes at its Save, when the payment is actually recorded.
   /// False to stop.
   static Future<bool> cardPaymentsSettled(
     BuildContext context,
     Services services,
     String companyId,
-    Iterable<String> invoiceIds,
-  ) async {
+    Iterable<String> invoiceIds, {
+    bool warn = true,
+  }) async {
     final terminal = services.terminal;
     final pending = [
       for (final id in invoiceIds.toSet())
@@ -698,20 +701,13 @@ class InvoiceActions {
       );
       return false;
     }
-    if (!unknown) return true;
-    final open = [
-      for (final id in pending) ...terminal.pendingAllFor(companyId, id),
-    ];
-    // Already warned about exactly these (Enter Payment, then its Save).
-    if (terminal.wasWarned(open)) return true;
-    final go = await showConfirmActionDialog(
+    if (!unknown || !warn) return true;
+    return showConfirmActionDialog(
       context,
       title: context.tr('terminal_pending_title'),
       message: context.tr('terminal_pending_warning'),
       destructive: true,
     );
-    if (go) terminal.noteWarned(open);
-    return go;
   }
 
   /// Opens "Collect card payment", after the invoice's own unsent changes
@@ -920,7 +916,10 @@ class InvoiceActions {
 
       case InvoiceAction.enterPayment:
         if (tmpGate()) return;
-        if (!await cardPaymentSettled(context, services, companyId, invoice)) {
+        // The payment's Save warns about a charge still unanswered.
+        if (!await cardPaymentsSettled(context, services, companyId, [
+          invoice.id,
+        ], warn: false)) {
           return;
         }
         if (!context.mounted) return;

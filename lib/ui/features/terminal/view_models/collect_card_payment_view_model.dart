@@ -291,12 +291,16 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     _starting = true;
     _problem = null;
     _notify();
+    final bool found;
     try {
-      await _start();
+      found = await _loadGateway();
     } finally {
       _starting = false;
       _notify();
     }
+    // Never a permission prompt or a reader over a screen that has closed.
+    if (!found || _disposed) return;
+    await Future.wait([requote(), prepareReader()]);
   }
 
   bool _starting = false;
@@ -304,7 +308,9 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
   /// Loading the company's gateway, before there is one to quote with.
   bool get starting => _starting;
 
-  Future<void> _start() async {
+  /// The company's config and the gateway for the client's currency; false
+  /// (with the problem set) when there is none to collect with.
+  Future<bool> _loadGateway() async {
     var config = _terminal.configFor(companyId);
     if (config == null) {
       try {
@@ -318,7 +324,7 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
             ? const CollectProblem(serverCode: TerminalServerError.notEnabled)
             : const CollectProblem(code: TerminalErrorCode.network),
       );
-      return;
+      return false;
     }
     String? currency;
     try {
@@ -334,12 +340,11 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
                 data: {'currency': currency?.toUpperCase() ?? ''},
               ),
       );
-      return;
+      return false;
     }
     _gateway = gateway;
     _readerChoice = _terminal.readerChoiceFor(gateway.accountCountry);
-    _notify();
-    await Future.wait([requote(), prepareReader()]);
+    return true;
   }
 
   /// Permissions, the Location, the SDK and the reader.
@@ -357,6 +362,7 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
         : TerminalReaderKind.bluetooth;
     _setReader(ReaderState.permissions);
     _permission = await _terminal.platform.requestPermissions(kind);
+    if (_disposed) return;
     if (_permission != TerminalPermission.granted) {
       _setReader(
         _permission == TerminalPermission.blocked
@@ -367,7 +373,7 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
       return;
     }
     final location = await _ensureLocation(gateway);
-    if (location == null) return;
+    if (location == null || _disposed) return;
     _setReader(ReaderState.connecting);
     try {
       await _terminal.prepare(

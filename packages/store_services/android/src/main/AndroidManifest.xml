@@ -1,1 +1,11 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Stripe Terminal's merged permissions (BLUETOOTH*, ACCESS_*_LOCATION,
+         ACCESS_WIFI_STATE) imply these features as required, and Play then
+         hides the app from devices without them. Card readers are optional:
+         the app gates them at runtime. Store builds only. -->
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.wifi" android:required="false" />
+    <!-- Stripe Tap to Pay adds READ_PHONE_STATE, which implies telephony. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+</manifest>

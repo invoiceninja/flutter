@@ -88,11 +88,10 @@ object HomeWidgets {
 
   /**
    * Asks the launcher to place a [kind] widget (Device Settings → Home-screen
-   * widgets). False where it can't: before Android 8, or a launcher that
-   * doesn't take requests — the user adds it from the home screen then.
+   * widgets). False where it can't: a launcher that doesn't take requests —
+   * the user adds it from the home screen then.
    */
   fun pin(context: Context, kind: String): Boolean {
-    if (android.os.Build.VERSION.SDK_INT < 26) return false
     val provider = providerFor(kind) ?: return false
     val manager = AppWidgetManager.getInstance(context)
     if (!manager.isRequestPinAppWidgetSupported) return false
@@ -263,8 +262,8 @@ object HomeWidgets {
     return out
   }
 
-  // Day arithmetic on plain day numbers: `java.time` needs API 26 (minSdk is
-  // 24) and desugaring would add a dependency for three subtractions.
+  // Day arithmetic on plain day numbers: written when minSdk was 24, below
+  // `java.time`'s API 26. Either works now; these are three subtractions.
 
   /** Days since 1970-01-01 for a civil date (Howard Hinnant's days_from_civil). */
   internal fun epochDay(year: Int, month: Int, day: Int): Long {

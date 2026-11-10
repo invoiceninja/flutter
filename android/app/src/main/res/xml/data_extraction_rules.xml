@@ -1,11 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Android 12+ (android:dataExtractionRules). Same as backup_rules.xml: all
-     as before, minus the home-screen widgets' per-widget settings. -->
+     as before, minus the home-screen widgets' per-widget settings and Stripe
+     Terminal's per-device state. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="home_widget_settings.xml" />
+        <exclude domain="sharedpref" path="stripe_terminal_shared_prefs.xml" />
+        <exclude domain="sharedpref" path="com.visa.vac.tc.sharedPref.xml" />
+        <exclude domain="database" path="stripe_offline_db" />
+        <exclude domain="database" path="stripe_offline_db-wal" />
+        <exclude domain="database" path="stripe_offline_db-shm" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="home_widget_settings.xml" />
+        <exclude domain="sharedpref" path="stripe_terminal_shared_prefs.xml" />
+        <exclude domain="sharedpref" path="com.visa.vac.tc.sharedPref.xml" />
+        <exclude domain="database" path="stripe_offline_db" />
+        <exclude domain="database" path="stripe_offline_db-wal" />
+        <exclude domain="database" path="stripe_offline_db-shm" />
     </device-transfer>
 </data-extraction-rules>

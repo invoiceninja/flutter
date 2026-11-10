@@ -61,7 +61,7 @@ SQLITE3MC_DIR="native/sqlite3mc"
 SQLITE3MC_C="$SQLITE3MC_DIR/sqlite3mc_amalgamation.c"
 SQLITE3MC_H="$SQLITE3MC_DIR/sqlite3mc_amalgamation.h"
 
-NONFREE_PACKAGES='google_sign_in|in_app_purchase|in_app_review|sentry'
+NONFREE_PACKAGES='google_sign_in|in_app_purchase|in_app_review|mek_stripe_terminal|sentry'
 
 # The FOSS graph's own lock: pubspec.lock minus the store SDKs. F-Droid wants
 # `pub get --enforce-lockfile`, which a lock rewritten by the swap can't pass

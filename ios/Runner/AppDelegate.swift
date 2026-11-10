@@ -1,3 +1,5 @@
+import CoreBluetooth
+import CoreLocation
 import Flutter
 import ImageIO
 import UIKit
@@ -22,6 +24,9 @@ import Vision
     }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "HomeWidgets") {
       HomeWidgetsBridge.register(messenger: registrar.messenger())
+    }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "StripeTerminal") {
+      StripeTerminalBridge.register(messenger: registrar.messenger())
     }
   }
 }
@@ -273,5 +278,102 @@ enum ReceiptOcr {
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+}
+
+/// The iOS half of `invoice_ninja/stripe_terminal` (`StripeTerminal` in
+/// store_services, whose Android half is `StripeTerminalPlugin`). Stripe's
+/// SDK may prompt for location itself at a moment the app doesn't choose, so
+/// the app asks first, before discovering a reader
+/// (docs/in-person-payments.md).
+///
+/// - `deviceSupport`: Bluetooth readers work on every iPhone. Tap to Pay on
+///   iPhone stays off until Apple grants the entitlement and this changes.
+/// - `requestPermissions {kind}` → `granted`, `denied` or `blocked`: location
+///   while in use, and for a Bluetooth reader no refusal of Bluetooth (iOS
+///   asks for that itself when a scan starts). iOS never asks twice, so a
+///   refusal is `blocked`.
+/// - `openSettings` opens this app's page in Settings.
+final class StripeTerminalBridge: NSObject, CLLocationManagerDelegate {
+  private static let shared = StripeTerminalBridge()
+  private static var channel: FlutterMethodChannel?
+
+  private let manager = CLLocationManager()
+  private var pending: [(kind: String?, result: FlutterResult)] = []
+
+  static func register(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "invoice_ninja/stripe_terminal", binaryMessenger: messenger)
+    channel.setMethodCallHandler { call, result in
+      switch call.method {
+      case "deviceSupport": shared.deviceSupport(result)
+      case "requestPermissions":
+        let kind = (call.arguments as? [String: Any])?["kind"] as? String
+        shared.requestPermissions(kind: kind, result)
+      case "openSettings":
+        guard let url = URL(string: UIApplication.openSettingsURLString) else {
+          return result(false)
+        }
+        UIApplication.shared.open(url) { result($0) }
+      default: result(FlutterMethodNotImplemented)
+      }
+    }
+    self.channel = channel
+  }
+
+  private func deviceSupport(_ result: @escaping FlutterResult) {
+    // locationServicesEnabled blocks, so it stays off the main thread.
+    DispatchQueue.global(qos: .userInitiated).async {
+      let enabled = CLLocationManager.locationServicesEnabled()
+      DispatchQueue.main.async {
+        result([
+          "tapToPay": false,
+          "bluetooth": true,
+          "nfcEnabled": true,
+          "locationServicesEnabled": enabled,
+          "tapToPayBlocker": "entitlementMissing",
+        ])
+      }
+    }
+  }
+
+  private func requestPermissions(kind: String?, _ result: @escaping FlutterResult) {
+    if manager.authorizationStatus == .notDetermined {
+      pending.append((kind, result))
+      manager.delegate = self
+      manager.requestWhenInUseAuthorization()
+      // No answer when the prompt can't be shown (the app isn't active).
+      DispatchQueue.main.asyncAfter(deadline: .now() + 120) { [weak self] in
+        self?.answerPending()
+      }
+    } else {
+      result(answer(kind: kind))
+    }
+  }
+
+  private func answer(kind: String?) -> String {
+    switch manager.authorizationStatus {
+    case .authorizedWhenInUse, .authorizedAlways:
+      if kind == "bluetooth" {
+        switch CBManager.authorization {
+        case .denied, .restricted: return "blocked"
+        default: break
+        }
+      }
+      return "granted"
+    case .notDetermined: return "denied"
+    default: return "blocked"
+    }
+  }
+
+  private func answerPending() {
+    let waiting = pending
+    pending = []
+    waiting.forEach { $0.result(answer(kind: $0.kind)) }
+  }
+
+  func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+    if manager.authorizationStatus == .notDetermined { return }
+    answerPending()
   }
 }

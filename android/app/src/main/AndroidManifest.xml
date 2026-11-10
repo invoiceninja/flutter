@@ -16,7 +16,12 @@
     <uses-feature android:name="android.hardware.READ_EXTERNAL_STORAGE" android:required="false" />
     <uses-feature android:name="android.hardware.CALL_PHONE" android:required="false" />
 
+    <!-- gwpAsanMode: Stripe's Tap to Pay library sets "always", which would
+         make every native heap bug in the app a crash for every user. Back
+         to the platform's sampling (docs/in-person-payments.md). -->
     <application
+        android:gwpAsanMode="default"
+        tools:replace="android:gwpAsanMode"
         android:label="Ninja Beta"
         android:supportsRtl="true"
         android:fullBackupContent="@xml/backup_rules"

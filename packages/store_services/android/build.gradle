@@ -1,6 +1,8 @@
 // The store build's Android-only half of store_services: on-device receipt
-// OCR with Google ML Kit (docs/receipt-ocr.md) and passkeys through Credential
-// Manager (docs/passkeys.md). Both are non-free, so this
+// OCR with Google ML Kit (docs/receipt-ocr.md), passkeys through Credential
+// Manager (docs/passkeys.md), and Stripe Terminal's device check and
+// permissions (StripeTerminalPlugin). ML Kit and the passkey provider are
+// non-free, and the Stripe channel is useless without Stripe's SDK, so this
 // folder must never reach the F-Droid build — tools/prepare_foss.sh deletes
 // it before F-Droid's scan, and the FOSS twin has no android/ at all.
 plugins {
@@ -16,7 +18,8 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        minSdk = 24
+        minSdk = 26
+        consumerProguardFiles 'consumer-rules.pro'
     }
 
     compileOptions {

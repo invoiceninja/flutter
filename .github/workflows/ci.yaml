@@ -222,7 +222,7 @@ jobs:
         run: |
           ./gradlew -q :app:dependencies --configuration releaseRuntimeClasspath > deps.txt
           grep -q 'project :' deps.txt || { echo "no dependency tree parsed"; exit 1; }
-          if grep -nE 'com\.google\.android\.gms|com\.android\.billingclient|com\.google\.firebase|io\.sentry|com\.google\.android\.play|com\.google\.mlkit|com\.google\.android\.datatransport' deps.txt; then
+          if grep -nE 'com\.google\.android\.gms|com\.android\.billingclient|com\.google\.firebase|io\.sentry|com\.google\.android\.play|com\.google\.mlkit|com\.google\.android\.datatransport|com\.stripe' deps.txt; then
             echo "::error::Non-free artifacts on the FOSS classpath (above)."
             exit 1
           fi

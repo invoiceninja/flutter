@@ -6,6 +6,7 @@ Future<void> runWithCrashReporting({
   required String dsn,
   required String release,
   required bool Function() shouldSend,
+  required String Function(String) redact,
   required FutureOr<void> Function() appRunner,
 }) async {
   await appRunner();

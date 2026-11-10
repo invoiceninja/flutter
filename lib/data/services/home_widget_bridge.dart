@@ -169,8 +169,8 @@ class HomeWidgetBridge {
     return out;
   }
 
-  /// Asks the launcher to place a [kind] widget (Android 8+, where the
-  /// launcher supports it). False when it can't — the user then adds it from
+  /// Asks the launcher to place a [kind] widget (Android, where the launcher
+  /// supports it). False when it can't — the user then adds it from
   /// the home screen; iOS never can.
   Future<bool> pin(WidgetKind kind) async =>
       (await _invoke<bool>('pin', {'kind': kind.wire})) ?? false;

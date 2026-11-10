@@ -111,6 +111,7 @@ Future<void> main() async {
       shouldSend: () => sentryShouldSend(
         reportErrors: _authForSentry?.session.value?.reportErrors ?? false,
       ),
+      redact: redact,
       appRunner: () => runZonedGuarded(_bootstrap, _zoneOnError),
     );
   } else {

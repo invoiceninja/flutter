@@ -1108,6 +1108,15 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.13.0"
+  mek_stripe_terminal:
+    dependency: transitive
+    description:
+      path: mek_stripe_terminal
+      ref: "3f2cf999b24c9a94eda4c2698a2521658a673fc1"
+      resolved-ref: "3f2cf999b24c9a94eda4c2698a2521658a673fc1"
+      url: "https://github.com/hillelcoren/mek-packages.git"
+    source: git
+    version: "5.7.3"
   meta:
     dependency: transitive
     description:

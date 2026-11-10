@@ -17,7 +17,7 @@ flutter_icons:
 # the newest version the graph allows except a few holds — go_router 18 and
 # google_fonts 9 (they move onto `material_ui`, which go_router 18 then fails to
 # recognise as our MaterialApp: no page transitions), sentry_flutter 10 in
-# packages/store_services (Android minSdk 26), and connectivity_plus 7.3.2
+# packages/store_services (its Linux / Windows Breakpad), and connectivity_plus 7.3.2
 # (dbus conflict with desktop_drop 0.8.4). `test` caps analyzer <14, which
 # holds freezed at 4.0.1. Reasons, caps and the routine-bump recipe:
 # docs/setup.md § Dependency updates.

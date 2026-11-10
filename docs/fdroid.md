@@ -16,7 +16,7 @@ the check — is `tools/foss/com.invoiceninja.admin.yml` plus `tools/fdroid_buil
 
 ## Store SDKs are imported only from packages/store_services
 
-**Rule: the non-free SDKs (Google Sign-In, in-app purchase, in-app review, Sentry) are imported only from
+**Rule: the non-free SDKs (Google Sign-In, in-app purchase, in-app review, Sentry, Stripe Terminal) are imported only from
 `packages/store_services`. The app imports that package's own API
 (`package:store_services/store_services.dart`), never an SDK.** Enforced by
 `test/lint/store_sdk_boundary_test.dart`.
@@ -76,14 +76,15 @@ Measured by scanning every Android plugin's `build.gradle` (2026-09):
 | `in_app_purchase` | `com.android.billingclient:billing` | Play Billing |
 | `in_app_purchase_storekit` | none (iOS only) | rides with `in_app_purchase` |
 | `in_app_review` | `com.google.android.play:review`, `play-services-base` | Play's In-App Review sheet (`docs/review-prompt.md`); the twin's `StoreReview.isStoreBuild` is false, so F-Droid asks through the app's own card instead |
+| `mek_stripe_terminal` | `com.stripe:stripeterminal*` (with Play Services) | Stripe's closed-source Terminal SDK — in-person card payments (`docs/in-person-payments.md`); the twin's `StripeTerminal.isAvailable` is false, so F-Droid never offers them |
 | `sentry_flutter` | sentry-android (MIT) | Free, but F-Droid tags it with the *Tracking* anti-feature, and it is inert anyway without the `IN_SENTRY_DSN` define |
 | `store_services`' own Android plugin | `com.google.mlkit:text-recognition` (+ `datatransport` telemetry); `credentials-play-services-auth` | Google's proprietary OCR — receipt reading (`docs/receipt-ocr.md`); Play Services' Credential Manager provider for passkeys, so the F-Droid build has no passkey channel on Android and shows no passkey UI (`docs/passkeys.md`) |
 
 Everything else is androidx, Kotlin, Tink (`flutter_secure_storage`) or Apache Tika
-(`file_picker`). `jni` was pulled in only by Sentry. After the swap, `pub get` reports 15
+(`file_picker`). `jni` was pulled in only by Sentry. After the swap, `pub get` reports 16
 packages no longer depended on. `tools/foss/pubspec.lock` is the store lock without them.
 `prepare_foss.sh` fails if a store SDK is in it, and `store_sdk_boundary_test` fails if any of the
-15 is (§ F-Droid resolves a committed FOSS lock).
+16 is (§ F-Droid resolves a committed FOSS lock).
 
 **Adding a new store-only SDK**:
 
@@ -102,8 +103,8 @@ pub-level checks can't see a Gradle artifact, so three others do:
 - **`prepare_foss.sh` deletes `packages/store_services/android`** once the twin is in place (step
   4) — F-Droid's scanner reads every `build.gradle` in the tree, built or not. The `--restore`
   snapshot carries the folder back, uncommitted edits included.
-- **CI's classpath grep** names `com.google.mlkit` and `com.google.android.datatransport`, and a
-  step fails if the folder survived prepare.
+- **CI's classpath grep** names `com.google.mlkit`, `com.google.android.datatransport` and
+  `com.stripe`, and a step fails if the folder survived prepare.
 - **`store_sdk_boundary_test`** fails a `com.google.mlkit` line in any other `build.gradle*`, an
   `android/` folder in the twin, or a prepare script that stops deleting (or snapshotting) it.
 
@@ -247,10 +248,10 @@ SDKs. Regenerate it with `tools/prepare_foss.sh --update-lock` whenever `pubspec
 - **Why it matters.** Pub checks every download against its locked `sha256`. So F-Droid's build
   resolves exactly the code the store build was tested with, which is also the precondition for
   F-Droid and us resolving the *same* code.
-- **Measured** (2026-11-06): the store lock holds 248 packages and the FOSS lock 233. The 15
+- **Measured** (2026-11-10): the store lock holds 251 packages and the FOSS lock 235. The 16
   dropped are the `google_sign_in*` family (with `google_identity_services_web`), the
   `in_app_purchase*` family, `in_app_review` and its platform interface, `sentry`,
-  `sentry_flutter` and `jni`; the only other difference is
+  `sentry_flutter`, `jni` and `mek_stripe_terminal`; the only other difference is
   `store_services`' path. Editing a version in the FOSS lock fails `prepare` at
   `--enforce-lockfile`. Moving a pin in the store lock fails the pin check, which names the
   package.
@@ -404,7 +405,7 @@ stripper removes.**
   - build-tools 34 has no such flag (checked: "Unsupported option").
   - F-Droid's docs still say "use 34"; that predates the flag (the apksigcopier README describes
     the cause).
-  - Schemes: v2 + v3, no v1 (minSdk 24), no v4.
+  - Schemes: v2 + v3, no v1 (minSdk 26), no v4.
 - **What `sign` checks:**
   - 16 KB page alignment (`zipalign -c -P 16 4`). Native libraries are stored uncompressed, and
     `--alignment-preserved` keeps whatever AGP produced (measured: AGP 8.11 aligns them).

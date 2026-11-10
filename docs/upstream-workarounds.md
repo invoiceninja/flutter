@@ -251,6 +251,20 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Revert: delete the helper and its test, and drop `_normalizeSelectionEdges` and its listener from `markdown_text_field.dart`.
 - Recheck trigger: any super_editor SHA bump. The pinning test fails once `DeleteContentCommand` compares edges with `isEquivalentTo`.
 
+## 19. mek_stripe_terminal: no collect / confirm split, and an Android cancel that never answers
+
+- Issue / waiting on: [BreX900/mek-packages#171](https://github.com/BreX900/mek-packages/pull/171) (open). • Found: 2026-11-09 • mek_stripe_terminal: 5.7.3
+- Symptom: 5.7.3 offers only `processPaymentIntent` (read and charge in one call), so the server can't decide the surcharge between reading the card and charging it. On Android, cancelling `processPaymentIntent` never completes.
+- Root cause: mek 5.x exposes only `processPaymentIntent`, though both of Stripe's SDKs still have `collectPaymentMethod` / `confirmPaymentIntent`; the Android `stop*` handlers wait for a callback a successful cancel never sends.
+- Commit ref: not yet committed
+- Change(s):
+  - `packages/store_services/pubspec.yaml` — **MUST-REVERT**: `mek_stripe_terminal` as a git dependency on `hillelcoren/mek-packages` @ `3f2cf999` (`path: mek_stripe_terminal`), instead of a pub version.
+  - `pubspec.lock` — **MUST-REVERT**: the git pin that comes with it.
+- Revert: depend on the first pub release with `collectPaymentMethod` / `confirmPaymentIntent`, `flutter pub get`, `tools/prepare_foss.sh --update-lock`, then build Android release and iOS.
+- Repinning the fork locally: after changing the git `ref`, delete `build/mek_stripe_terminal` (or `flutter clean`) before an Android build. Gradle's incremental Kotlin cache keeps the previous commit's sources (pub checks each ref out to its own path) and fails with "Conflicting declarations". CI builds clean.
+- Known, not fixed in the fork (Android): mek's `initialize` on an already-initialized SDK only cleans up, so the SDK keeps the first Flutter engine's token handler. If the engine is destroyed while the process lives (Back on the root activity, Android 8–11), later connection-token requests go to a dead engine. Fix in the fork before release if a phone test confirms it.
+- Recheck trigger: each mek_stripe_terminal release, and when #171 is merged.
+
 ## Considered but NOT tracked (permanent adaptations — do not revert)
 
 These look workaround-shaped but are correct-forever (or inherent), not "waiting on an upstream fix". Listed so they aren't re-litigated:

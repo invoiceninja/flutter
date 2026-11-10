@@ -36,7 +36,9 @@ android {
         applicationId = "com.invoiceninja.admin"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // Stripe Terminal needs API 26 (docs/in-person-payments.md); never
+        // below Flutter's own floor.
+        minSdk = maxOf(flutter.minSdkVersion, 26)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

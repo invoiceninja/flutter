@@ -28,12 +28,18 @@
 		<false/>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
+		<!-- Stripe Terminal (docs/in-person-payments.md): its SDK uses
+		     CoreBluetooth and CoreLocation, so the binary needs both strings. -->
+		<key>NSBluetoothAlwaysUsageDescription</key>
+		<string>Bluetooth connects a card reader to take card payments in person.</string>
 		<key>NSCameraUsageDescription</key>
 		<string>Invoice Ninja uses the camera to photograph receipts and documents you attach to expenses and other records.</string>
 		<key>NSContactsUsageDescription</key>
 		<string>Your contacts are used to quickly create clients.</string>
 		<key>NSFaceIDUsageDescription</key>
 		<string>Face ID is used to unlock the app without re-entering your password.</string>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>Stripe, which processes your card payments, needs your location when you take a payment in person, to reduce fraud and disputes.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Invoice Ninja uses your photo library to attach receipts and documents to expenses and other records.</string>
 		<!-- App-icon quick actions (long-press the icon). Each opens its link

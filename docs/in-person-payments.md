@@ -1,0 +1,143 @@
+# In-person card payments (Stripe Terminal)
+
+Companion to CLAUDE.md § Strict rules (the store-SDK bullet, whose general evidence is in
+`docs/fdroid.md`; this doc is Stripe Terminal's part of it). Taking a card in person — Tap to Pay on
+the phone or a Stripe M2 Bluetooth reader — and paying an invoice with it. The server half is
+invoiceninja/invoiceninja#13435 (gateway type 32, `card_present`): it creates every PaymentIntent
+and records every payment, and the device only reads the card.
+
+This doc covers the packaging that is in place today. The data, recovery and UI layers land in
+later changes and extend it.
+
+## The SDK is reached only through `StripeTerminal`
+
+`packages/store_services/lib/src/stripe_terminal.dart` wraps `mek_stripe_terminal` in plain value
+types; the FOSS twin declares the same API with `isAvailable == false`. Connection-level calls are
+static on `StripeTerminal`; each payment is a `TerminalPayment` from `beginPayment(clientSecret)`.
+
+- **No mek object crosses the boundary.** A mek `PaymentIntent` and a mek `TerminalException` both
+  print the PaymentIntent's client secret in `toString()`, so every result is copied and every
+  error becomes a `TerminalError(code, message)`. A `PlatformException` keeps only its code and
+  message — its details can carry the PaymentIntent.
+- **A payment is one object, and its steps are guarded.** `collect()` reads the card without
+  charging; after the server changes the PaymentIntent, `collect()` again (Stripe needs a fresh
+  read). `confirm(paymentIntentId:, amount:)` charges only the card `collect()` read, for that
+  PaymentIntent at that amount, so a stale read or a read made before the server raised the amount
+  can never be charged. One payment at a time; a second `beginPayment` while one is unfinished
+  throws `readerBusy`, and a step while another runs throws `invalidState`.
+- **A cancel is never lost.** `cancel()` works until `confirm()` starts. Between steps it marks the
+  payment cancelled, so every later step throws `canceled`; during a read it also cancels the SDK
+  operation, which is started at once — mek's `CancelableFuture` starts lazily on its first
+  `await`, and a cancel before that does nothing. The SDK's cancel can hang forever, so it is fire
+  and forget, bounded at 5 seconds; the server's cancel is what closes the PaymentIntent.
+- **A confirm is never cancelled, and an unclear failure says so.** A declined card (or a
+  PaymentIntent back in `requires_payment_method`) leaves the payment open for another card; any
+  other confirm failure is `outcomeUnknown` — the card may have been charged, and only the server
+  can say.
+- **A token source belongs to one account.** `initialize(account:, fetchToken:)` keeps the SDK's
+  cached token and reader session for the same account and `reset()`s for another. `reset()`
+  abandons the payment in progress, drops the source (a token still being fetched for the old
+  account is thrown away: `_generation`), bounds every step, never throws, and if Stripe couldn't
+  clear its credentials the next `initialize` tries again. Every token failure reaches the SDK as
+  a `TerminalError` — the plugin relays it to native code, which can't take a null message.
+- **`connect` always passes `tosAcceptancePermitted`** — the SDK defaults it to true, which would
+  let a non-admin accept Apple's Tap to Pay terms.
+- **A reader's kind is the kind `discover` looked for**, not its `deviceType`, which the SDK leaves
+  null for a type it doesn't know.
+- **Reader prompts go to `StripeTerminal.events`**, read when each event arrives, so the screen
+  that is collecting sets them.
+- **Error codes are matched on mek's enum**, so a renamed code fails to compile instead of
+  becoming `unknown`. Brands and statuses come back in Stripe's own spelling (`mastercard`,
+  `requires_capture`).
+
+## The device check and permissions are ours, not the SDK's
+
+Stripe's Android SDK checks permissions but never asks; its iOS SDK may prompt for location at a
+moment the app doesn't choose; and its own `supportsReadersOfType` asks for location and Bluetooth
+just to answer. So `StripeTerminal.deviceSupport()`, `requestPermissions(kind)` and
+`openSettings()` go over `invoice_ninja/stripe_terminal`. `requestPermissions` answers `granted`,
+`denied` or `blocked` (the system won't ask again — offer Settings), and concurrent calls share one
+request.
+
+- **Android** — `StripeTerminalPlugin` in `packages/store_services/android`. Tap to Pay needs
+  Android 13, an ARM processor (Stripe ships its kernels for ARM only), NFC and a hardware
+  keystore — Stripe's own preflight, except the key it generates to check; `tapToPayBlocker` says
+  what's missing. A Bluetooth reader asks for "Nearby devices" (Android 12+); Tap to Pay asks for
+  location only. Precise location is always asked for together with approximate — Android 12+
+  ignores a precise-only request — and only precise counts as granted (Stripe takes approximate on
+  a device with no GPS; this is stricter). A dialog survives a config change.
+- **iOS** — `StripeTerminalBridge` in `ios/Runner/AppDelegate.swift` asks for location while in
+  use; for a Bluetooth reader a refused Bluetooth permission is `blocked` (iOS asks for it itself
+  when a scan starts). A prompt iOS never shows is answered after 2 minutes. `deviceSupport`
+  reports `entitlementMissing` for Tap to Pay on iPhone, hardcoded: it changes in code once Apple
+  grants `com.apple.developer.proximity-reader.payment.acceptance`.
+
+Stripe takes no payment with device location services off (`locationServicesEnabled`). Whether
+Stripe accepts iOS's reduced ("approximate") accuracy is untested — check on a phone.
+
+## What the SDK costs the packaging
+
+It ships to every store user, whether or not they ever take a card.
+
+- **minSdk 26 for every build**, F-Droid's included (`android/app/build.gradle.kts`, never below
+  Flutter's own floor; `packages/store_services/android/build.gradle`).
+- **Merged permissions would make hardware required.** The SDK's `BLUETOOTH*`,
+  `ACCESS_*_LOCATION`, `ACCESS_WIFI_STATE` and Tap to Pay's `READ_PHONE_STATE` imply the bluetooth,
+  location, wifi and telephony features as required, and Play then hides the app from devices
+  without them (checked with `aapt2 dump badging` on a release APK).
+  `packages/store_services/android/src/main/AndroidManifest.xml` marks all four `required="false"`.
+  Telephony was already implied by the app's own `CALL_PHONE`, so this also makes the store build
+  installable on Wi-Fi-only tablets for the first time.
+- **Play's listing changes with this release**: new dangerous permissions (precise and approximate
+  location, Nearby devices, `READ_PHONE_STATE`) and, once the SDK starts, what it sends Stripe
+  (location, a device id, network details, its own crash diagnostics). Update Data safety, and the
+  Financial features declaration, before a build with this reaches Play.
+- **`gwpAsanMode`.** Tap to Pay's AAR sets `android:gwpAsanMode="always"` on `<application>`, which
+  would apply to the whole app and turn any native heap bug anywhere into a crash. The app manifest
+  puts it back to `default` (`tools:replace`). Whether Stripe's Tap to Pay checks need "always" is
+  untested — check on a phone before the feature ships.
+- **The `:stripetaptopay` process.** Tap to Pay's AAR runs an activity there. Content providers
+  without a process (ML Kit's, Sentry's, androidx.startup) stay in the main process; only Stripe's
+  `TtpContentProvider` runs there. In the main process Stripe's `PaymentMethodSpecsContentProvider`
+  starts at every launch, and mek registers lifecycle observers when the activity attaches — both
+  cheap.
+- **Backup.** Stripe's device id (`stripe_terminal_shared_prefs.xml`), its offline database and
+  the Tap to Pay kernel's prefs (`com.visa.vac.tc.sharedPref.xml`) belong to one phone and its
+  keystore, so `backup_rules.xml` and `data_extraction_rules.xml` leave them out.
+- **Size.** About 19 MB of native code and assets per universal APK (7–8 MB of it per ABI) and
+  about 12 MB of dex, roughly +24 MB installed on an arm64 phone. On iOS `StripeTerminal.framework`
+  is a 34 MB dynamic framework, loaded at every cold start.
+- **R8.** Stripe's consumer rules keep everything under `kotlin.**`, `kotlinx.**`, `okhttp3.**`,
+  `okio.**`, `com.google.gson.**`, `dagger.**`, `javax.**` and `com.squareup.**`, and rename every
+  frame's source file to `SourceFile` — app-wide, not just for Stripe — so release stack traces need
+  the mapping file. `packages/store_services/android/consumer-rules.pro` adds one `-dontwarn`:
+  `play:review-ktx` (from `in_app_review`) references
+  `com.google.android.gms.common.annotation.NoNullnessRewrite`, which nothing here defines, and
+  Stripe's `-keepattributes *Annotation*` made R8 resolve it and fail the release build.
+- **iOS** needs `NSBluetoothAlwaysUsageDescription` and `NSLocationWhenInUseUsageDescription`
+  (`Info.plist`, `InfoPlist.xcstrings`) as soon as the SDK is linked. Stripe's privacy manifest
+  declares coarse location and product interaction as collected, so the App Store privacy answers
+  change too. The `bluetooth-central` background mode is left for the release that turns the
+  feature on, with its App Review note.
+- **USB.** Plugging a Stripe reader in over USB offers to open the app (Stripe's
+  `UsbEventReceiverActivity`). Harmless.
+- **F-Droid** drops the SDK with the rest of the store graph (`docs/fdroid.md`); the CI classpath
+  check also greps for `com.stripe`.
+- **The fork.** mek 5.7.3 has no `collectPaymentMethod` / `confirmPaymentIntent`, which the
+  surcharge flow needs (read the card, let the server decide, then charge). The app pins
+  `hillelcoren/mek-packages@3f2cf999` (BreX900/mek-packages#171, which also fixes an Android cancel
+  that never answered) until a release ships it — `docs/upstream-workarounds.md` entry 19, which
+  also records a known Android issue left in the fork.
+
+## Secrets never reach a log
+
+A PaymentIntent client secret (`pi_…_secret_…`) and a connection token (`pst_live_…` /
+`pst_test_…`) are redacted by `redact()` (`lib/app/logging.dart`) by key and by value — quoted,
+bare or percent-encoded. The console and the diagnostics log, the debug-capture ring and Sentry all
+go through it. In Sentry (`runWithCrashReporting`'s `redact`) it runs over each breadcrumb as it is
+recorded and, before an event leaves, over its message, exception values, breadcrumbs and contexts;
+an event it can't scrub is dropped. The native SDKs' own network breadcrumbs and failed-request
+events are off: they record other SDKs' traffic, Stripe's among them, and never pass those
+callbacks. Native crash reports still carry the breadcrumbs synced to the native scope, which is
+why scrubbing happens when a breadcrumb is recorded. `test/app/logging_redact_test.dart` pins the
+shapes.

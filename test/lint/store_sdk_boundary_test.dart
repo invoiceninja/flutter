@@ -30,6 +30,7 @@ void main() {
     'in_app_purchase_storekit',
     'in_app_review',
     'in_app_review_platform_interface',
+    'mek_stripe_terminal',
     'sentry',
     'sentry_flutter',
   ];

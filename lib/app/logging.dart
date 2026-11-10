@@ -13,8 +13,16 @@ const _redactHeaderKeys = <String>{
 };
 
 final _bodyRedactPattern = RegExp(
-  r'("(?:password|token|secret|api_token|x_api_token|x_api_secret)")\s*:\s*"[^"]*"',
+  r'("(?:password|token|secret|client_secret|api_token|x_api_token|x_api_secret)")\s*:\s*"[^"]*"',
   caseSensitive: false,
+);
+
+/// Stripe secrets wherever they appear — quoted, bare or percent-encoded
+/// (`%3Dpi_…`, so no word boundary): a PaymentIntent's client secret, and a
+/// Terminal connection token (docs/in-person-payments.md). Both shapes are
+/// distinctive enough that matching inside a longer word only over-redacts.
+final _stripeSecretPattern = RegExp(
+  r'(?:pi_[A-Za-z0-9]+_secret_[A-Za-z0-9]+|pst_(?:live|test)_[A-Za-z0-9_\-+/=]+)',
 );
 
 /// Logger-name prefixes whose sub-WARNING records we drop on the floor.
@@ -44,12 +52,13 @@ void initLogging() {
       return;
     }
     final message = redact(record.message);
+    final error = record.error == null ? null : redact('${record.error}');
     developer.log(
       message,
       time: record.time,
       level: record.level.value,
       name: record.loggerName,
-      error: record.error,
+      error: error,
       stackTrace: record.stackTrace,
     );
     // `dart:developer`'s `log` is a no-op on the web compile targets, and web
@@ -60,7 +69,7 @@ void initLogging() {
     // but a spinner. Cheap: the level gate above already dropped the noise.
     if (kIsWeb) {
       bootLog('[${record.level.name}] ${record.loggerName}: $message');
-      if (record.error != null) bootLog('  error: ${record.error}');
+      if (error != null) bootLog('  error: $error');
       if (record.stackTrace != null) bootLog('${record.stackTrace}');
     }
   });
@@ -70,10 +79,9 @@ void initLogging() {
 ///
 /// Conservative — over-redacts in logs rather than risk leaking a token.
 String redact(String input) {
-  return input.replaceAllMapped(
-    _bodyRedactPattern,
-    (m) => '${m[1]}:"<redacted>"',
-  );
+  return input
+      .replaceAllMapped(_bodyRedactPattern, (m) => '${m[1]}:"<redacted>"')
+      .replaceAll(_stripeSecretPattern, '<redacted>');
 }
 
 /// Build a header map suitable for logging — sensitive header values are

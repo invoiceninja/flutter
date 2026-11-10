@@ -3,7 +3,15 @@
      up before is still backed up; only the home-screen widgets' per-widget
      settings are left out: widget ids are per device, so a restored
      "N.hide=off" would attach to whatever new widget happened to get id N.
-     (Their snapshot is in noBackupFilesDir, never backed up.) -->
+     (Their snapshot is in noBackupFilesDir, never backed up.) Stripe
+     Terminal's state is per device too: its device id, its offline database
+     and the Tap to Pay kernel's prefs, bound to this phone's keystore
+     (docs/in-person-payments.md). -->
 <full-backup-content>
     <exclude domain="sharedpref" path="home_widget_settings.xml" />
+    <exclude domain="sharedpref" path="stripe_terminal_shared_prefs.xml" />
+    <exclude domain="sharedpref" path="com.visa.vac.tc.sharedPref.xml" />
+    <exclude domain="database" path="stripe_offline_db" />
+    <exclude domain="database" path="stripe_offline_db-wal" />
+    <exclude domain="database" path="stripe_offline_db-shm" />
 </full-backup-content>

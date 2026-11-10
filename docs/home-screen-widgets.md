@@ -247,8 +247,8 @@ The traps:
 
 - **A `Chronometer` counts from `elapsedRealtime`**, which restarts at boot. Its base is worked
   out from `runningSince` on every render and never stored.
-- **`java.time` needs API 26 and minSdk is 24.** Date arithmetic is plain day numbers
-  (`HomeWidgets.epochDay`), with no desugaring dependency.
+- **Date arithmetic is plain day numbers** (`HomeWidgets.epochDay`), not `java.time`. It was
+  written when minSdk was 24, below `java.time`'s API 26; minSdk is 26 now, so either works.
 - **A bare `View` is not allowed in a `RemoteViews` layout.** Spacers are empty `FrameLayout`s.
 - **Every tap is a distinct `requestCode`** (widget id × 100 + region). Otherwise Android hands
   back one `PendingIntent` for all of them.

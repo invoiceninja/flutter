@@ -192,20 +192,37 @@ Flathub publishes from its own repo, which this one cannot write to: a fine-grai
 reach a repo where its owner is an outside collaborator, and Flathub maintainers are outside
 collaborators. So each side does its half:
 
-1. **The Flathub repo updates itself.** Its update workflow, modelled on
+1. **The Flathub repo updates itself.** Its update workflow (`.github/workflows/update.yml`
+   there, added in `flathub/com.invoiceninja.InvoiceNinja#32`), modelled on
    `flathub/com.adilhanney.saber/.github/workflows/update.yml`, runs hourly and on dispatch.
    - It finds the newest `invoiceninja/flutter` release tag. Every release is still a GitHub
      *pre-release* until the general launch (docs/going-live.md § GitHub Releases), so it must
      not filter those out, or it never fires.
+   - It compares versions as numbers, after stripping `-flathub…` from the manifest's current
+     tag, and acts only on a strictly greater one. A plain "is it different" check, Saber's,
+     would have opened `update-v5.1.23` on its first run and shipped plain v5.1.23, which predates
+     the app-ID move (§ The Linux app ID is v1's Flathub ID).
+   - It skips a version whose `update-v<version>` branch already exists. Without that, every
+     hourly run before the merge regenerates and may force-push the branch, restarting the
+     two-arch test build. The cost: a version whose PR was closed unmerged is never retried on
+     its own. Delete its branch and dispatch the workflow to retry it.
    - It reads the Flutter and sqlite3mc pins from that tag.
    - It regenerates the offline sources with a flatpak-flutter image pinned by version and
-     digest.
-   - It opens branch **`update-v<version>`** with GitHub auto-merge on.
+     digest, passing `--app-module admin` (the module is not named after the ID's last part).
+     flatpak-flutter leaves a `.flatpak-builder/` directory behind, which the repo's `.gitignore`
+     keeps out of the PR. A forced dry run against v5.1.23 (2026-11-10) regenerated `generated/`
+     byte for byte, so an update PR carries only the pins.
+   - It opens branch **`update-v<version>`** and asks for GitHub auto-merge. That step is
+     non-fatal, since it fails until Flathub enables auto-merge on the repo.
    - `flathub.json` sets `"disable-external-data-checker": true`: Flathub's own checker would
      bump the tag without regenerating the pub sources.
 2. **Flathub's bot test-builds the PR** for x86_64 and aarch64. Its checks are `flathub/build`,
    `flathub/permissions` and others. Auto-merge then merges the PR, which publishes. Flathub
    grants auto-merge on request to verified apps. Without it, the PR waits for a human merge.
+   - **The permission review diffs against the *published* build, not `master`.** A PR opened
+     before the previous build reaches users is flagged with that build's permission changes
+     again and waits for a moderator: #32, which touched no manifest, was held on #31's three
+     removals because flathub.org still served v1's 5.0.204.
 3. **Deploy to all's `flathub` leg** (`.github/workflows/flathub.yml` running
    `tools/follow_flathub_release.sh`) reads only. Its steps:
    - Waits up to 90 minutes for the PR.
@@ -311,15 +328,19 @@ worktree. Its name doesn't match the plain `vX.Y.Z` pattern that F-Droid's updat
 `v5.1.23-flathub` plus the app-ID commit, cherry-picked with `-x`. Every later release reaches Flathub through
 the update workflow (§ Deploy to all follows the release).
 
-When it merges:
+#31 merged on 2026-11-10 (`2b03ae26`). After it:
 
-- Ask Flathub, through an issue on `flathub/flathub`, to enable auto-merge on
-  `flathub/com.invoiceninja.InvoiceNinja` with the bot's build as the required check.
+- The update workflow went in through `flathub/com.invoiceninja.InvoiceNinja#32`. `master` there
+  requires `flathub/build` and `flathub/permissions`, so even a workflow-only change goes through a
+  PR.
+- Auto-merge was requested in `flathub/flathub#11108`. The precedent, `flathub/flathub#10341`, was
+  granted only once the maintainers gave a concrete reason (an already-built update waiting on
+  someone offline); "we want it" drew a refusal first.
 - `https://invoiceninja.com/.well-known/org.flathub.VerifiedApps.txt` stays as it is: it holds
   v1's token, which is this ID's.
 
 ## Retiring v1's listing
 
 Nothing retires now: this app is v1's listing's next version (§ The Linux app ID is v1's Flathub
-ID). Until the PR that switches the manifest merges, v1's listing gets ordinary hand-made version
-bumps: url, sha256 and tag in its manifest. Its runtime is already 25.08.
+ID). The PR that switched the manifest merged on 2026-11-10, so v1 gets no more version bumps
+there: its last was 5.0.204 (#30).

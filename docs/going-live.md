@@ -66,8 +66,10 @@ Both apps are the `invoiceninja` snap, so this replaces v1 for every snap user.
 - [x] Before launch: prove the offline build on a fork, for both arches, with `flatpak-builder-lint` clean (`docs/flatpak.md` § Submitting). Commit screenshots of the Flatpak and name them in the metainfo by URLs pinned to a commit SHA. Record the video.
 - [x] Close the new-app submission (`flathub/flathub#11087`), since the app now ships under v1's ID. Closed 2026-11-09.
 - [x] Cut a hand tag carrying the rename (`docs/flatpak.md` § Submitting), and open a PR on `flathub/com.invoiceninja.InvoiceNinja` that replaces v1's manifest with the from-source build of that tag. Drop `only-arches` from its `flathub.json` (this build has aarch64) and add `disable-external-data-checker`. The changed `finish-args` need a Flathub admin's approval on that PR, so justify each one there. Done 2026-11-09: tag `v5.1.23-flathub.2`, [com.invoiceninja.InvoiceNinja#31](https://github.com/flathub/com.invoiceninja.InvoiceNinja/pull/31).
-- [ ] Before merging #31: once the bot's test build passes, install v1 from Flathub, update it to the test build, and check that it launches to sign-in with its own dock icon. No v1 user has taken that path before.
-- [ ] Once it merges: add the update workflow to `flathub/com.invoiceninja.InvoiceNinja`, and ask Flathub to enable auto-merge there. v1's verification already covers the ID, so `invoiceninja.com/.well-known/org.flathub.VerifiedApps.txt` needs no new token.
+- [x] Merge #31. Merged 2026-11-10.
+- [ ] On a real x86_64 machine, install v1 from Flathub, update it to this app (the published build, or any test build's `.flatpakref` from flathubbot), and check that it launches to sign-in with its own dock icon and reopens without asking for the keyring again. Only an arm64 Docker run with v1-shaped leftovers has taken that path so far (2026-11-09).
+- [ ] Add the update workflow to `flathub/com.invoiceninja.InvoiceNinja`: [#32](https://github.com/flathub/com.invoiceninja.InvoiceNinja/pull/32), open, then dispatch it once by hand and check it finds no update.
+- [ ] Ask Flathub to enable auto-merge there: [flathub/flathub#11108](https://github.com/flathub/flathub/issues/11108), open. v1's verification already covers the ID, so `invoiceninja.com/.well-known/org.flathub.VerifiedApps.txt` needs no new token.
 - [ ] Set the repo variable `FLATHUB_ENABLED` to `true`, so Deploy to all follows each release onto Flathub.
 - [ ] Add the Flathub install link to `README.md`, and flip the Flatpak row in `FEATURES.md`.
 

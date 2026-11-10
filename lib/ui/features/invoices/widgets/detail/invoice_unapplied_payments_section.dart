@@ -12,6 +12,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
+import 'package:admin/ui/features/invoices/widgets/invoice_actions.dart';
 
 /// Invoice-detail tab: the client's payments that still have **unapplied
 /// funds**, with a one-tap "Apply" that allocates min(unapplied, balance) to
@@ -111,6 +112,16 @@ class _UnappliedPaymentRow extends StatelessWidget {
   }
 
   Future<void> _apply(BuildContext context) async {
+    // A card payment this device took on the invoice may have been charged.
+    if (!await InvoiceActions.cardPaymentsSettled(
+          context,
+          services,
+          companyId,
+          [invoice.id],
+        ) ||
+        !context.mounted) {
+      return;
+    }
     final toasts = Notify.capture(context);
     final tr = context.tr;
     final amount = payment.unapplied < invoice.balance

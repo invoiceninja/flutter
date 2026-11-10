@@ -14,6 +14,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
+import 'package:admin/ui/features/invoices/widgets/invoice_actions.dart';
 
 /// Applies [payment]'s unapplied funds to the client's oldest unpaid invoice.
 ///
@@ -59,7 +60,17 @@ Future<void> applyPaymentToOldestInvoice(
         formatter: formatter,
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
+    // A card payment this device took on the invoice may have been charged.
+    if (!await InvoiceActions.cardPaymentsSettled(
+          context,
+          services,
+          companyId,
+          [target.id],
+        ) ||
+        !context.mounted) {
+      return;
+    }
     await services.payments.apply(
       companyId: companyId,
       paymentId: payment.id,

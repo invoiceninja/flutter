@@ -1055,6 +1055,77 @@ void main() {
       expect(repo.calls, isNot(contains(startsWith('quote'))));
     });
 
+    test('another attempt\'s charge still unanswered after "Cancel it and '
+        'start again" is remembered as pending', () async {
+      final vm = await ready();
+      repo.creates.add(
+        const TerminalServerError(TerminalServerError.collectionOpen, '', {
+          'payment_intent_id': 'pi_old',
+        }),
+      );
+      await vm.collect();
+      repo.cancels.add(fakeCompletion('requires_confirmation'));
+      await vm.cancelOpenCollection();
+      expect(vm.stage, CollectStage.checking);
+      expect(terminal.pendingAllFor('co_a', 'inv_1'), ['pi_old']);
+    });
+
+    test(
+      'Check again that can\'t reach the server stays on Recording',
+      () async {
+        final vm = await ready();
+        repo.creates.add(fakeIntent());
+        platform.session.reads.add(fakeCard);
+        repo.finalizes.add(fakeFinalize(10000));
+        platform.session.confirms.add(
+          const TerminalPaymentOutcome(
+            paymentIntentId: 'pi_1',
+            status: 'succeeded',
+          ),
+        );
+        repo.completes.add(fakeCompletion('recording'));
+        await vm.collect();
+        expect(vm.stage, CollectStage.recording);
+
+        for (var i = 0; i < 3; i++) {
+          repo.completes.add(const NetworkException('offline'));
+        }
+        await vm.checkAgain();
+        // "Charged, being recorded" is never taken back by a failed check.
+        expect(vm.stage, CollectStage.recording);
+      },
+    );
+
+    test('a reader that drops mid-collection is asked for again', () async {
+      final vm = await ready();
+      // ready() connected Tap to Pay; this collection uses a Bluetooth one.
+      await vm.connectReader(
+        const TerminalReader(
+          serialNumber: 'm2',
+          label: 'M2',
+          kind: TerminalReaderKind.bluetooth,
+          simulated: true,
+          batteryLevel: -1,
+          hasAvailableUpdate: false,
+        ),
+      );
+      repo.creates.add(fakeIntent());
+      final read = Completer<TerminalCollected>();
+      platform.session.reads.add(read);
+      final collecting = vm.collect();
+      await pumpEventQueue();
+      expect(vm.stage, CollectStage.waiting);
+
+      vm.readerDisconnected();
+      read.completeError(
+        const TerminalError(TerminalErrorCode.readerDisconnected),
+      );
+      await collecting;
+      expect(vm.stage, CollectStage.declined);
+      expect(vm.readerState, ReaderState.needsReader);
+      expect(vm.bindsCompany, isTrue);
+    });
+
     test('every pending charge on an invoice is asked about', () async {
       await terminal.notePending(
         companyId: 'co_a',

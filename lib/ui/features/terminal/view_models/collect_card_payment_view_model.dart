@@ -420,10 +420,15 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
       return null;
     }
     try {
-      return _location = await _repo.createLocation(
+      _location = await _repo.createLocation(
         companyId,
         companyGatewayId: gateway.companyGatewayId,
       );
+      // The cached config lists no Location yet: without this, every
+      // collection opened in the next five minutes would create another
+      // (and, keyed on it, drop the reader).
+      unawaited(_terminal.refreshConfig(companyId));
+      return _location;
     } catch (e) {
       _setReader(ReaderState.failed, _problemOf(e));
       return null;
@@ -463,11 +468,21 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
 
   /// The Bluetooth reader went away (switched off, out of range, battery):
   /// before a collection starts, ask for it again rather than claim "ready".
+  ///
+  /// Mid-collection the read fails on its own (declined → the screen offers
+  /// to connect a reader before trying again).
   void readerDisconnected() {
     if (_readerChoice != TerminalReaderChoice.bluetooth) return;
     _reader = null;
-    if (_stage == CollectStage.configure) _setReader(ReaderState.needsReader);
+    _setReader(ReaderState.needsReader);
   }
+
+  /// Bound to the company it was started in: from the first server call to
+  /// the server's final answer, a company switch would strand it.
+  bool get bindsCompany =>
+      inProgress ||
+      _stage == CollectStage.checking ||
+      _stage == CollectStage.recording;
 
   void _setReader(ReaderState state, [CollectProblem? problem]) {
     _readerState = state;
@@ -703,9 +718,19 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
         await requote();
         return;
       }
-      if (_settle(result)) return;
-      _stage = CollectStage.checking;
-      _notify();
+      if (!_settle(result)) {
+        _stage = CollectStage.checking;
+        _notify();
+      }
+      if (_stage == CollectStage.checking || _stage == CollectStage.recording) {
+        // That attempt may have been charged: until the server answers,
+        // recording a payment by hand on this invoice warns.
+        await _terminal.notePending(
+          companyId: companyId,
+          invoiceId: _invoice.id,
+          paymentIntentId: pi,
+        );
+      }
     } catch (e) {
       _settlingPaymentIntentId = null;
       _stage = CollectStage.openCollection;
@@ -894,7 +919,13 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
 
   /// Asks the server what happened, a few times: a charge Stripe has just
   /// made can take a moment to show.
-  Future<void> _check(String paymentIntentId) async {
+  ///
+  /// When every attempt fails the screen goes to [unanswered]: Checking,
+  /// unless the server already said it holds the charge (Recording).
+  Future<void> _check(
+    String paymentIntentId, {
+    CollectStage unanswered = CollectStage.checking,
+  }) async {
     for (var attempt = 0; attempt < 3; attempt++) {
       try {
         final result = await _repo.complete(
@@ -922,7 +953,7 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
       }
       if (attempt < 2) await Future<void>.delayed(pollDelay);
     }
-    _stage = CollectStage.checking;
+    _stage = unanswered;
     _notify();
   }
 
@@ -933,9 +964,13 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     if (_stage != CollectStage.checking && _stage != CollectStage.recording) {
       return;
     }
+    // A failed check never takes back "charged, being recorded".
+    final unanswered = _stage == CollectStage.recording
+        ? CollectStage.recording
+        : CollectStage.checking;
     _stage = CollectStage.settling;
     _notify();
-    await _terminal.guardCharge(() => _check(pi));
+    await _terminal.guardCharge(() => _check(pi, unanswered: unanswered));
   }
 
   /// "Cancel the payment" from Checking: safe even if it was charged — the

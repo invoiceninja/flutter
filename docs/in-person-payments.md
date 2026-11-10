@@ -145,12 +145,18 @@ the server answers for good, the PaymentIntent is kept on the device
 (`recoverPending`, every pending charge on the invoice, not just the first). Every way of recording
 a payment by hand checks first — `InvoiceActions.cardPaymentsSettled`, from Mark Paid and Enter
 Payment on the record screen, Mark Paid in the editor (`confirmSaveParam`), a bulk Mark Paid
-(`preflight`) and a new payment's Save (`confirmSave`, whichever screen opened it): a charge that
+(`preflight`), a payment's Save that applies it to the invoice (`confirmSave`, whichever screen
+opened it) and both one-tap Applies of an unapplied payment (the invoice's Unapplied payments tab,
+the payment's Apply to the oldest invoice): a charge that
 turns out recorded stops the action and says so (the balance it was about to pay is gone); one
 that still can't be answered is warned about every time a payment would be recorded over it — Enter
 Payment only recovers, and the warning comes at the payment's Save. A Save the check is still
-asking about is never run twice. A deliberate sign-out
-forgets the list (account scope), as it forgets everything else on the device. The Checking, Recording and "couldn't be
+asking about is never run twice. "Cancel it and start
+again" that lands on Checking or Recording notes the other attempt's PaymentIntent too. A
+deliberate sign-out forgets the list (account scope), as it forgets everything else on the device.
+**Known limit:** the list is this device's. Another phone, the web app or another user can still
+record a payment on the invoice by hand while a charge is unanswered; the server then records the
+card payment as unapplied client money (`unapplied`), and support refunds one of the two. The Checking, Recording and "couldn't be
 recorded" screens show the PaymentIntent as a copyable reference.
 
 ## Support runbook
@@ -174,6 +180,14 @@ recorded" screens show the PaymentIntent as a copyable reference.
   (account, mode, currency); an orphaned one lost its invoice and client. Either refund it in Stripe,
   or record it by hand with Enter Payment using the Stripe charge id as the transaction reference. The
   server alerted (System Logs, and Sentry where configured).
+- **Alert "the surcharge could not be refunded".** A surcharge charged to a card it doesn't apply
+  to (debit, prepaid, Interac, or an invoice paid meanwhile) is refunded by the server; when Stripe
+  refuses that refund the payment is recorded anyway, with the surcharge as the client's unapplied
+  money. Refund the surcharge in Stripe: the refund comes out of that unapplied money.
+- **Alert "reconciliation could not record a charge".** A charged collection that fails to record
+  for a reason other than Stripe (a data problem on the invoice or client) stays open and is retried
+  every 5 minutes for 30 days. Fix the cause and it records itself; if you enter the payment by
+  hand instead, use the Stripe charge id as the transaction reference, so the retry finds it.
 - **"Still being set up" on a new collection.** Stripe never answered a create; after 2 minutes the
   next attempt marks it failed and goes on.
 

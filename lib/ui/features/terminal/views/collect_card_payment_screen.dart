@@ -124,7 +124,7 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
     // every call that settles it is bound to this company, so after a
     // switch a charged card could never be checked or recorded from here.
     _unregisterGuard = _services.unsavedChangesGuard.register(
-      isDirty: () => _vm.inProgress,
+      isDirty: () => _vm.bindsCompany,
       source: _vm,
       blockedMessage: (context) => context.tr('terminal_finish_first'),
     );
@@ -404,21 +404,35 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
     CollectStage.declined => [
       _Total(text: _totalText()),
       _Status(
-        text: _problemText(context),
+        // After a reader reconnected here there is no problem left to name.
+        text: _vm.problem == null && _vm.readerState == ReaderState.ready
+            ? context.tr('terminal_reader_ready', {
+                'reader': _vm.reader?.label ?? '',
+              })
+            : _problemText(context),
         icon: Icons.credit_card_off_outlined,
       ),
       const SizedBox(height: InSpacing.xl),
-      _Buttons(
-        primary: context.tr(switch (_vm.problem?.code) {
-          TerminalErrorCode.declined ||
-          TerminalErrorCode.cardNotRead ||
-          TerminalErrorCode.pinUnavailable => 'terminal_try_another_card',
-          _ => 'terminal_try_again',
-        }),
-        onPrimary: _vm.tryAnotherCard,
-        secondary: context.tr('cancel'),
-        onSecondary: _close,
-      ),
+      // The reader went away mid-collection: connect one before trying.
+      if (_vm.readerState == ReaderState.needsReader)
+        _Buttons(
+          primary: context.tr('terminal_connect_reader'),
+          onPrimary: _pickReader,
+          secondary: context.tr('cancel'),
+          onSecondary: _close,
+        )
+      else
+        _Buttons(
+          primary: context.tr(switch (_vm.problem?.code) {
+            TerminalErrorCode.declined ||
+            TerminalErrorCode.cardNotRead ||
+            TerminalErrorCode.pinUnavailable => 'terminal_try_another_card',
+            _ => 'terminal_try_again',
+          }),
+          onPrimary: _vm.tryAnotherCard,
+          secondary: context.tr('cancel'),
+          onSecondary: _close,
+        ),
     ],
     CollectStage.approved => _approved(context),
     CollectStage.recording => [
@@ -472,9 +486,15 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
 
   /// The server's latest figure once it has decided one (a lowered or raised
   /// PaymentIntent), else the quote.
+  ///
+  /// Once the PaymentIntent exists, it is the amount the card is read for:
+  /// created at the base amount, and raised only after a credit card is read
+  /// — a Bluetooth reader has no screen, so this is the only figure shown.
   String _totalText() {
     final finalized = _vm.finalized;
     if (finalized != null) return _money(finalized.amount);
+    final intent = _vm.intent;
+    if (intent != null) return _money(intent.amount);
     return _money(_vm.quote?.total ?? _vm.amount);
   }
 

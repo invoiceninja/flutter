@@ -127,9 +127,7 @@ class TerminalController extends ChangeNotifier {
     if (entry != null) {
       if (entry.loading || entry.unsupported) return;
       final age = _clock().difference(entry.fetchedAt);
-      if (age < (entry.config == null ? failedConfigRetry : configLifetime)) {
-        return;
-      }
+      if (age < (entry.failed ? failedConfigRetry : configLifetime)) return;
     }
     unawaited(_load(companyId, keep: entry?.config));
   }
@@ -137,8 +135,8 @@ class TerminalController extends ChangeNotifier {
   /// Re-reads the company's answer — after an admin acknowledged the
   /// surcharge or created a Location.
   Future<TerminalConfig?> refreshConfig(String companyId) async {
-    _configs.remove(companyId);
-    await _load(companyId);
+    // The last answer stands while this one loads, and if it fails.
+    await _load(companyId, keep: _configs[companyId]?.config);
     return configFor(companyId);
   }
 
@@ -152,8 +150,11 @@ class TerminalController extends ChangeNotifier {
       final config = await _repo.config(companyId);
       await _deviceLoading;
       if (!identical(_configs[companyId], entry)) return;
-      entry.config = config;
+      entry
+        ..config = config
+        ..failed = false;
     } catch (e) {
+      entry.failed = true;
       _log.fine('terminal/config unavailable for $companyId: ${e.runtimeType}');
       // An older server: forget any answer. Anything else keeps the last one.
       entry.unsupported = e is ServerException && e.statusCode == 404;
@@ -199,6 +200,7 @@ class TerminalController extends ChangeNotifier {
     final account = '$companyId/${gateway.companyGatewayId}/${location.id}';
     if (_account != account) _reader = null;
     _account = account;
+    _prepared++;
     await _platform.initialize(
       account: account,
       fetchToken: () => _repo.connectionToken(
@@ -298,15 +300,26 @@ class TerminalController extends ChangeNotifier {
 
   final Set<Future<void>> _charges = {};
 
+  /// Bumped by every [prepare]: a [reset] that waited leaves a newer
+  /// session alone.
+  int _prepared = 0;
+
   /// Forgets every company's answer and the reader, and resets the SDK — a
   /// session end or a company switch. Waits up to a minute for a charge in
   /// flight to be answered first.
   Future<void> reset() async {
-    // Until none is left: one that ends may have started another (a read
-    // again after finalize).
-    final deadline = _clock().add(const Duration(seconds: 60));
+    // The session's own state goes now, so nothing new starts on it.
+    _configs.clear();
+    _reader = null;
+    _account = null;
+    final prepared = _prepared;
+    notifyListeners();
+    // Until no charge is left: one that ends may have started another (a
+    // read again after finalize). Real time, whatever the clock says.
+    const limit = Duration(seconds: 60);
+    final waited = Stopwatch()..start();
     while (_charges.isNotEmpty) {
-      final left = deadline.difference(_clock());
+      final left = limit - waited.elapsed;
       if (left <= Duration.zero) {
         _log.warning('reset while a card charge was still unanswered');
         break;
@@ -315,11 +328,9 @@ class TerminalController extends ChangeNotifier {
         await Future.any(_charges.toList()).timeout(left);
       } catch (_) {}
     }
-    _configs.clear();
-    _reader = null;
-    _account = null;
-    notifyListeners();
-    if (!platformReady) return;
+    // A newer session prepared while this waited has already reset the SDK
+    // for its own account: leave it alone.
+    if (!platformReady || _prepared != prepared) return;
     try {
       await _platform.reset();
     } catch (_) {}
@@ -341,4 +352,7 @@ class _ConfigEntry {
 
   /// The server has no such route: an older one. Not asked again.
   bool unsupported = false;
+
+  /// The last fetch failed (any answer kept is older): asked again sooner.
+  bool failed = false;
 }

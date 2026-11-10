@@ -52,11 +52,12 @@ static on `StripeTerminal`; each payment is a `TerminalPayment` from `beginPayme
 
 ## Who sees "Collect card payment", and what the app asks the server
 
-- **The server decides.** `TerminalController.ensureConfig` asks `GET /terminal/config` once per
-  company per session, and only after the cheap gates pass (`kCardPresentEnabled`, the mobile app
-  with Stripe's SDK, not the demo, `create_payment`) — a user without that permission would get a
-  401. An older server answers 404; that, or any other failure, is remembered as "not here" for the
-  session, with no toast and no report.
+- **The server decides.** `TerminalController.ensureConfig` asks `GET /terminal/config` only after
+  the cheap gates pass (`kCardPresentEnabled`, the mobile app with Stripe's SDK, not the demo,
+  `create_payment`) — a user without that permission would get a 401. An answer stands for five
+  minutes (an admin who turns Card present on sees it without a restart); a failed fetch keeps the
+  last answer and is tried again after a minute; an older server's 404 is remembered as "not here"
+  for the session. None of it toasts or reports.
 - **`terminalAvailability`** (`lib/domain/terminal/terminal_eligibility.dart`, pure) adds the
   invoice (not deleted, paid, cancelled, reversed or unsaved; drafts are fine — the server marks
   them sent) and how this phone can read a card: Tap to Pay when the phone can and the gateway's
@@ -67,8 +68,10 @@ static on `StripeTerminal`; each payment is a `TerminalPayment` from `beginPayme
   (all default true) pull the feature or one part of it without a code change.
 - **The SDK session is one Stripe account and Location** (`account: company/gateway/location`): a
   connection token belongs to exactly one.
-- **A session end or a company switch resets it** (`onBeforeLogout`, `onActiveCompanyChanged`),
-  after waiting up to a minute for a charge in flight (`guardCharge`) to be answered.
+- **A session end or a company switch resets it** (`onBeforeLogout`, `onActiveCompanyChanged`):
+  the session's own state goes at once, then the SDK is reset once no charge is in flight
+  (`guardCharge`, from a card's finalize to the server's answer), waiting up to a minute — unless a
+  newer session was prepared meanwhile.
 - **`TerminalRepository` is online-only** (the CLAUDE.md outbox exception): every call in the
   company's `RequestScope`; a refusal the screen branches on comes back as a
   `TerminalServerError(code, message, data)` read from the body's `error_code` — 409 and 403 bodies
@@ -98,17 +101,21 @@ the root navigator that is never saved as a route; `CollectCardPaymentViewModel`
    card's surcharge, or lower it again for a debit card on the next read: then the card is read
    again (at most three reads). A read more than 25 s old by the time finalize answers is read again
    too (Stripe allows 30 s), and a finalize that fails cancels — a charge is never made on a guess.
-4. **Confirm** at the latest `amount_minor`, inside `TerminalController.guardCharge`: nothing — not
-   Cancel, Back, a company switch or a sign-out — interrupts it or the `complete` after it.
+4. **Confirm** at the latest `amount_minor`. From finalize to the server's answer everything runs
+   inside `TerminalController.guardCharge`: nothing — not Cancel, Back, a company switch or a
+   sign-out — interrupts it. A screen that closes before the charge gives the payment up (after
+   finalize answers, if it was deciding); a charge already under way finishes, and the server
+   records it.
 5. **Result.** One table maps `complete` (and `cancel`):
 
 | Answer | Screen |
 |---|---|
 | `recorded`, `unapplied` | Approved (and the unapplied note), receipt by email or QR |
 | `processing` | Recording — "Charged. The payment is being recorded." + Check again |
-| `requires_*` after a confirm started, a confirm with an unknown outcome, `complete` failing (asked 3 times) | Checking — "We couldn't confirm whether the card was charged. Don't take another card for this invoice yet." + Check again |
+| `requires_payment_method` after a confirm | Declined — the charge failed; another card on a new payment session |
+| other `requires_*` after a confirm started, a confirm with an unknown outcome, `complete` failing (asked 3 times) | Checking — "We couldn't confirm whether the card was charged. Don't take another card for this invoice yet." + Check again, or Cancel the payment (the server records it instead if it was charged) |
 | `rejected`, `orphaned` | Charged, couldn't be recorded — contact support (the server alerted) |
-| `canceled` | Cancelled — the only screen that says the card wasn't charged, with a decline |
+| `canceled`, `failed` | Cancelled — the only screen that says the card wasn't charged, with a decline |
 
 A decline leaves the PaymentIntent open: **Try another card** reads again and finalizes again. Every
 SDK and server code has words (`terminal_error_text.dart`, tested exhaustively).

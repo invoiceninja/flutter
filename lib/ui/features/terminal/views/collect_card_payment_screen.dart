@@ -165,22 +165,26 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
     super.dispose();
   }
 
-  void _setAmount() {
+  /// Commits the field; true when that changed the amount (then quoted
+  /// anew). The field shows the amount as the currency rounds it.
+  bool _setAmount() {
     final value = parseDecimal(
       _amount.text,
       useCommaAsDecimalPlace:
           _formatter?.settings.useCommaAsDecimalPlace ?? false,
     );
-    if (value != null && value != _vm.amount) _vm.setAmount(value);
+    if (value == null) return false;
+    final changed = _vm.setAmount(value);
+    final shown = _moneyInput(_vm.amount);
+    if (_amount.text != shown) _amount.text = shown;
+    return changed;
   }
 
   /// A typed amount counts even when the field never lost focus (a tap on
   /// touch doesn't unfocus it): a changed amount is quoted first, and the
   /// next tap collects it.
   Future<void> _collect() async {
-    final before = _vm.amount;
-    _setAmount();
-    if (_vm.amount != before) return;
+    if (_setAmount()) return;
     await _vm.collect();
   }
 

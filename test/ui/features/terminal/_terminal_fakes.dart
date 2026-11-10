@@ -185,6 +185,7 @@ class FakeSession implements TerminalPaymentSession {
   final calls = <String>[];
   bool finished = false;
   bool cancelled = false;
+  bool _confirming = false;
   TerminalCollected? _read;
 
   /// A new payment on the same session object (the platform hands this one
@@ -226,6 +227,7 @@ class FakeSession implements TerminalPaymentSession {
       throw const TerminalError(TerminalErrorCode.invalidState);
     }
     _read = null;
+    _confirming = true;
     try {
       final outcome = await confirms.next('confirm');
       finished = true;
@@ -233,12 +235,15 @@ class FakeSession implements TerminalPaymentSession {
     } on TerminalError catch (e) {
       if (e.code == TerminalErrorCode.outcomeUnknown) finished = true;
       rethrow;
+    } finally {
+      _confirming = false;
     }
   }
 
   @override
   void cancel() {
-    if (finished) return;
+    // Like the facade: a confirm under way can't be cancelled.
+    if (finished || _confirming) return;
     calls.add('cancel');
     cancelled = true;
     finished = true;
@@ -267,8 +272,14 @@ class FakeTerminalPlatform implements TerminalPlatform {
     required Future<String> Function() fetchToken,
   }) async {}
 
+  int resets = 0;
+
+  /// Like the facade: a reset gives up the payment in progress.
   @override
-  Future<void> reset() async {}
+  Future<void> reset() async {
+    resets++;
+    session.cancel();
+  }
 
   @override
   Stream<List<TerminalReader>> discover(
@@ -296,7 +307,6 @@ class FakeTerminalPlatform implements TerminalPlatform {
   @override
   Future<TerminalReader?> connectedReader() async => null;
 
-  @override
   int begun = 0;
 
   @override

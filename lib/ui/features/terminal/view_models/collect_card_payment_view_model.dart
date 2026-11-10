@@ -370,11 +370,15 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
 
   // -------------------------------------------------------------- amount
 
-  void setAmount(Decimal value) {
-    if (_stage != CollectStage.configure) return;
-    amount = _round(value);
+  /// Rounded to the currency; true when it changed the amount.
+  bool setAmount(Decimal value) {
+    if (_stage != CollectStage.configure) return false;
+    final rounded = _round(value);
+    if (rounded == amount) return false;
+    amount = rounded;
     _collectionId = null;
     unawaited(requote());
+    return true;
   }
 
   void setSurcharge(bool value) {
@@ -591,6 +595,11 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     final intent = _intent!;
     while (true) {
       if (_abandoned) return;
+      if (_disposed) {
+        // Never a reader prompt over a screen that has closed.
+        await _abandon();
+        return;
+      }
       _stage = CollectStage.waiting;
       _notify();
       final TerminalCollected collected;
@@ -663,6 +672,11 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
         // The read no longer matches the server's amount: read again.
         return _readAgainOrStop();
       }
+      if (e.code == TerminalErrorCode.canceled || session.isCancelled) {
+        // A reset took the payment before the charge: not charged.
+        await _abandon();
+        return false;
+      }
       if (e.code != TerminalErrorCode.outcomeUnknown) {
         _declined(e);
         return false;
@@ -719,6 +733,12 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
           invoiceId: _invoice.id,
         );
         if (_settle(result)) return;
+        if (result.status == 'requires_payment_method' &&
+            (_abandoned || _intent?.paymentIntentId != paymentIntentId)) {
+          // Not charged, and nobody is taking another card on it: close it.
+          await _cancelPaymentIntent(paymentIntentId, afterConfirm: false);
+          return;
+        }
         if (result.status == 'requires_payment_method') {
           // The charge failed: the PaymentIntent takes another card.
           _problem = const CollectProblem(code: TerminalErrorCode.declined);
@@ -772,7 +792,8 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
         _stage = CollectStage.recording;
       case 'rejected' || 'orphaned':
         _stage = CollectStage.unrecorded;
-      case 'canceled':
+      // `failed`: the server never got a PaymentIntent from Stripe.
+      case 'canceled' || 'failed':
         _stage = CollectStage.cancelled;
         _collectionId = null;
       default:

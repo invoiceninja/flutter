@@ -691,4 +691,68 @@ void main() {
       expect(platform.session.calls.where((c) => c == 'collect'), hasLength(3));
     });
   });
+
+  group('re-review (2026-11-11)', () {
+    test('an amount is rounded to the currency, and the same amount again is '
+        'no change', () async {
+      final vm = await ready();
+      expect(vm.setAmount(Decimal.parse('10.005')), isTrue);
+      expect(vm.amount, Decimal.parse('10.01'));
+      expect(vm.setAmount(Decimal.parse('10.005')), isFalse);
+      expect(vm.setAmount(Decimal.parse('10.01')), isFalse);
+    });
+
+    test('a reset while waiting for the card gives the payment up', () async {
+      final vm = await ready();
+      repo.creates.add(fakeIntent());
+      final read = Completer<TerminalCollected>();
+      platform.session.reads.add(read);
+      repo.cancels.add(fakeCompletion('canceled'));
+
+      final collecting = vm.collect();
+      await pumpEventQueue();
+      expect(vm.stage, CollectStage.waiting);
+      await terminal.reset();
+      read.completeError(const TerminalError(TerminalErrorCode.canceled));
+      await collecting;
+
+      expect(vm.stage, CollectStage.cancelled);
+      expect(repo.calls, contains('cancel:pi_1'));
+    });
+
+    test('a closed screen never reads the card again', () async {
+      final vm = await ready();
+      repo.creates.add(fakeIntent());
+      platform.session.reads.add(fakeCard);
+      repo.finalizes.add(fakeFinalize(10000));
+      final confirming = Completer<TerminalPaymentOutcome>();
+      platform.session.confirms.add(confirming);
+      repo.cancels.add(fakeCompletion('canceled'));
+
+      final collecting = vm.collect();
+      await pumpEventQueue();
+      expect(vm.stage, CollectStage.processing);
+      vm.dispose();
+      confirming.completeError(
+        const TerminalError(TerminalErrorCode.invalidState),
+      );
+      await collecting;
+
+      expect(platform.session.calls.where((c) => c == 'collect'), hasLength(1));
+      expect(repo.calls, contains('cancel:pi_1'));
+    });
+
+    test('a payment the server reports failed is not charged', () async {
+      final vm = await ready();
+      repo.creates.add(fakeIntent());
+      platform.session.reads.add(fakeCard);
+      repo.finalizes.add(fakeFinalize(10000));
+      platform.session.confirms.add(
+        const TerminalError(TerminalErrorCode.outcomeUnknown),
+      );
+      repo.completes.add(fakeCompletion('failed'));
+      await vm.collect();
+      expect(vm.stage, CollectStage.cancelled);
+    });
+  });
 }

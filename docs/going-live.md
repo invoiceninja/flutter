@@ -70,7 +70,7 @@ Both apps are the `invoiceninja` snap, so this replaces v1 for every snap user.
 - [ ] On a real x86_64 machine, install v1 from Flathub, update it to this app (the published build, or any test build's `.flatpakref` from flathubbot), and check that it launches to sign-in with its own dock icon and reopens without asking for the keyring again. Only an arm64 Docker run with v1-shaped leftovers has taken that path so far (2026-11-09).
 - [ ] Add the update workflow to `flathub/com.invoiceninja.InvoiceNinja`: [#32](https://github.com/flathub/com.invoiceninja.InvoiceNinja/pull/32), open, then dispatch it once by hand and check it finds no update.
 - [ ] Ask Flathub to enable auto-merge there: [flathub/flathub#11108](https://github.com/flathub/flathub/issues/11108), open. v1's verification already covers the ID, so `invoiceninja.com/.well-known/org.flathub.VerifiedApps.txt` needs no new token.
-- [ ] Set the repo variable `FLATHUB_ENABLED` to `true`, so Deploy to all follows each release onto Flathub.
+- [x] Set the repo variable `FLATHUB_ENABLED` to `true`, so Deploy to all follows each release onto Flathub (set 2026-11-10).
 - [ ] Add the Flathub install link to `README.md`, and flip the Flatpak row in `FEATURES.md`.
 
 ### GitHub Releases

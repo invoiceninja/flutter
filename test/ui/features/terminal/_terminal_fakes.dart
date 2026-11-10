@@ -333,15 +333,18 @@ TerminalIntent fakeIntent([String pi = 'pi_1']) => TerminalIntent(
   livemode: false,
 );
 
-TerminalFinalize fakeFinalize(int minor, {bool recollect = false}) =>
-    TerminalFinalize(
-      path: recollect ? 'recollect' : 'none',
-      recollect: recollect,
-      funding: 'credit',
-      amount: Decimal.parse((minor / 100).toString()),
-      amountMinor: minor,
-      surcharge: Decimal.zero,
-    );
+TerminalFinalize fakeFinalize(
+  int minor, {
+  bool recollect = false,
+  int surcharge = 0,
+}) => TerminalFinalize(
+  path: recollect ? 'recollect' : 'none',
+  recollect: recollect,
+  funding: 'credit',
+  amount: Decimal.parse((minor / 100).toString()),
+  amountMinor: minor,
+  surcharge: Decimal.fromInt(surcharge),
+);
 
 TerminalCompletion fakeCompletion(String status) => TerminalCompletion(
   status: status,

@@ -6,8 +6,8 @@ the phone or a Stripe M2 Bluetooth reader — and paying an invoice with it. The
 invoiceninja/invoiceninja#13435 (gateway type 32, `card_present`): it creates every PaymentIntent
 and records every payment, and the device only reads the card.
 
-This doc covers the packaging that is in place today. The data, recovery and UI layers land in
-later changes and extend it.
+How it is turned on, who sees it, the collection step by step, what a failure looks like at each
+step, how support untangles one, and what the SDK costs every store user.
 
 ## The SDK is reached only through `StripeTerminal`
 
@@ -70,14 +70,13 @@ static on `StripeTerminal`; each payment is a `TerminalPayment` from `beginPayme
   connection token belongs to exactly one.
 - **A session end or a company switch resets it** (`onBeforeLogout`, `onActiveCompanyChanged`):
   the session's own state goes at once, then the SDK is reset once no charge is in flight
-  (`guardCharge`, from a card's finalize to the server's answer), waiting up to a minute — unless a
-  newer session was prepared meanwhile.
+  (`guardCharge`, from a card's finalize to the server's answer), waiting up to 150 seconds — longer
+  than the facade's 2-minute bound on a confirm — unless a newer session was prepared meanwhile.
 - **`TerminalRepository` is online-only** (the CLAUDE.md outbox exception): every call in the
   company's `RequestScope`; a refusal the screen branches on comes back as a
   `TerminalServerError(code, message, data)` read from the body's `error_code` — 409 and 403 bodies
   are kept on `ConflictException.body` / `ServerException.body` for this — and a plain 422 is
-  `field_errors` with its first message. `apply_fee` goes in the quote's query as `1` / `0`
-  (Laravel's `boolean` refuses `true`). `finalize` times out at 12 s, inside Stripe's 30 s
+  `field_errors` with its first message. `apply_fee` goes in the quote's query as `1` / `0`. `finalize` times out at 12 s, inside Stripe's 30 s
   between reading a card and charging it. The invoice is re-read after a create (a draft was marked
   sent) and after every `complete` / `cancel`; a recorded payment also re-reads its client and the
   payment.
@@ -120,10 +119,56 @@ the root navigator that is never saved as a route; `CollectCardPaymentViewModel`
 A decline leaves the PaymentIntent open: **Try another card** reads again and finalizes again. Every
 SDK and server code has words (`terminal_error_text.dart`, tested exhaustively).
 
-**Support runbook.** A payment the app shows as Checking: find the PaymentIntent in Stripe by its
-`collection_id` metadata; the client's System Logs show what the server did; `php artisan
-ninja:terminal-reconcile --pi=pi_…` records it by hand. Never Enter Payment for it — the server
-records every charge itself, and a manual payment would count it twice.
+Before a second tap that raises the amount, the screen stops on the surcharge (`surchargeNotice`:
+"Credit card: $103.00, including a $3.00 surcharge…") with Continue / Cancel — the customer may
+decline it and pay another way. "Charging" is shown only during a confirm; asking the server about a
+payment (Check again, a cancel) is `settling` ("Checking with Stripe…").
+
+**A charge the app never heard back about isn't forgotten.** From the moment a confirm starts until
+the server answers for good, the PaymentIntent is kept on the device
+(`DevicePrefKeys.pendingCardPayments`, account scope). Opening the invoice asks the server again
+(`recoverPending`), and Enter Payment / Mark Paid check it first and, if it still can't be answered,
+warn that recording another payment could count it twice. The Checking, Recording and "couldn't be
+recorded" screens show the PaymentIntent as a copyable reference.
+
+## Support runbook
+
+- **Find it.** The screen's reference is the Stripe PaymentIntent id. Without it: Stripe's payments
+  search by the invoice number (the PaymentIntent's description is "Invoice N · client", its metadata
+  holds `invoice_number`, `collection_id` and `payment_hash`), or the server's
+  `terminal_payment_intents` table by `invoice_id`.
+- **Read the row.** `status_id`: 1 creating (Stripe hadn't answered the create), 2 open, 3 recording
+  (claimed by a recorder; re-claimable after 5 minutes), 4 recorded, 5 cancelled, 6 failed (never got
+  a PaymentIntent, or it no longer exists at Stripe), 7 orphaned, 8 rejected. `surcharge_path`,
+  `surcharge_refunded` (minor units) and `receipts_sent` explain the money around it.
+- **Checking / Recording.** Nothing to do by hand: the server records every charge from Stripe's
+  webhook, `complete`, and reconciliation (every 5 minutes; a collection untouched for 20 minutes is
+  cancelled; rows up to 30 days old). `php artisan ninja:terminal-reconcile --pi=pi_…` records one now
+  and prints its status; for an uncharged PaymentIntent it prints e.g. `requires_confirmation` and
+  leaves the cancel to the next run. **Never Enter Payment for a card payment the server is still
+  recording** — it would count it twice.
+- **Rejected (8) / orphaned (7) — "charged, but couldn't be recorded".** The money is at Stripe and
+  the server won't record it on its own: a rejected PaymentIntent didn't match its collection
+  (account, mode, currency); an orphaned one lost its invoice and client. Either refund it in Stripe,
+  or record it by hand with Enter Payment using the Stripe charge id as the transaction reference. The
+  server alerted (System Logs, and Sentry where configured).
+- **"Still being set up" on a new collection.** Stripe never answered a create; after 2 minutes the
+  next attempt marks it failed and goes on.
+
+## Self-hosted and rollout
+
+- **What a self-hosted server needs:** the scheduler (`schedule:run` every minute) and a queue worker
+  for reconciliation, and Stripe webhooks reaching it for the fast path. Without either, a charge the
+  app couldn't report waits until someone collects or checks on that invoice again, or support runs
+  the command.
+- **Switches.** `NINJA_TERMINAL_ENABLED` (default on) refuses new collections and finalize — a
+  collection in progress is cancelled before its charge — while complete, cancel and receipt keep
+  working. With `config:cache` an env change needs a re-cache and a php-fpm / worker restart. The app's
+  `terminal/config` answer stands for up to 5 minutes. Build-time `IN_CARD_PRESENT*` pull the app side.
+- **Order:** migrate the server, deploy it, then ship the app (older servers answer 404 and the
+  feature stays hidden). **Rollback:** switch it off, wait until no `terminal_payment_intents` row has
+  `status_id` 1-3 (about 25 minutes), then roll back; an older server ignores card-present webhooks,
+  and its cron is gone.
 
 ## The device check and permissions are ours, not the SDK's
 
@@ -192,8 +237,10 @@ It ships to every store user, whether or not they ever take a card.
 - **iOS** needs `NSBluetoothAlwaysUsageDescription` and `NSLocationWhenInUseUsageDescription`
   (`Info.plist`, `InfoPlist.xcstrings`) as soon as the SDK is linked. Stripe's privacy manifest
   declares coarse location and product interaction as collected, so the App Store privacy answers
-  change too. The `bluetooth-central` background mode is left for the release that turns the
-  feature on, with its App Review note.
+  change too. `UIBackgroundModes` has `bluetooth-central`: the SDK checks for it before it discovers a
+  Bluetooth reader, and it keeps the reader connected in the background. App Review asks why, so the
+  submission notes say: in-person card payments with a Stripe Bluetooth reader, and give a demo path
+  (a test-mode gateway with Card present on, and the Debug Panel's simulated reader).
 - **USB.** Plugging a Stripe reader in over USB offers to open the app (Stripe's
   `UsbEventReceiverActivity`). Harmless.
 - **F-Droid** drops the SDK with the rest of the store graph (`docs/fdroid.md`); the CI classpath

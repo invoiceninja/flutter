@@ -34,6 +34,14 @@ enum CollectStage {
   /// The server is deciding the amount for the card just read.
   finalizing,
 
+  /// A credit card was read: the customer is told the surcharge before the
+  /// second tap, and may say no.
+  surchargeNotice,
+
+  /// Asking the server about a payment (Check again, a cancel): no card is
+  /// being read or charged.
+  settling,
+
   /// Charging: nothing can stop it now.
   processing,
 
@@ -171,6 +179,28 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
   /// The gateway's surcharge, before an invoice is involved.
   bool get surchargeOffered =>
       kCardPresentSurcharge && (_gateway?.surcharge.allowed ?? false);
+
+  /// Why a configured surcharge won't be added, for the line under the
+  /// switch: the business's state or country, "adjust fee percent", or this
+  /// invoice (locked, over the cap, …). Null when it will be, or when none is
+  /// configured.
+  String? get surchargeRefusal {
+    if (!kCardPresentSurcharge) return null;
+    final configured = _gateway?.surcharge;
+    if (configured == null) return null;
+    if (!configured.allowed) {
+      return switch (configured.reason) {
+        'region' || 'adjust_fee_percent' => configured.reason,
+        _ => null,
+      };
+    }
+    final quote = _quote;
+    if (applySurcharge && quote != null && quote.feeGross <= Decimal.zero) {
+      return quote.reason ?? 'invoice';
+    }
+    return null;
+  }
+
   bool get surchargeNeedsAcknowledgement =>
       kCardPresentSurcharge &&
       (_gateway?.surcharge.needsAcknowledgement ?? false);
@@ -205,14 +235,18 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
 
   /// From finalize to an answer, Back and every other way out are held.
   bool get locked =>
-      _stage == CollectStage.finalizing || _stage == CollectStage.processing;
+      _stage == CollectStage.finalizing ||
+      _stage == CollectStage.processing ||
+      _stage == CollectStage.settling;
 
   /// Past the point where leaving would leave a PaymentIntent behind.
   bool get inProgress => switch (_stage) {
     CollectStage.creating ||
     CollectStage.waiting ||
     CollectStage.finalizing ||
+    CollectStage.surchargeNotice ||
     CollectStage.processing ||
+    CollectStage.settling ||
     CollectStage.declined => true,
     _ => false,
   };
@@ -361,6 +395,14 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
 
   Future<bool> openSettings() => _terminal.platform.openSettings();
 
+  /// The Bluetooth reader went away (switched off, out of range, battery):
+  /// before a collection starts, ask for it again rather than claim "ready".
+  void readerDisconnected() {
+    if (_readerChoice != TerminalReaderChoice.bluetooth) return;
+    _reader = null;
+    if (_stage == CollectStage.configure) _setReader(ReaderState.needsReader);
+  }
+
   void _setReader(ReaderState state, [CollectProblem? problem]) {
     _readerState = state;
     if (problem != null) _problem = problem;
@@ -447,6 +489,9 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
 
   String? get _paymentIntentId =>
       _intent?.paymentIntentId ?? _settlingPaymentIntentId;
+
+  /// The PaymentIntent support finds in Stripe, once there is one.
+  String? get paymentReference => _paymentIntentId;
 
   /// "Collect $X": creates the PaymentIntent and reads the card.
   Future<void> collect() async {
@@ -565,7 +610,7 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
       return;
     }
     _settlingPaymentIntentId = pi;
-    _stage = CollectStage.processing;
+    _stage = CollectStage.settling;
     _notify();
     try {
       final result = await _repo.cancel(companyId, pi, invoiceId: _invoice.id);
@@ -599,6 +644,22 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
         // Never a reader prompt over a screen that has closed.
         await _abandon();
         return;
+      }
+      final raised = _finalized;
+      if (_readAgain &&
+          raised != null &&
+          raised.recollect &&
+          raised.surcharge > Decimal.zero) {
+        // Card brands want the surcharge shown before the charge, with a way
+        // to say no (pay with a debit card, or not at all).
+        _stage = CollectStage.surchargeNotice;
+        _notify();
+        final decision = _surchargeDecision = Completer<bool>();
+        if (!await decision.future) {
+          await _abandon();
+          return;
+        }
+        if (_abandoned) return;
       }
       _stage = CollectStage.waiting;
       _notify();
@@ -662,6 +723,12 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     _readAgain = false;
     _stage = CollectStage.processing;
     _notify();
+    // Remembered before the charge, so a crash can't lose it.
+    await _terminal.notePending(
+      companyId: companyId,
+      invoiceId: _invoice.id,
+      paymentIntentId: intent.paymentIntentId,
+    );
     try {
       await session.confirm(
         paymentIntentId: intent.paymentIntentId,
@@ -697,7 +764,27 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     return true;
   }
 
+  Completer<bool>? _surchargeDecision;
+
+  /// "Continue" on the surcharge notice: read the card again at the raised
+  /// amount.
+  void continueWithSurcharge() {
+    final decision = _surchargeDecision;
+    if (_stage != CollectStage.surchargeNotice || decision == null) return;
+    _surchargeDecision = null;
+    decision.complete(true);
+  }
+
+  void _declineSurcharge() {
+    final decision = _surchargeDecision;
+    _surchargeDecision = null;
+    if (decision != null && !decision.isCompleted) decision.complete(false);
+  }
+
   void _declined(TerminalError e) {
+    // Not charged: nothing left to check.
+    final pi = _intent?.paymentIntentId;
+    if (pi != null) unawaited(_terminal.clearPending(pi));
     _problem = CollectProblem(code: e.code, message: e.message);
     _stage = CollectStage.declined;
     _notify();
@@ -763,7 +850,7 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     if (_stage != CollectStage.checking && _stage != CollectStage.recording) {
       return;
     }
-    _stage = CollectStage.processing;
+    _stage = CollectStage.settling;
     _notify();
     await _terminal.guardCharge(() => _check(pi));
   }
@@ -773,7 +860,7 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
   Future<void> cancelUnconfirmed() async {
     final pi = _paymentIntentId;
     if (pi == null || _stage != CollectStage.checking) return;
-    _stage = CollectStage.processing;
+    _stage = CollectStage.settling;
     _notify();
     await _terminal.guardCharge(
       () => _cancelPaymentIntent(pi, afterConfirm: true),
@@ -783,12 +870,17 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
   /// Maps a `complete` / `cancel` answer; false when it says nothing final.
   bool _settle(TerminalCompletion result) {
     _completion = result;
+    final pi = _paymentIntentId;
+    if (pi != null && TerminalController.isFinalCompletion(result.status)) {
+      unawaited(_terminal.clearPending(pi));
+    }
     switch (result.status) {
       case 'recorded' || 'unapplied':
         _stage = CollectStage.approved;
         _problem = null;
         _collectionId = null;
-      case 'processing':
+      // The server holds the charge and is recording it.
+      case 'recording':
         _stage = CollectStage.recording;
       case 'rejected' || 'orphaned':
         _stage = CollectStage.unrecorded;
@@ -822,6 +914,10 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
         return;
       case CollectStage.waiting || CollectStage.declined:
         await _abandon();
+        return;
+      case CollectStage.surchargeNotice:
+        // [_read] gives the payment up when the notice is declined.
+        _declineSurcharge();
         return;
       default:
         return;
@@ -935,6 +1031,8 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     switch (_stage) {
       case CollectStage.waiting || CollectStage.declined:
         unawaited(_abandon());
+      case CollectStage.surchargeNotice:
+        _declineSurcharge();
       default:
     }
     super.dispose();

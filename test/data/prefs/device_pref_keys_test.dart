@@ -42,6 +42,7 @@ void main() {
     'review_prompt_json': PrefScope.device,
     'welcome_json': PrefScope.device,
     'card_reader_used': PrefScope.account,
+    'pending_card_payments_json': PrefScope.account,
   };
 
   final names = [for (final k in DevicePrefKeys.all) k.name];

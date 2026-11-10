@@ -151,6 +151,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
     // take cards (docs/in-person-payments.md).
     _services.terminal.addListener(_onTerminal);
     _services.terminal.ensureConfig(_companyId);
+    // A card payment on this invoice the app last saw unanswered (it closed
+    // or crashed mid-charge): ask the server now, which records it.
+    unawaited(_services.terminal.recoverPending(_companyId, widget.id));
   }
 
   void _onTerminal() {

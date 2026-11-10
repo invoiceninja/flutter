@@ -312,6 +312,17 @@ abstract final class DevicePrefKeys {
     PrefScope.account,
   );
 
+  /// Card payments that may have been charged and that the server hadn't
+  /// answered for when the app last knew: `{paymentIntentId: {company,
+  /// invoice}}` (`TerminalController`). Checked when the invoice opens, and
+  /// before another payment is entered on it. Account scope: the next person
+  /// to sign in can't check another account's payments.
+  static const pendingCardPayments = PrefKey<String>(
+    'pending_card_payments_json',
+    PrefCodec.string,
+    PrefScope.account,
+  );
+
   /// In the order they were added; append new keys at the end.
   static const List<PrefKey<Object>> all = [
     locale,
@@ -345,6 +356,7 @@ abstract final class DevicePrefKeys {
     reviewPrompt,
     welcome,
     cardReaderUsed,
+    pendingCardPayments,
   ];
 
   /// The rows a data wipe leaves in place: the [PrefScope.device] keys and the

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
@@ -100,6 +101,98 @@ class TerminalController extends ChangeNotifier {
     if (used == _readerUsed) return;
     _readerUsed = used;
     notifyListeners();
+  }
+
+  // ------------------------------------------------- payments being checked
+
+  Map<String, dynamic> _pending() {
+    final raw = _prefs.read(DevicePrefKeys.pendingCardPayments);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is Map<String, dynamic> ? decoded : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> _savePending(Map<String, dynamic> pending) => _prefs.write(
+    DevicePrefKeys.pendingCardPayments,
+    pending.isEmpty ? null : jsonEncode(pending),
+  );
+
+  /// A charge is about to start: until the server answers, the payment is
+  /// remembered on the device, so a crash or a closed app can't lose it.
+  Future<void> notePending({
+    required String companyId,
+    required String invoiceId,
+    required String paymentIntentId,
+  }) => _savePending({
+    ..._pending(),
+    paymentIntentId: {'company': companyId, 'invoice': invoiceId},
+  });
+
+  /// The server gave a final answer for it.
+  Future<void> clearPending(String paymentIntentId) async {
+    final pending = _pending();
+    if (pending.remove(paymentIntentId) != null) await _savePending(pending);
+  }
+
+  /// The payment on [invoiceId] still waiting for the server's answer.
+  String? pendingFor(String companyId, String invoiceId) {
+    for (final e in _pending().entries) {
+      final v = e.value;
+      if (v is Map && v['company'] == companyId && v['invoice'] == invoiceId) {
+        return e.key;
+      }
+    }
+    return null;
+  }
+
+  /// Asks the server about [invoiceId]'s pending payment. True when there is
+  /// none left (answered, or there never was one).
+  Future<bool> recoverPending(String companyId, String invoiceId) async {
+    final pi = pendingFor(companyId, invoiceId);
+    if (pi == null) return true;
+    try {
+      final result = await _repo.complete(companyId, pi, invoiceId: invoiceId);
+      if (isFinalCompletion(result.status)) {
+        await clearPending(pi);
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  /// A `complete` answer after which nothing more will happen to the charge.
+  static bool isFinalCompletion(String status) => const {
+    'recorded',
+    'unapplied',
+    'canceled',
+    'failed',
+    'rejected',
+    'orphaned',
+  }.contains(status);
+
+  /// Why the feature is, or isn't, here for [companyId] — Device Settings
+  /// says so in words.
+  TerminalConfigState configState(String companyId) {
+    if (!platformReady) return TerminalConfigState.unavailable;
+    if (!_canCreatePayment()) return TerminalConfigState.noPermission;
+    final entry = _configs[companyId];
+    if (entry == null || (entry.loading && entry.config == null)) {
+      return TerminalConfigState.loading;
+    }
+    if (entry.unsupported) return TerminalConfigState.serverTooOld;
+    final config = entry.config;
+    if (config == null) return TerminalConfigState.unreachable;
+    if (!config.enabled) return TerminalConfigState.switchedOff;
+    if (config.gateways.isEmpty) return TerminalConfigState.notEnabled;
+    if (config.usableGateway == null) {
+      return TerminalConfigState.accountInactive;
+    }
+    if (!config.planOk) return TerminalConfigState.planRequired;
+    return TerminalConfigState.ready;
   }
 
   /// The connected reader and the Stripe account it was connected under.
@@ -316,7 +409,9 @@ class TerminalController extends ChangeNotifier {
     notifyListeners();
     // Until no charge is left: one that ends may have started another (a
     // read again after finalize). Real time, whatever the clock says.
-    const limit = Duration(seconds: 60);
+    // Longer than the facade's bound on a confirm (2 minutes), so a confirm
+    // is always answered before the reader goes.
+    const limit = Duration(seconds: 150);
     final waited = Stopwatch()..start();
     while (_charges.isNotEmpty) {
       final left = limit - waited.elapsed;
@@ -341,6 +436,20 @@ class TerminalController extends ChangeNotifier {
     _prefs.removeListener(_syncPrefs);
     super.dispose();
   }
+}
+
+/// Why "Collect card payment" is, or isn't, offered for a company.
+enum TerminalConfigState {
+  unavailable,
+  noPermission,
+  loading,
+  serverTooOld,
+  unreachable,
+  switchedOff,
+  notEnabled,
+  accountInactive,
+  planRequired,
+  ready,
 }
 
 class _ConfigEntry {

@@ -12,7 +12,7 @@ import 'package:admin/ui/features/terminal/terminal_error_text.dart';
 /// one. Closing the sheet stops the scan (docs/in-person-payments.md).
 Future<TerminalReader?> showReaderPickerSheet(
   BuildContext context, {
-  required Stream<List<TerminalReader>> readers,
+  required Stream<List<TerminalReader>> Function() readers,
 }) => showModalBottomSheet<TerminalReader>(
   context: context,
   useRootNavigator: true,
@@ -23,14 +23,15 @@ Future<TerminalReader?> showReaderPickerSheet(
 class _ReaderPickerSheet extends StatefulWidget {
   const _ReaderPickerSheet({required this.readers});
 
-  final Stream<List<TerminalReader>> readers;
+  /// Starts a scan; called again by "Scan again".
+  final Stream<List<TerminalReader>> Function() readers;
 
   @override
   State<_ReaderPickerSheet> createState() => _ReaderPickerSheetState();
 }
 
 class _ReaderPickerSheetState extends State<_ReaderPickerSheet> {
-  late final StreamSubscription<List<TerminalReader>> _scan;
+  StreamSubscription<List<TerminalReader>>? _scan;
   List<TerminalReader> _found = const [];
   bool _scanning = true;
   Object? _error;
@@ -38,7 +39,17 @@ class _ReaderPickerSheetState extends State<_ReaderPickerSheet> {
   @override
   void initState() {
     super.initState();
-    _scan = widget.readers.listen(
+    _start();
+  }
+
+  void _start() {
+    unawaited(_scan?.cancel());
+    setState(() {
+      _found = const [];
+      _scanning = true;
+      _error = null;
+    });
+    _scan = widget.readers().listen(
       (readers) => setState(() => _found = readers),
       onError: (Object e) => setState(() {
         _error = e;
@@ -50,7 +61,7 @@ class _ReaderPickerSheetState extends State<_ReaderPickerSheet> {
 
   @override
   void dispose() {
-    unawaited(_scan.cancel());
+    unawaited(_scan?.cancel());
     super.dispose();
   }
 
@@ -86,10 +97,20 @@ class _ReaderPickerSheetState extends State<_ReaderPickerSheet> {
               padding: const EdgeInsets.only(top: InSpacing.sm),
               child: Text(
                 context.tr(switch (_error) {
+                  // A scan that ends — finished or timed out — found nothing.
+                  TerminalError(code: TerminalErrorCode.timeout) ||
                   null => 'terminal_reader_none_found',
                   final TerminalError e => terminalErrorKey(e.code),
                   _ => 'terminal_error_reader_disconnected',
                 }),
+              ),
+            ),
+          if (!_scanning)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton(
+                onPressed: _start,
+                child: Text(context.tr('terminal_scan_again')),
               ),
             ),
         ],

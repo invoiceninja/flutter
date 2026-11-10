@@ -32,6 +32,7 @@ import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
+import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/terminal/views/collect_card_payment_screen.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
@@ -639,6 +640,28 @@ class InvoiceActions {
   /// Opens "Collect card payment", after the invoice's own unsent changes
   /// have reached the server (the server charges what it has), or offers the
   /// upgrade on a plan below Pro.
+  /// Before another payment is recorded on [invoice]: a card payment taken
+  /// on this device that may have been charged is checked with the server
+  /// first, and if it still can't be, the user is warned that recording one
+  /// by hand could count it twice. False to stop.
+  static Future<bool> cardPaymentSettled(
+    BuildContext context,
+    Services services,
+    String companyId,
+    Invoice invoice,
+  ) async {
+    final terminal = services.terminal;
+    if (terminal.pendingFor(companyId, invoice.id) == null) return true;
+    if (await terminal.recoverPending(companyId, invoice.id)) return true;
+    if (!context.mounted) return false;
+    return showConfirmActionDialog(
+      context,
+      title: context.tr('terminal_pending_title'),
+      message: context.tr('terminal_pending_warning'),
+      destructive: true,
+    );
+  }
+
   static Future<void> collectCardPayment(
     BuildContext context,
     Services services,
@@ -647,7 +670,16 @@ class InvoiceActions {
   ) async {
     final availability = services.terminal.availabilityFor(companyId, invoice);
     if (availability == TerminalAvailability.upgrade) {
-      await launchUpgrade(context);
+      final me = services.auth.session.value?.currentCompany;
+      final owner = me?.isOwner ?? false;
+      final upgrade = await showConfirmActionDialog(
+        context,
+        title: context.tr('collect_card_payment'),
+        message: context.tr(
+          owner ? 'terminal_server_plan_required' : 'terminal_plan_ask_owner',
+        ),
+      );
+      if (upgrade && owner && context.mounted) await launchUpgrade(context);
       return;
     }
     var current = invoice;
@@ -750,6 +782,10 @@ class InvoiceActions {
 
       case InvoiceAction.markPaid:
         if (tmpGate()) return;
+        if (!await cardPaymentSettled(context, services, companyId, invoice)) {
+          return;
+        }
+        if (!context.mounted) return;
         final confirmed = await showMarkPaidConfirmDialog(context);
         if (!confirmed) return;
         await services.invoices.markPaid(companyId: companyId, id: invoice.id);
@@ -817,6 +853,10 @@ class InvoiceActions {
 
       case InvoiceAction.enterPayment:
         if (tmpGate()) return;
+        if (!await cardPaymentSettled(context, services, companyId, invoice)) {
+          return;
+        }
+        if (!context.mounted) return;
         // Open the payment editor prefilled with this client + an invoice
         // allocation seeded to the outstanding balance. The user can lower
         // the amount for a partial payment — the allocations section + VM

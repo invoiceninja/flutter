@@ -196,6 +196,15 @@ final Map<PrefKey<Object>, _Probe> _probes = {
     (s) => s.terminal.noteReaderUsed(),
     (s) => !s.terminal.readerUsed,
   ),
+  // A payment still being checked belongs to the account that took it.
+  DevicePrefKeys.pendingCardPayments: _Probe(
+    (s) => s.terminal.notePending(
+      companyId: 'co',
+      invoiceId: 'inv',
+      paymentIntentId: 'pi_probe',
+    ),
+    (s) => s.terminal.pendingFor('co', 'inv') == null,
+  ),
 };
 
 final _certificate = CertificateFacts(

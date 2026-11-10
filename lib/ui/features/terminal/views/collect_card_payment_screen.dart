@@ -11,7 +11,9 @@ import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/domain/terminal/terminal_eligibility.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/utils/haptics.dart';
+import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
@@ -71,6 +73,9 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
   Formatter? _formatter;
   Client? _client;
   TerminalDisplayMessage? _readerMessage;
+
+  /// 0–1 while the reader installs an update, else null.
+  double? _updateProgress;
   CollectStage? _lastStage;
 
   @override
@@ -104,6 +109,9 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
       });
     _services.terminal.platform.events = TerminalReaderEvents(
       onDisplayMessage: (m) => setState(() => _readerMessage = m),
+      onUpdateProgress: (p) => setState(() => _updateProgress = p),
+      onUpdateFinished: (_) => setState(() => _updateProgress = null),
+      onDisconnected: _vm.readerDisconnected,
     );
     // A deep link's company switch asks first while a payment is underway.
     _unregisterGuard = _services.unsavedChangesGuard.register(
@@ -188,6 +196,42 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
     await _vm.collect();
   }
 
+  /// The payment to quote to support, with the one rule that matters.
+  List<Widget> _reference(BuildContext context) {
+    final reference = _vm.paymentReference;
+    return [
+      SizedBox(height: InSpacing.md(context)),
+      Text(
+        context.tr('terminal_dont_record_by_hand'),
+        textAlign: TextAlign.center,
+      ),
+      if (reference != null) ...[
+        const SizedBox(height: InSpacing.sm),
+        CopyableValue(
+          value: reference,
+          fillWidth: false,
+          child: Center(
+            child: LtrText(
+              context.tr('terminal_reference', {'reference': reference}),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ),
+      ],
+    ];
+  }
+
+  /// "Cancel it and start again" may stop a payment someone else is taking.
+  Future<void> _cancelOpenCollection() async {
+    final ok = await showConfirmActionDialog(
+      context,
+      title: context.tr('terminal_cancel_open'),
+      message: context.tr('terminal_cancel_open_warning'),
+      destructive: true,
+    );
+    if (ok && mounted) await _vm.cancelOpenCollection();
+  }
+
   Future<void> _close() async {
     if (_vm.locked) return;
     if (_vm.inProgress) await _vm.cancel();
@@ -223,7 +267,7 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
   Future<void> _pickReader() async {
     final reader = await showReaderPickerSheet(
       context,
-      readers: _vm.discoverReaders(),
+      readers: _vm.discoverReaders,
     );
     if (reader != null) await _vm.connectReader(reader);
   }
@@ -274,7 +318,7 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
       const SizedBox(height: InSpacing.xl),
       _Buttons(
         primary: context.tr('terminal_cancel_open'),
-        onPrimary: _vm.cancelOpenCollection,
+        onPrimary: _cancelOpenCollection,
         secondary: context.tr('close'),
         onSecondary: () async => Navigator.of(context).pop(),
       ),
@@ -283,6 +327,26 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
     CollectStage.finalizing => [
       _Total(text: _totalText()),
       _Status(text: context.tr('terminal_checking_card'), busy: true),
+    ],
+    CollectStage.surchargeNotice => [
+      _Total(text: _totalText()),
+      _Status(
+        icon: Icons.credit_card_outlined,
+        text: context.tr('terminal_surcharge_notice', {
+          'total': _totalText(),
+          'surcharge': _money(_vm.finalized?.surcharge),
+        }),
+      ),
+      const SizedBox(height: InSpacing.xl),
+      _Buttons(
+        primary: context.tr('continue'),
+        onPrimary: () async => _vm.continueWithSurcharge(),
+        secondary: context.tr('cancel'),
+        onSecondary: _vm.cancel,
+      ),
+    ],
+    CollectStage.settling => [
+      _Status(text: context.tr('terminal_settling'), busy: true),
     ],
     CollectStage.processing => [
       _Total(text: _totalText()),
@@ -308,12 +372,13 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
       ),
     ],
     CollectStage.approved => _approved(context),
-    CollectStage.recording => _pending(
-      context,
-      context.tr('terminal_recording'),
-    ),
+    CollectStage.recording => [
+      ..._pending(context, context.tr('terminal_recording')),
+      ..._reference(context),
+    ],
     CollectStage.checking => [
       ..._pending(context, context.tr('terminal_checking_help')),
+      ..._reference(context),
       const SizedBox(height: InSpacing.sm),
       Center(
         child: TextButton(
@@ -327,6 +392,7 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
         text: context.tr('terminal_unrecorded'),
         icon: Icons.report_outlined,
       ),
+      ..._reference(context),
       const SizedBox(height: InSpacing.xl),
       _Buttons(
         primary: context.tr('close'),
@@ -355,9 +421,11 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
     return problem == null ? '' : terminalProblemText(problem, context.tr);
   }
 
+  /// The server's latest figure once it has decided one (a lowered or raised
+  /// PaymentIntent), else the quote.
   String _totalText() {
     final finalized = _vm.finalized;
-    if (finalized != null && _vm.readAgain) return _money(finalized.amount);
+    if (finalized != null) return _money(finalized.amount);
     return _money(_vm.quote?.total ?? _vm.amount);
   }
 
@@ -410,6 +478,16 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
           title: Text(_surchargeLabel(context)),
           subtitle: Text(context.tr('terminal_surcharge_credit_only')),
         ),
+      if (_vm.surchargeRefusal case final reason?)
+        Text(
+          context.tr(switch (reason) {
+            'region' => 'terminal_surcharge_refused_region',
+            'adjust_fee_percent' => 'terminal_surcharge_refused_adjust',
+            'over_cap' => 'terminal_surcharge_refused_cap',
+            _ => 'terminal_surcharge_refused_invoice',
+          }),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
       const SizedBox(height: InSpacing.sm),
       if (quote != null)
         Semantics(
@@ -437,7 +515,17 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
           ),
         ),
       SizedBox(height: InSpacing.md(context)),
-      _ReaderRow(vm: _vm, onPickReader: _pickReader),
+      if (_updateProgress != null)
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            context.tr('terminal_reader_updating', {
+              'percent': '${(_updateProgress! * 100).round()}',
+            }),
+          ),
+        )
+      else
+        _ReaderRow(vm: _vm, onPickReader: _pickReader),
       if (_vm.problem != null && _vm.readerState != ReaderState.failed) ...[
         const SizedBox(height: InSpacing.sm),
         Text(

@@ -101,7 +101,7 @@ class _CardReaderSectionState extends State<CardReaderSection> {
       if (!mounted) return;
       final reader = await showReaderPickerSheet(
         context,
-        readers: _terminal.discoverBluetooth(gateway),
+        readers: () => _terminal.discoverBluetooth(gateway),
       );
       if (reader == null) return;
       await _terminal.connectBluetooth(
@@ -130,6 +130,24 @@ class _CardReaderSectionState extends State<CardReaderSection> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// What the server said for this company, when it isn't "ready".
+  String? _stateKey() {
+    final companyId = _companyId;
+    if (companyId == null) return null;
+    return switch (_terminal.configState(companyId)) {
+      TerminalConfigState.noPermission => 'terminal_state_no_permission',
+      TerminalConfigState.serverTooOld => 'terminal_state_server_too_old',
+      TerminalConfigState.unreachable => 'terminal_state_unreachable',
+      TerminalConfigState.switchedOff => 'terminal_server_disabled',
+      TerminalConfigState.notEnabled => 'terminal_server_not_enabled',
+      TerminalConfigState.accountInactive => 'terminal_state_account_inactive',
+      TerminalConfigState.planRequired => 'terminal_server_plan_required',
+      TerminalConfigState.unavailable ||
+      TerminalConfigState.loading ||
+      TerminalConfigState.ready => null,
+    };
   }
 
   @override
@@ -185,6 +203,11 @@ class _CardReaderSectionState extends State<CardReaderSection> {
                         onPressed: _connect,
                         child: Text(context.tr('terminal_connect_reader')),
                       ),
+              ),
+            if (_stateKey() case final key?)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(context.tr(key)),
               ),
             Padding(
               padding: const EdgeInsets.only(top: 8),

@@ -126,8 +126,8 @@ void main() {
       ..add(fakeCard)
       ..add(fakeRead(10300));
     repo.finalizes
-      ..add(fakeFinalize(10300, recollect: true))
-      ..add(fakeFinalize(10300));
+      ..add(fakeFinalize(10300, recollect: true, surcharge: 3))
+      ..add(fakeFinalize(10300, surcharge: 3));
     platform.session.confirms.add(
       const TerminalPaymentOutcome(
         paymentIntentId: 'pi_1',
@@ -136,7 +136,13 @@ void main() {
     );
     repo.completes.add(fakeCompletion('recorded'));
 
-    await vm.collect();
+    final collecting = vm.collect();
+    await pumpEventQueue();
+    // The customer hears about the surcharge before the second tap.
+    expect(vm.stage, CollectStage.surchargeNotice);
+    expect(platform.session.calls, ['collect']);
+    vm.continueWithSurcharge();
+    await collecting;
 
     expect(repo.calls, contains('create:col_1:103'));
     expect(platform.session.calls, [
@@ -284,7 +290,7 @@ void main() {
     'processing, rejected and canceled answers each have their own stage',
     () async {
       for (final (status, stage) in [
-        ('processing', CollectStage.recording),
+        ('recording', CollectStage.recording),
         ('rejected', CollectStage.unrecorded),
         ('orphaned', CollectStage.unrecorded),
         ('unapplied', CollectStage.approved),
@@ -668,7 +674,7 @@ void main() {
         }),
       );
       await vm.collect();
-      repo.cancels.add(fakeCompletion('processing'));
+      repo.cancels.add(fakeCompletion('recording'));
       await vm.cancelOpenCollection();
       expect(vm.stage, CollectStage.recording);
 
@@ -753,6 +759,110 @@ void main() {
       repo.completes.add(fakeCompletion('failed'));
       await vm.collect();
       expect(vm.stage, CollectStage.cancelled);
+    });
+  });
+
+  group('end-to-end review (2026-11-11)', () {
+    const charged = TerminalPaymentOutcome(
+      paymentIntentId: 'pi_1',
+      status: 'succeeded',
+    );
+
+    test('a customer who declines the surcharge is not charged', () async {
+      final vm = await ready();
+      repo.creates.add(fakeIntent());
+      platform.session.reads.add(fakeCard);
+      repo.finalizes.add(fakeFinalize(10300, recollect: true, surcharge: 3));
+      repo.cancels.add(fakeCompletion('canceled'));
+
+      final collecting = vm.collect();
+      await pumpEventQueue();
+      expect(vm.stage, CollectStage.surchargeNotice);
+      await vm.cancel();
+      await collecting;
+
+      expect(vm.stage, CollectStage.cancelled);
+      expect(platform.session.calls, isNot(contains(startsWith('confirm'))));
+      expect(repo.calls, contains('cancel:pi_1'));
+    });
+
+    test(
+      'Stripe\'s own "processing" is not "charged": it is checked',
+      () async {
+        final vm = await ready();
+        repo.creates.add(fakeIntent());
+        platform.session.reads.add(fakeCard);
+        repo.finalizes.add(fakeFinalize(10000));
+        platform.session.confirms.add(charged);
+        for (var i = 0; i < 3; i++) {
+          repo.completes.add(fakeCompletion('processing'));
+        }
+        await vm.collect();
+        expect(vm.stage, CollectStage.checking);
+      },
+    );
+
+    test('a charge is remembered until the server answers, and forgotten '
+        'after', () async {
+      final vm = await ready();
+      repo.creates.add(fakeIntent());
+      platform.session.reads.add(fakeCard);
+      repo.finalizes.add(fakeFinalize(10000));
+      final confirming = Completer<TerminalPaymentOutcome>();
+      platform.session.confirms.add(confirming);
+      repo.completes.add(fakeCompletion('recorded'));
+
+      final collecting = vm.collect();
+      await pumpEventQueue();
+      expect(terminal.pendingFor('co_a', 'inv_1'), 'pi_1');
+      confirming.complete(charged);
+      await collecting;
+      await pumpEventQueue();
+      expect(terminal.pendingFor('co_a', 'inv_1'), isNull);
+    });
+
+    test('a charge the app never heard back about is checked later', () async {
+      final vm = await ready();
+      repo.creates.add(fakeIntent());
+      platform.session.reads.add(fakeCard);
+      repo.finalizes.add(fakeFinalize(10000));
+      platform.session.confirms.add(
+        const TerminalError(TerminalErrorCode.outcomeUnknown),
+      );
+      for (var i = 0; i < 3; i++) {
+        repo.completes.add(fakeCompletion('requires_confirmation'));
+      }
+      await vm.collect();
+      expect(vm.stage, CollectStage.checking);
+      vm.dispose();
+      expect(terminal.pendingFor('co_a', 'inv_1'), 'pi_1');
+
+      // Later, the invoice opens again: the server has recorded it.
+      repo.completes.add(fakeCompletion('recorded'));
+      expect(await terminal.recoverPending('co_a', 'inv_1'), isTrue);
+      expect(terminal.pendingFor('co_a', 'inv_1'), isNull);
+    });
+
+    test('Check again asks the server without saying "charging"', () async {
+      final vm = await ready();
+      repo.creates.add(fakeIntent());
+      platform.session.reads.add(fakeCard);
+      repo.finalizes.add(fakeFinalize(10000));
+      platform.session.confirms.add(
+        const TerminalError(TerminalErrorCode.outcomeUnknown),
+      );
+      for (var i = 0; i < 3; i++) {
+        repo.completes.add(fakeCompletion('requires_confirmation'));
+      }
+      await vm.collect();
+      final asking = Completer<TerminalCompletion>();
+      repo.completes.add(asking);
+      final checking = vm.checkAgain();
+      await pumpEventQueue();
+      expect(vm.stage, CollectStage.settling);
+      asking.complete(fakeCompletion('recorded'));
+      await checking;
+      expect(vm.stage, CollectStage.approved);
     });
   });
 }

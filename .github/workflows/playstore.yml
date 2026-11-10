@@ -59,7 +59,8 @@ jobs:
     if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     name: Build and Publish App Bundle
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Stripe Terminal added ~12 MB of dex for R8 (docs/in-person-payments.md).
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
 

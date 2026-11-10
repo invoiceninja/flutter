@@ -30,6 +30,13 @@
 		<true/>
 		<!-- Stripe Terminal (docs/in-person-payments.md): its SDK uses
 		     CoreBluetooth and CoreLocation, so the binary needs both strings. -->
+		<!-- Stripe Terminal's SDK checks for bluetooth-central before it
+		     discovers a Bluetooth card reader, and keeps the reader connected
+		     while the app is in the background (docs/in-person-payments.md). -->
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>bluetooth-central</string>
+		</array>
 		<key>NSBluetoothAlwaysUsageDescription</key>
 		<string>Bluetooth connects a card reader to take card payments in person.</string>
 		<key>NSCameraUsageDescription</key>

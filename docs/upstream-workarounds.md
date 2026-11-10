@@ -263,6 +263,8 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Revert: depend on the first pub release with `collectPaymentMethod` / `confirmPaymentIntent`, `flutter pub get`, `tools/prepare_foss.sh --update-lock`, then build Android release and iOS.
 - Repinning the fork locally: after changing the git `ref`, delete `build/mek_stripe_terminal` (or `flutter clean`) before an Android build. Gradle's incremental Kotlin cache keeps the previous commit's sources (pub checks each ref out to its own path) and fails with "Conflicting declarations". CI builds clean.
 - Known, not fixed in the fork (Android): mek's `initialize` on an already-initialized SDK only cleans up, so the SDK keeps the first Flutter engine's token handler. If the engine is destroyed while the process lives (Back on the root activity, Android 8–11), later connection-token requests go to a dead engine. Fix in the fork before release if a phone test confirms it.
+- The pinned commit is also the tag `invoiceninja-pin-3f2cf999` on the fork, so a rebase or a deleted branch on the PR can't strand every store `pub get`: never delete or move that tag, and rebase the PR on another branch.
+- Versions: Android pins Stripe Terminal 5.6.0 (mek's `build.gradle.kts`); iOS resolves 5.8.1 through SwiftPM `from: "5.6.0"`, held by the committed `Package.resolved`. mek's subproject `buildscript` asks for AGP 9.0.1 / Kotlin 2.3.20 against the app's AGP 8.11 / Kotlin 2.2; it builds because the parent classloader wins — recheck after an AGP or Flutter bump.
 - Recheck trigger: each mek_stripe_terminal release, and when #171 is merged.
 
 ## Considered but NOT tracked (permanent adaptations — do not revert)

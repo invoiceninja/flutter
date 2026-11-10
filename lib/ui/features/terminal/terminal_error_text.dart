@@ -80,6 +80,12 @@ String terminalProblemText(
     final key = terminalServerErrorKey(server);
     if (key != null) {
       return switch (server) {
+        TerminalServerError.collectionOpen when problem.data['age'] is! num =>
+          tr('terminal_server_collection_open_no_age', {
+            'user': '${problem.data['user'] ?? ''}'.trim().isEmpty
+                ? tr('terminal_someone')
+                : '${problem.data['user']}',
+          }),
         TerminalServerError.collectionOpen => tr(key, {
           'user': '${problem.data['user'] ?? ''}'.trim().isEmpty
               ? tr('terminal_someone')

@@ -12,6 +12,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/invoice_status.dart';
 import 'package:admin/data/models/domain/payment.dart';
@@ -19,6 +20,8 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/domain/billing/invoice_lock.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/terminal/terminal_eligibility.dart';
+import 'package:admin/domain/upgrade/upgrade_launcher.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
@@ -30,6 +33,7 @@ import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/features/terminal/views/collect_card_payment_screen.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
 import 'package:admin/ui/features/billing_shared/convert_to_purchase_order_action.dart';
 import 'package:admin/ui/features/billing_shared/edit/open_line_item_request.dart';
@@ -83,6 +87,7 @@ enum InvoiceAction {
   refund,
   autoBill,
   enterPayment,
+  collectCardPayment,
   cloneGroup,
   clone,
   cloneToQuote,
@@ -197,6 +202,7 @@ class InvoiceActions {
     bool rectifyEligible = false,
     String? eInvoiceType,
     bool sendEInvoicePending = false,
+    TerminalAvailability cardPayment = TerminalAvailability.hidden,
   }) {
     // Both require an e-invoice channel configured (PEPPOL or Verifactu).
     // Send is Sent-only (don't re-transmit an already-billed invoice);
@@ -281,6 +287,17 @@ class InvoiceActions {
     final paymentLeads = canEnterPayment && !invoice.isDraft;
 
     return [
+      // Taking the card in person (docs/in-person-payments.md). Only the
+      // record screen passes [cardPayment]; lists, the dashboard and the
+      // editor never show it.
+      if (cardPayment != TerminalAvailability.hidden)
+        EntityActionItem(
+          kind: InvoiceAction.collectCardPayment,
+          icon: Icons.contactless_outlined,
+          label: context.tr('collect_card_payment'),
+          enabled: true,
+          onTap: () => onTap(InvoiceAction.collectCardPayment),
+        ),
       if (canEnterPayment)
         EntityActionItem(
           kind: InvoiceAction.enterPayment,
@@ -560,12 +577,16 @@ class InvoiceActions {
     Invoice invoice,
     void Function(InvoiceAction) onTap, {
     required bool hasPdfPane,
+    TerminalAvailability cardPayment = TerminalAvailability.hidden,
   }) {
     final q = BillingDocQuickActions<InvoiceAction>(
       doc: invoice,
-      items: itemsFor(context, invoice, onTap),
+      items: itemsFor(context, invoice, onTap, cardPayment: cardPayment),
     );
     return [
+      // On site, taking the card is what moves the invoice on — a draft
+      // included (the server marks it sent).
+      ?q.pick(InvoiceAction.collectCardPayment, context.tr('card')),
       // "+ Payment", as on the client screen: the noun is one word in every
       // bundled locale, where the verb phrase will not fit a tile.
       // A draft is payable (from the menu), but getting it out is what leads
@@ -613,6 +634,51 @@ class InvoiceActions {
     }
     if (!context.mounted) return;
     goEntityEdit(context, '/invoices', invoice.id, extra: openLineItem);
+  }
+
+  /// Opens "Collect card payment", after the invoice's own unsent changes
+  /// have reached the server (the server charges what it has), or offers the
+  /// upgrade on a plan below Pro.
+  static Future<void> collectCardPayment(
+    BuildContext context,
+    Services services,
+    String companyId,
+    Invoice invoice,
+  ) async {
+    final availability = services.terminal.availabilityFor(companyId, invoice);
+    if (availability == TerminalAvailability.upgrade) {
+      await launchUpgrade(context);
+      return;
+    }
+    var current = invoice;
+    if (current.isDirty) {
+      try {
+        current = (await services.invoices
+            .watch(companyId: companyId, id: invoice.id)
+            .firstWhere((i) => i != null && !i.isDirty)
+            .timeout(const Duration(seconds: 10)))!;
+      } catch (_) {
+        if (context.mounted) {
+          Notify.warning(context, context.tr('terminal_sync_first'));
+        }
+        return;
+      }
+    }
+    // The client's currency and email, read once from Drift.
+    Client? client;
+    try {
+      client = await services.clients
+          .watch(companyId: companyId, id: current.clientId)
+          .first
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {}
+    if (!context.mounted) return;
+    await showCollectCardPaymentScreen(
+      context,
+      companyId: companyId,
+      invoice: current,
+      client: client,
+    );
   }
 
   static Future<void> dispatch(
@@ -743,6 +809,10 @@ class InvoiceActions {
         await services.invoices.cancel(companyId: companyId, id: invoice.id);
         if (!context.mounted) return;
         Notify.success(context, context.tr('cancelled_invoice'));
+
+      case InvoiceAction.collectCardPayment:
+        if (tmpGate()) return;
+        await collectCardPayment(context, services, companyId, invoice);
 
       case InvoiceAction.enterPayment:
         if (tmpGate()) return;

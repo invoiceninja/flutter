@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/data/models/api/invoice_api_model.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/invoice_status.dart';
+import 'package:admin/domain/terminal/terminal_eligibility.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_actions.dart';
 
@@ -53,6 +54,7 @@ void main() {
     bool rectifyEligible = false,
     String? eInvoiceType,
     bool sendEInvoicePending = false,
+    TerminalAvailability cardPayment = TerminalAvailability.hidden,
   }) async {
     final fixture = await buildFixture(
       companies: [
@@ -80,6 +82,7 @@ void main() {
               rectifyEligible: rectifyEligible,
               eInvoiceType: eInvoiceType,
               sendEInvoicePending: sendEInvoicePending,
+              cardPayment: cardPayment,
             );
             return const SizedBox.shrink();
           },
@@ -535,5 +538,34 @@ void main() {
     expect(enabled(items, InvoiceAction.downloadPdf), isTrue);
     expect(enabled(items, InvoiceAction.printPdf), isTrue);
     expect(enabled(items, InvoiceAction.deliveryNote), isTrue);
+  });
+
+  // In-person card payments (docs/in-person-payments.md): only the record
+  // screen passes an availability, so lists, the dashboard and the editor
+  // never offer it.
+  group('collect card payment', () {
+    testWidgets('absent unless the record screen offers it', (tester) async {
+      final items = await resolveItems(
+        tester,
+        _invoice(status: InvoiceStatus.sent),
+      );
+      expect(present(items, InvoiceAction.collectCardPayment), isFalse);
+    });
+
+    testWidgets('present and enabled when available, on a draft too', (
+      tester,
+    ) async {
+      for (final availability in [
+        TerminalAvailability.available,
+        TerminalAvailability.upgrade,
+      ]) {
+        final items = await resolveItems(
+          tester,
+          _invoice(),
+          cardPayment: availability,
+        );
+        expect(enabled(items, InvoiceAction.collectCardPayment), isTrue);
+      }
+    });
   });
 }

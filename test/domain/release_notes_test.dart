@@ -333,13 +333,39 @@ void main() {
     // No App Store, no phone — and no home-screen widgets.
     expect(releaseNoteSurfaces(isWeb: true, platform: TargetPlatform.iOS), {
       ReleaseNoteSurface.withoutHomeWidgets,
+      ReleaseNoteSurface.withoutCardPayments,
     });
     expect(releaseNoteSurfaces(isWeb: false, platform: TargetPlatform.linux), {
       ReleaseNoteSurface.withoutHomeWidgets,
+      ReleaseNoteSurface.withoutCardPayments,
     });
     expect(
       releaseNoteSurfaces(isWeb: false, platform: TargetPlatform.android),
       {ReleaseNoteSurface.nativePhone},
+    );
+  });
+
+  test('only the store builds of the phone apps take cards in person', () {
+    for (final platform in TargetPlatform.values) {
+      final phone =
+          platform == TargetPlatform.android || platform == TargetPlatform.iOS;
+      expect(
+        releaseNoteSurfaces(
+          isWeb: false,
+          platform: platform,
+        ).contains(ReleaseNoteSurface.withoutCardPayments),
+        !phone,
+        reason: platform.name,
+      );
+    }
+    expect(
+      releaseNoteSurfaces(
+        isWeb: false,
+        platform: TargetPlatform.android,
+        storeBuild: false,
+      ),
+      contains(ReleaseNoteSurface.withoutCardPayments),
+      reason: 'the F-Droid build has no Stripe SDK',
     );
   });
 }

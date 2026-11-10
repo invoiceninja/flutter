@@ -80,6 +80,11 @@ class GatewaySettingsTab extends StatelessWidget {
               for (final typeId in gateway.options.keys)
                 SwitchListTile(
                   title: Text(_typeLabel(context, statics, typeId)),
+                  // Card present is taken with the mobile app, never in the
+                  // client portal (docs/in-person-payments.md).
+                  subtitle: typeId == '32'
+                      ? Text(context.tr('card_present_help'))
+                      : null,
                   value: draft.feesAndLimits[typeId]?.isEnabled ?? false,
                   onChanged: (v) => vm.setTypeEnabled(typeId, v),
                   contentPadding: EdgeInsets.zero,

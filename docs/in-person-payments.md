@@ -79,6 +79,45 @@ static on `StripeTerminal`; each payment is a `TerminalPayment` from `beginPayme
   sent) and after every `complete` / `cancel`; a recorded payment also re-reads its client and the
   payment.
 
+## A collection, step by step
+
+"Collect card payment" is on the invoice's record screen only (`InvoiceActions.itemsFor` /
+`quickItemsFor` take a `TerminalAvailability`; lists, the dashboard and the editor pass none), as a
+`Card` tile that leads on a draft too. It opens `showCollectCardPaymentScreen`, a full-screen route on
+the root navigator that is never saved as a route; `CollectCardPaymentViewModel` drives it.
+
+1. **Configure.** The first usable gateway and Location; the amount (a deposit if one is due, a
+   draft's amount, else the balance); the surcharge switch only when the gateway allows it (an admin
+   acknowledges the rules first, `surcharge_acknowledgement`). Every figure is the server's `quote`.
+   Permissions, the SDK and the reader start in parallel, so nothing waits after "Collect".
+2. **Create.** A new `collection_id` per attempt; the same one only to retry a create whose outcome
+   is unknown (the server answers the same PaymentIntent). `collection_closed` gets a new id once;
+   `collection_open` offers **Cancel it and start again** (the server's cancel records the payment
+   instead if it was charged after all).
+3. **Read, then finalize — after every read.** `finalize` may raise the PaymentIntent for a credit
+   card's surcharge, or lower it again for a debit card on the next read: then the card is read
+   again (at most three reads). A read more than 25 s old by the time finalize answers is read again
+   too (Stripe allows 30 s), and a finalize that fails cancels — a charge is never made on a guess.
+4. **Confirm** at the latest `amount_minor`, inside `TerminalController.guardCharge`: nothing — not
+   Cancel, Back, a company switch or a sign-out — interrupts it or the `complete` after it.
+5. **Result.** One table maps `complete` (and `cancel`):
+
+| Answer | Screen |
+|---|---|
+| `recorded`, `unapplied` | Approved (and the unapplied note), receipt by email or QR |
+| `processing` | Recording — "Charged. The payment is being recorded." + Check again |
+| `requires_*` after a confirm started, a confirm with an unknown outcome, `complete` failing (asked 3 times) | Checking — "We couldn't confirm whether the card was charged. Don't take another card for this invoice yet." + Check again |
+| `rejected`, `orphaned` | Charged, couldn't be recorded — contact support (the server alerted) |
+| `canceled` | Cancelled — the only screen that says the card wasn't charged, with a decline |
+
+A decline leaves the PaymentIntent open: **Try another card** reads again and finalizes again. Every
+SDK and server code has words (`terminal_error_text.dart`, tested exhaustively).
+
+**Support runbook.** A payment the app shows as Checking: find the PaymentIntent in Stripe by its
+`collection_id` metadata; the client's System Logs show what the server did; `php artisan
+ninja:terminal-reconcile --pi=pi_…` records it by hand. Never Enter Payment for it — the server
+records every charge itself, and a manual payment would count it twice.
+
 ## The device check and permissions are ours, not the SDK's
 
 Stripe's Android SDK checks permissions but never asks; its iOS SDK may prompt for location at a

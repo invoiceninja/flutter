@@ -200,6 +200,7 @@ final List<_TabUnderTest> _tabsUnderTest = [
       'lib/ui/features/settings/widgets/phone_actions_section.dart',
       'lib/ui/features/settings/widgets/contacts_sync_section.dart',
       'lib/ui/features/settings/widgets/home_widgets_section.dart',
+      'lib/ui/features/settings/widgets/card_reader_section.dart',
       'lib/ui/features/settings/widgets/mobile_app_section.dart',
     ],
     keys: kDeviceSettingsPhoneSearchKeys,

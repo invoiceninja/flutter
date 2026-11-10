@@ -70,6 +70,7 @@ import 'package:admin/ui/features/payment_links/views/payment_link_edit_screen.d
 import 'package:admin/ui/features/payment_links/views/payment_link_list_screen.dart';
 import 'package:admin/ui/core/widgets/spell_check.dart';
 import 'package:admin/ui/features/settings/views/basic/device_settings_screen.dart';
+import 'package:admin/ui/features/settings/widgets/card_reader_section.dart';
 import 'package:admin/ui/features/settings/widgets/contacts_sync_section.dart';
 import 'package:admin/ui/features/settings/widgets/downloads_folder_section.dart';
 import 'package:admin/ui/features/settings/widgets/mobile_app_section.dart';
@@ -534,6 +535,10 @@ const _kDeviceSettingsKeyGates = <String, bool Function(SettingsSearchScope?)>{
   'mobile_app_promo_entry': _mobileAppShown,
   // kHomeWidgetsSearchKeys
   'widget_settings_section': _homeWidgetsShown,
+  // kCardReaderSearchKeys
+  'card_readers': _cardReaderShown,
+  'tap_to_pay': _cardReaderShown,
+  'bluetooth_card_reader': _cardReaderShown,
   // kDownloadsFolderSearchKeys
   'downloads_folder': _downloadsFolderShown,
   'hide_peppol_sent_status': _peppolStatusShown,
@@ -544,6 +549,8 @@ bool _spellCheckShown(SettingsSearchScope? _) => platformSupportsSpellCheck;
 bool _contactsSyncShown(SettingsSearchScope? _) => contactsSyncSectionShown();
 
 bool _homeWidgetsShown(SettingsSearchScope? _) => homeWidgetsSectionShown();
+
+bool _cardReaderShown(SettingsSearchScope? _) => cardReaderSectionShown();
 
 bool _downloadsFolderShown(SettingsSearchScope? _) =>
     downloadsFolderSectionShown();

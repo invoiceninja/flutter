@@ -147,10 +147,19 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
       refreshWith: [_activityVm.refresh],
     );
     loadFormatter(_services, _companyId);
+    // "Collect card payment" appears once the server says this company can
+    // take cards (docs/in-person-payments.md).
+    _services.terminal.addListener(_onTerminal);
+    _services.terminal.ensureConfig(_companyId);
+  }
+
+  void _onTerminal() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _services.terminal.removeListener(_onTerminal);
     _record.dispose();
     _activityVm.dispose();
     _revealActivity.dispose();
@@ -503,6 +512,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
           invoice,
           (a) => _dispatch(invoice, a),
           hasPdfPane: hasPdfPane,
+          cardPayment: _services.terminal.availabilityFor(_companyId, invoice),
         ),
       ),
       standing: BillingDocStanding(
@@ -650,6 +660,10 @@ class _InvoiceActionsRowState extends State<_InvoiceActionsRow> {
       rectifyEligible: rectifyEligible,
       eInvoiceType: eInvoiceType,
       sendEInvoicePending: sendEInvoicePending,
+      cardPayment: widget.services.terminal.availabilityFor(
+        widget.companyId,
+        widget.invoice,
+      ),
     ),
   );
 

@@ -48,6 +48,7 @@ class TerminalController extends ChangeNotifier {
   final bool? _platformReady;
 
   TerminalPlatform get platform => _platform;
+  TerminalRepository get repository => _repo;
 
   /// The build has the feature, this is the mobile app with Stripe's SDK, and
   /// not the demo.

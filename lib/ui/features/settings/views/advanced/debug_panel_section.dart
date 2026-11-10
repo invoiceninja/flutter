@@ -14,6 +14,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/review_prompt_controller.dart';
 import 'package:admin/app/screenshot_window_controller.dart';
+import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/utils/save_bytes.dart';
@@ -22,6 +23,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/review_prompt/review_prompt_host.dart';
 import 'package:admin/ui/features/settings/views/advanced/debug_panel_window_controls.dart';
+import 'package:admin/ui/features/settings/widgets/card_reader_section.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/utils/search_fold.dart';
 
@@ -253,6 +255,24 @@ class _Toolbar extends StatelessWidget {
             ),
           );
 
+    // Stripe's simulated card reader (docs/in-person-payments.md), in every
+    // build so a Play or TestFlight build can be tested without a card; the
+    // controller honours it only on a test-mode gateway.
+    final terminal = cardReaderSectionShown()
+        ? context.read<Services?>()?.terminal
+        : null;
+    final simulatedReaderButton = terminal == null
+        ? null
+        : ListenableBuilder(
+            listenable: terminal,
+            builder: (context, _) => IconButton(
+              icon: const Icon(Icons.contactless_outlined),
+              tooltip: context.tr('simulated_card_reader'),
+              isSelected: terminal.simulated,
+              onPressed: () => terminal.simulated = !terminal.simulated,
+            ),
+          );
+
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: InSpacing.lg(context),
@@ -280,6 +300,7 @@ class _Toolbar extends StatelessWidget {
                 ),
                 ...screenshotControls,
                 ?rtlButton,
+                ?simulatedReaderButton,
                 ...reviewButtons,
                 cameraButton,
                 clearButton,
@@ -307,6 +328,7 @@ class _Toolbar extends StatelessWidget {
                 children: [
                   ...screenshotControls,
                   ?rtlButton,
+                  ?simulatedReaderButton,
                   ...reviewButtons,
                   cameraButton,
                   clearButton,

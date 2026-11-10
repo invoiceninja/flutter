@@ -22,6 +22,7 @@ import 'package:admin/ui/features/settings/views/advanced/e_invoice/e_invoice_co
 import 'package:admin/ui/features/settings/widgets/assigned_users_section.dart';
 import 'package:admin/ui/features/settings/widgets/biometric_toggle_tile.dart';
 import 'package:admin/ui/features/settings/widgets/confirm_actions_tile.dart';
+import 'package:admin/ui/features/settings/widgets/card_reader_section.dart';
 import 'package:admin/ui/features/settings/widgets/contacts_sync_section.dart';
 import 'package:admin/ui/features/settings/widgets/customize_colors_section.dart';
 import 'package:admin/ui/features/settings/widgets/dashboard_panels_section.dart';
@@ -78,6 +79,7 @@ const kDeviceSettingsPhoneSearchKeys = <String>[
   ...kPhoneActionsSearchKeys,
   ...kContactsSyncSearchKeys,
   ...kHomeWidgetsSearchKeys,
+  ...kCardReaderSearchKeys,
   ...kMobileAppSearchKeys,
 ];
 
@@ -334,6 +336,9 @@ class _PhoneTab extends StatelessWidget {
         // iOS, Android and macOS: how to add the home-screen widgets, which
         // nothing else in the app mentions.
         HomeWidgetsSection(),
+        // The store build of the mobile app: Tap to Pay and card readers for
+        // in-person card payments.
+        CardReaderSection(),
         // Everywhere *but* a phone: the way to the phone app that does the
         // cards above.
         MobileAppSection(),

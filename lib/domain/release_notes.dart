@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:store_services/store_services.dart';
 
 import 'package:admin/app/version.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -24,28 +25,53 @@ enum ReleaseNoteSurface {
   /// it is read only where it can be used. (iOS below 17 and macOS below 14
   /// have none either, but can't be told apart here.)
   withoutHomeWidgets,
+
+  /// Every build that can't take a card in person
+  /// (docs/in-person-payments.md): the web, the desktop apps and the F-Droid
+  /// build, which has no Stripe SDK. A note about in-person card payments is
+  /// `hiddenOn` this.
+  withoutCardPayments,
 }
 
-/// The surfaces this build belongs to.
+/// The surfaces this build belongs to. [storeBuild] is false for the F-Droid
+/// build (`StripeTerminal.isStoreBuild`).
 Set<ReleaseNoteSurface> releaseNoteSurfaces({
   required bool isWeb,
   required TargetPlatform platform,
+  bool storeBuild = true,
 }) {
-  if (isWeb) return const {ReleaseNoteSurface.withoutHomeWidgets};
+  if (isWeb) {
+    return const {
+      ReleaseNoteSurface.withoutHomeWidgets,
+      ReleaseNoteSurface.withoutCardPayments,
+    };
+  }
   return switch (platform) {
     TargetPlatform.iOS => const {
       ReleaseNoteSurface.appleStore,
       ReleaseNoteSurface.nativePhone,
     },
-    TargetPlatform.macOS => const {ReleaseNoteSurface.appleStore},
-    TargetPlatform.android => const {ReleaseNoteSurface.nativePhone},
-    _ => const {ReleaseNoteSurface.withoutHomeWidgets},
+    TargetPlatform.macOS => const {
+      ReleaseNoteSurface.appleStore,
+      ReleaseNoteSurface.withoutCardPayments,
+    },
+    TargetPlatform.android => {
+      ReleaseNoteSurface.nativePhone,
+      if (!storeBuild) ReleaseNoteSurface.withoutCardPayments,
+    },
+    _ => const {
+      ReleaseNoteSurface.withoutHomeWidgets,
+      ReleaseNoteSurface.withoutCardPayments,
+    },
   };
 }
 
 /// The live build's surfaces — [releaseNoteSurfaces] for this build.
-Set<ReleaseNoteSurface> currentReleaseNoteSurfaces() =>
-    releaseNoteSurfaces(isWeb: kIsWeb, platform: defaultTargetPlatform);
+Set<ReleaseNoteSurface> currentReleaseNoteSurfaces() => releaseNoteSurfaces(
+  isWeb: kIsWeb,
+  platform: defaultTargetPlatform,
+  storeBuild: StripeTerminal.isStoreBuild,
+);
 
 /// Which heading a bullet sits under, from its house-style prefix.
 enum ReleaseNoteKind { added, updated, fixed }

@@ -78,21 +78,24 @@ Future<void> shareOrCopyLink(BuildContext context, String link) async {
 /// silently writing the clipboard behind that is not what they asked for.
 ///
 /// `sharePositionOrigin` must be non-null or iPadOS has nowhere to anchor the
-/// popover. It is read here, before any await, and that is safe for a reason
-/// worth writing down: `guardedOnTap` returns `item.onTap` **unchanged** for an
-/// action that isn't `confirm:` (`confirm_action_dialog.dart`), and Copy Link
-/// deliberately isn't one — so nothing has run between the tap and this line,
-/// and `context` is still the surface that built the menu item (a list row, the
-/// detail header). That also makes the rect the right anchor rather than merely
-/// a safe one.
+/// popover. It is read here, before any await: `guardedOnTap` returns
+/// `item.onTap` **unchanged** for an action that isn't `confirm:`
+/// (`confirm_action_dialog.dart`), and Copy Link deliberately isn't one, so
+/// nothing has run between the tap and this line.
+///
+/// The context is the *caller's*, and it need not be a box: a list hands its
+/// `tileBuilder` the `ListView.builder` item context, whose render object is
+/// the `RenderSliverList`. A bare `as RenderBox?` threw there — outside the
+/// `try`, inside a fire-and-forget `onTap` — so Share Link from a list row's
+/// `⋮` did nothing at all on a phone while the detail screen's worked
+/// ([anchorRectFor]).
 Future<bool> _shareLink(BuildContext context, String link) async {
-  final box = context.findRenderObject() as RenderBox?;
-  final origin = box != null && box.hasSize
-      ? box.localToGlobal(Offset.zero) & box.size
-      : null;
   try {
     await SharePlus.instance.share(
-      ShareParams(uri: Uri.parse(link), sharePositionOrigin: origin),
+      ShareParams(
+        uri: Uri.parse(link),
+        sharePositionOrigin: anchorRectFor(context),
+      ),
     );
     return true;
   } catch (_) {
@@ -100,4 +103,17 @@ Future<bool> _shareLink(BuildContext context, String link) async {
     // clipboard is always available, so fall through to it.
     return false;
   }
+}
+
+/// The global rect of [context]'s nearest laid-out [RenderBox] — its own
+/// render object when that is a box, else the closest box above it (for a
+/// sliver context, the list's viewport) — or null when there is none.
+@visibleForTesting
+Rect? anchorRectFor(BuildContext context) {
+  final own = context.findRenderObject();
+  final box = own is RenderBox
+      ? own
+      : context.findAncestorRenderObjectOfType<RenderBox>();
+  if (box == null || !box.attached || !box.hasSize) return null;
+  return box.localToGlobal(Offset.zero) & box.size;
 }

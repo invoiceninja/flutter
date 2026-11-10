@@ -24,6 +24,7 @@ void main() {
     WidgetTester tester, {
     String? shareResult,
     bool sharePluginPresent = true,
+    bool fromListItem = false,
   }) async {
     final f = await buildFixture(
       companies: [FakeCompany(id: 'co1', name: 'Co', isOwner: true)],
@@ -60,12 +61,24 @@ void main() {
     await tester.pumpWidget(
       wrapWithShell(
         f.services,
-        Builder(
-          builder: (c) {
-            context = c;
-            return const Scaffold(body: SizedBox.shrink());
-          },
-        ),
+        fromListItem
+            // What a list hands its `tileBuilder`: the `ListView.builder`
+            // item context, whose render object is the RenderSliverList.
+            ? Scaffold(
+                body: ListView.builder(
+                  itemCount: 1,
+                  itemBuilder: (c, _) {
+                    context = c;
+                    return const SizedBox(height: 72);
+                  },
+                ),
+              )
+            : Builder(
+                builder: (c) {
+                  context = c;
+                  return const Scaffold(body: SizedBox.shrink());
+                },
+              ),
       ),
     );
     await tester.pump();
@@ -108,6 +121,25 @@ void main() {
     // iPadOS anchors the popover on this; a null rect throws there.
     expect(r.shared.single['originX'], isNotNull);
     expect(r.copied, isEmpty, reason: 'a successful share must not also copy');
+  });
+
+  testWidgets('a list row\'s ⋮ shares too — its context is a sliver\'s, not '
+      'a box\'s, and the anchor cast used to throw silently', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final r = await run(
+      tester,
+      shareResult: 'com.example.someapp',
+      fromListItem: true,
+    );
+    debugDefaultTargetPlatformOverride = null;
+
+    expect(r.shared, hasLength(1));
+    expect(r.shared.single['uri'], expected);
+    expect(
+      r.shared.single['originX'],
+      isNotNull,
+      reason: 'anchored on the nearest box above the sliver (the viewport)',
+    );
   });
 
   testWidgets('…and falls back to the clipboard when there is no share sheet '

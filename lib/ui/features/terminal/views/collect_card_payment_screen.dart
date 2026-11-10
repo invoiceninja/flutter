@@ -126,7 +126,9 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
     _unregisterGuard = _services.unsavedChangesGuard.register(
       isDirty: () => _vm.bindsCompany,
       source: _vm,
-      blockedMessage: (context) => context.tr('terminal_finish_first'),
+      blockedMessage: (context) => context.tr(
+        _vm.inProgress ? 'terminal_finish_first' : 'terminal_close_first',
+      ),
     );
     if (_formatter == null) {
       _services.formatterFor(widget.companyId).then((f) {
@@ -413,8 +415,16 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
         icon: Icons.credit_card_off_outlined,
       ),
       const SizedBox(height: InSpacing.xl),
+      // Reconnecting a reader: nothing to try until it is back.
+      if (_vm.readerState == ReaderState.connecting)
+        _Buttons(
+          primary: context.tr('terminal_reader_connecting'),
+          onPrimary: null,
+          secondary: context.tr('cancel'),
+          onSecondary: _close,
+        )
       // The reader went away mid-collection: connect one before trying.
-      if (_vm.readerState == ReaderState.needsReader)
+      else if (_vm.readerState == ReaderState.needsReader)
         _Buttons(
           primary: context.tr('terminal_connect_reader'),
           onPrimary: _pickReader,
@@ -749,7 +759,8 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
   }
 
   List<Widget> _pending(BuildContext context, String text) => [
-    _Total(text: _totalText()),
+    // Another attempt's payment: this screen's quote isn't its amount.
+    if (!_vm.settlingAnother) _Total(text: _totalText()),
     _Status(text: text, icon: Icons.hourglass_top_outlined),
     const SizedBox(height: InSpacing.xl),
     _Buttons(
@@ -921,7 +932,9 @@ class _Buttons extends StatelessWidget {
   });
 
   final String primary;
-  final Future<void> Function() onPrimary;
+
+  /// Null disables it (a reader reconnecting).
+  final Future<void> Function()? onPrimary;
   final String? secondary;
   final Future<void> Function()? onSecondary;
   final bool tonal;

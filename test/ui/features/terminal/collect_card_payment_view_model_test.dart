@@ -1126,6 +1126,26 @@ void main() {
       expect(vm.bindsCompany, isTrue);
     });
 
+    test('a refresh asked while another load runs reads the config again '
+        'after it', () async {
+      final slow = Completer<TerminalConfig>();
+      repo.configAnswer = slow;
+      final first = terminal.refreshConfig('co_a');
+      await pumpEventQueue();
+      // An acknowledgement lands: the server's answer is now the new one.
+      repo.configAnswer = TerminalConfig(
+        enabled: true,
+        planOk: false,
+        gateways: const [],
+      );
+      final second = terminal.refreshConfig('co_a');
+      slow.complete(FakeTerminalRepo.defaultConfig);
+      await first;
+      final config = await second;
+      expect(config?.planOk, isFalse);
+      expect(repo.configCalls, 2);
+    });
+
     test('every pending charge on an invoice is asked about', () async {
       await terminal.notePending(
         companyId: 'co_a',

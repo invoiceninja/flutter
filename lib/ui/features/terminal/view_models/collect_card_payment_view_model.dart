@@ -580,6 +580,11 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
   String? get _paymentIntentId =>
       _intent?.paymentIntentId ?? _settlingPaymentIntentId;
 
+  /// Settling another attempt's PaymentIntent ("Cancel it and start
+  /// again"): none of this screen's figures are that payment's.
+  bool get settlingAnother =>
+      _intent == null && _settlingPaymentIntentId != null;
+
   /// The PaymentIntent support finds in Stripe, once there is one.
   String? get paymentReference => _paymentIntentId;
 

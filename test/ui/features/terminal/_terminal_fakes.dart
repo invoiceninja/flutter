@@ -101,6 +101,7 @@ class FakeTerminalRepo implements TerminalRepository {
   Future<TerminalConfig> config(String companyId) async {
     configCalls++;
     final answer = configAnswer;
+    if (answer is Completer<TerminalConfig>) return answer.future;
     if (answer is TerminalConfig) return answer;
     if (answer != null) throw answer;
     return defaultConfig;

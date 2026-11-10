@@ -247,13 +247,29 @@ class TerminalController extends ChangeNotifier {
 
   /// Re-reads the company's answer — after an admin acknowledged the
   /// surcharge or created a Location.
+  ///
+  /// A load already under way may have been asked before the change this
+  /// caller made (an acknowledgement, a new Location): it is waited out,
+  /// then the config is read again.
   Future<TerminalConfig?> refreshConfig(String companyId) async {
+    final running = _loading[companyId];
+    if (running != null) await running;
     // The last answer stands while this one loads, and if it fails.
     await _load(companyId, keep: _configs[companyId]?.config);
     return configFor(companyId);
   }
 
-  Future<void> _load(String companyId, {TerminalConfig? keep}) async {
+  final Map<String, Future<void>> _loading = {};
+
+  Future<void> _load(String companyId, {TerminalConfig? keep}) {
+    final load = _loadOnce(companyId, keep: keep);
+    _loading[companyId] = load;
+    return load.whenComplete(() {
+      if (identical(_loading[companyId], load)) _loading.remove(companyId);
+    });
+  }
+
+  Future<void> _loadOnce(String companyId, {TerminalConfig? keep}) async {
     final entry = _configs[companyId] = _ConfigEntry(_clock())..config = keep;
     _deviceLoading ??= _platform
         .deviceSupport()

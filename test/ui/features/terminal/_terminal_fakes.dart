@@ -83,9 +83,27 @@ class FakeTerminalRepo implements TerminalRepository {
   final completes = Script<TerminalCompletion>();
   final cancels = Script<TerminalCompletion>();
   final createdCollectionIds = <String>[];
+  final createApplyFees = <bool>[];
+
+  /// What `terminal/config` answers instead of the one USD gateway: a
+  /// [TerminalConfig], or an exception to throw.
+  Object? configAnswer;
+
+  /// The surcharge a quote with `apply_fee` comes back with.
+  Decimal quoteFee = Decimal.fromInt(3);
+
+  /// What a connection-token fetch throws instead of answering.
+  Object? tokenError;
 
   @override
-  Future<TerminalConfig> config(String companyId) async => TerminalConfig(
+  Future<TerminalConfig> config(String companyId) async {
+    final answer = configAnswer;
+    if (answer is TerminalConfig) return answer;
+    if (answer != null) throw answer;
+    return defaultConfig;
+  }
+
+  static final defaultConfig = TerminalConfig(
     enabled: true,
     planOk: true,
     gateways: [
@@ -110,7 +128,11 @@ class FakeTerminalRepo implements TerminalRepository {
     String companyId, {
     required String companyGatewayId,
     required String locationId,
-  }) async => 'pst_test_x';
+  }) async {
+    final error = tokenError;
+    if (error != null) throw error;
+    return 'pst_test_x';
+  }
 
   @override
   Future<TerminalQuote> quote(
@@ -121,7 +143,7 @@ class FakeTerminalRepo implements TerminalRepository {
     required bool applyFee,
   }) async {
     calls.add('quote:$amount:$applyFee');
-    final fee = applyFee ? Decimal.fromInt(3) : Decimal.zero;
+    final fee = applyFee ? quoteFee : Decimal.zero;
     return TerminalQuote(
       amount: amount,
       feeGross: fee,
@@ -143,6 +165,7 @@ class FakeTerminalRepo implements TerminalRepository {
   }) {
     calls.add('create:$collectionId:$expectedTotal');
     createdCollectionIds.add(collectionId);
+    createApplyFees.add(applyFee);
     return creates.next('create');
   }
 
@@ -266,11 +289,13 @@ class FakeTerminalPlatform implements TerminalPlatform {
     TerminalReaderKind kind,
   ) async => permission;
 
+  Future<String> Function()? _fetchToken;
+
   @override
   Future<void> initialize({
     required String account,
     required Future<String> Function() fetchToken,
-  }) async {}
+  }) async => _fetchToken = fetchToken;
 
   int resets = 0;
 
@@ -302,7 +327,16 @@ class FakeTerminalPlatform implements TerminalPlatform {
     required String locationId,
     required String merchantDisplayName,
     required bool tosAcceptancePermitted,
-  }) async => reader;
+  }) async {
+    // Like the SDK: connecting fetches a token, and a failed fetch comes
+    // back as the SDK's own generic error.
+    try {
+      await _fetchToken?.call();
+    } catch (_) {
+      throw const TerminalError(TerminalErrorCode.unknown, 'token provider');
+    }
+    return reader;
+  }
 
   @override
   Future<TerminalReader?> connectedReader() async => null;

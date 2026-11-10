@@ -59,6 +59,7 @@ class EntityEditScreenScaffold<T, VM extends GenericEditViewModel<T>>
     this.actionsBuilder,
     this.saveParamFor,
     this.confirmSaveParam,
+    this.confirmSave,
     this.onAfterSaveAction,
     this.onAfterSaveActionOnCreate,
   });
@@ -148,6 +149,10 @@ class EntityEditScreenScaffold<T, VM extends GenericEditViewModel<T>>
   /// See its doc for why this is a hook rather than `EntityActionItem.confirm`.
   final Future<bool> Function(BuildContext context, Object action)?
   confirmSaveParam;
+
+  /// Asked before every save (Save, Enter, a save-first action); false
+  /// leaves the form as it is. Forwarded to [EntityEditScaffold].
+  final Future<bool> Function(BuildContext context, VM vm)? confirmSave;
 
   /// Per-entity AFTER-SAVE dispatcher (typically
   /// `(ctx, saved, a) => InvoiceActions.dispatch(ctx, services,
@@ -519,6 +524,9 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
                 widget.actionsBuilder!(ctx, vm, onTap, saveButton),
       saveParamFor: widget.saveParamFor,
       confirmSaveParam: widget.confirmSaveParam,
+      confirmSave: widget.confirmSave == null
+          ? null
+          : (ctx) => widget.confirmSave!(ctx, vm),
       onAfterSaveAction: widget.onAfterSaveAction,
       onAfterSaveActionOnCreate: widget.onAfterSaveActionOnCreate,
       titleBuilder: (ctx) => widget.titleBuilder(ctx, vm),

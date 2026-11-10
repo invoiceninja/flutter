@@ -61,6 +61,7 @@ String? terminalServerErrorKey(String code) => switch (code) {
   TerminalServerError.locationAddressRequired =>
     'terminal_server_location_address',
   'collection_starting' => 'terminal_collection_starting',
+  'no_gateway_for_currency' => 'terminal_no_gateway_for_currency',
   'location_needs_admin' => 'terminal_ask_admin_location',
   _ => null,
 };
@@ -91,6 +92,9 @@ String terminalProblemText(
               ? tr('terminal_someone')
               : '${problem.data['user']}',
           'minutes': '${((problem.data['age'] as num? ?? 0) / 60).ceil()}',
+        }),
+        'no_gateway_for_currency' => tr(key, {
+          'currency': '${problem.data['currency'] ?? ''}',
         }),
         // The server names the currency in its own message.
         TerminalServerError.unsupportedCurrency =>

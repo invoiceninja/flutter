@@ -965,6 +965,18 @@ class Formatter {
     return currencies[id]?.precision ?? 2;
   }
 
+  /// The ISO 4217 code (upper case, as the statics carry it) of the
+  /// resolved currency — the same cascade as [precisionFor]; null when the
+  /// currency is unknown.
+  String? currencyCodeFor({String? currencyId, String? groupCurrencyId}) {
+    final id = _resolveCurrencyId(
+      currencyId: currencyId,
+      groupCurrencyId: groupCurrencyId,
+    );
+    final code = currencies[id]?.code ?? '';
+    return code.isEmpty ? null : code;
+  }
+
   // -------------------------------------------------------------------------
   // Money / numbers.
   // -------------------------------------------------------------------------

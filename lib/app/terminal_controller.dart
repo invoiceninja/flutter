@@ -14,6 +14,7 @@ import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/terminal_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/terminal_platform.dart';
+import 'package:admin/data/services/terminal_server_error.dart';
 import 'package:admin/domain/terminal/terminal_eligibility.dart';
 
 final _log = Logger('TerminalController');
@@ -138,31 +139,61 @@ class TerminalController extends ChangeNotifier {
     if (pending.remove(paymentIntentId) != null) await _savePending(pending);
   }
 
-  /// The payment on [invoiceId] still waiting for the server's answer.
-  String? pendingFor(String companyId, String invoiceId) {
-    for (final e in _pending().entries) {
-      final v = e.value;
-      if (v is Map && v['company'] == companyId && v['invoice'] == invoiceId) {
-        return e.key;
+  /// Every payment on [invoiceId] still waiting for the server's answer —
+  /// more than one when an attempt that couldn't be confirmed was followed by
+  /// another.
+  List<String> pendingAllFor(String companyId, String invoiceId) => [
+    for (final e in _pending().entries)
+      if (e.value case {
+        'company': final c,
+        'invoice': final i,
+      } when c == companyId && i == invoiceId)
+        e.key,
+  ];
+
+  /// The first payment on [invoiceId] still waiting for the server's answer.
+  String? pendingFor(String companyId, String invoiceId) =>
+      pendingAllFor(companyId, invoiceId).firstOrNull;
+
+  /// Asks the server about every pending payment on [invoiceId], and says
+  /// what came of them.
+  Future<PendingRecovery> recoverPending(
+    String companyId,
+    String invoiceId,
+  ) async {
+    var recorded = false;
+    var unknown = false;
+    for (final pi in pendingAllFor(companyId, invoiceId)) {
+      try {
+        final result = await _repo.complete(
+          companyId,
+          pi,
+          invoiceId: invoiceId,
+        );
+        if (isFinalCompletion(result.status)) {
+          await clearPending(pi);
+          if (result.isRecorded) recorded = true;
+        } else {
+          unknown = true;
+        }
+      } catch (_) {
+        unknown = true;
       }
     }
-    return null;
+    if (unknown) return PendingRecovery.unknown;
+    return recorded ? PendingRecovery.recorded : PendingRecovery.none;
   }
 
-  /// Asks the server about [invoiceId]'s pending payment. True when there is
-  /// none left (answered, or there never was one).
-  Future<bool> recoverPending(String companyId, String invoiceId) async {
-    final pi = pendingFor(companyId, invoiceId);
-    if (pi == null) return true;
-    try {
-      final result = await _repo.complete(companyId, pi, invoiceId: invoiceId);
-      if (isFinalCompletion(result.status)) {
-        await clearPending(pi);
-        return true;
-      }
-    } catch (_) {}
-    return false;
-  }
+  /// Pending payments the user was already warned about and chose to go on
+  /// regardless — Enter Payment, then the new payment's Save, asks once.
+  /// For the session only.
+  final Set<String> _warned = {};
+
+  bool wasWarned(Iterable<String> paymentIntentIds) =>
+      paymentIntentIds.every(_warned.contains);
+
+  void noteWarned(Iterable<String> paymentIntentIds) =>
+      _warned.addAll(paymentIntentIds);
 
   /// A `complete` answer after which nothing more will happen to the charge.
   static bool isFinalCompletion(String status) => const {
@@ -256,7 +287,9 @@ class TerminalController extends ChangeNotifier {
     entry
       ..loading = false
       ..fetchedAt = _clock();
-    if (identical(_configs[companyId], entry)) notifyListeners();
+    if (!_disposed && identical(_configs[companyId], entry)) {
+      notifyListeners();
+    }
   }
 
   /// How a card can be read for [gateway] on this phone.
@@ -294,15 +327,39 @@ class TerminalController extends ChangeNotifier {
     if (_account != account) _reader = null;
     _account = account;
     _prepared++;
+    _tokenError = null;
     await _platform.initialize(
       account: account,
-      fetchToken: () => _repo.connectionToken(
-        companyId,
-        companyGatewayId: gateway.companyGatewayId,
-        locationId: location.id,
-      ),
+      fetchToken: () async {
+        try {
+          final token = await _repo.connectionToken(
+            companyId,
+            companyGatewayId: gateway.companyGatewayId,
+            locationId: location.id,
+          );
+          _tokenError = null;
+          return token;
+        } catch (e) {
+          // The SDK reports a failed token fetch as its own generic error;
+          // the server's reason is kept for the screen. A gateway an admin
+          // switched off (or a plan, or the platform switch) also means the
+          // cached config is out of date.
+          _tokenError = e;
+          if (e is TerminalServerError) unawaited(refreshConfig(companyId));
+          rethrow;
+        }
+      },
     );
   }
+
+  /// Why the last connection-token fetch failed, if it did — taken once.
+  Object? takeTokenError() {
+    final e = _tokenError;
+    _tokenError = null;
+    return e;
+  }
+
+  Object? _tokenError;
 
   /// The reader already connected for this account, if it still is.
   Future<TerminalReader?> connectedReader() async {
@@ -403,6 +460,7 @@ class TerminalController extends ChangeNotifier {
   Future<void> reset() async {
     // The session's own state goes now, so nothing new starts on it.
     _configs.clear();
+    _warned.clear();
     _reader = null;
     _account = null;
     final prepared = _prepared;
@@ -432,11 +490,27 @@ class TerminalController extends ChangeNotifier {
     } catch (_) {}
   }
 
+  bool _disposed = false;
+
   @override
   void dispose() {
+    _disposed = true;
     _prefs.removeListener(_syncPrefs);
     super.dispose();
   }
+}
+
+/// What asking the server about an invoice's pending card payments found.
+enum PendingRecovery {
+  /// None is left, and none of them was charged.
+  none,
+
+  /// None is left, and at least one was charged and has just been recorded:
+  /// the invoice's balance isn't what the screen showed.
+  recorded,
+
+  /// At least one still can't be answered: it may have been charged.
+  unknown,
 }
 
 /// Why "Collect card payment" is, or isn't, offered for a company.

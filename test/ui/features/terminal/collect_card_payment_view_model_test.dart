@@ -686,7 +686,7 @@ void main() {
     test('reads are bounded even when the facade keeps refusing', () async {
       final vm = await ready();
       repo.creates.add(fakeIntent());
-      for (var i = 0; i < 3; i++) {
+      for (var i = 0; i < CollectCardPaymentViewModel.maxReads; i++) {
         platform.session.reads.add(fakeCard);
         // The server says 10300, the read says 10000: always refused.
         repo.finalizes.add(fakeFinalize(10300));
@@ -694,7 +694,10 @@ void main() {
       repo.cancels.add(fakeCompletion('canceled'));
       await vm.collect();
       expect(vm.stage, CollectStage.cancelled);
-      expect(platform.session.calls.where((c) => c == 'collect'), hasLength(3));
+      expect(
+        platform.session.calls.where((c) => c == 'collect'),
+        hasLength(CollectCardPaymentViewModel.maxReads),
+      );
     });
   });
 
@@ -839,7 +842,10 @@ void main() {
 
       // Later, the invoice opens again: the server has recorded it.
       repo.completes.add(fakeCompletion('recorded'));
-      expect(await terminal.recoverPending('co_a', 'inv_1'), isTrue);
+      expect(
+        await terminal.recoverPending('co_a', 'inv_1'),
+        PendingRecovery.recorded,
+      );
       expect(terminal.pendingFor('co_a', 'inv_1'), isNull);
     });
 
@@ -863,6 +869,205 @@ void main() {
       asking.complete(fakeCompletion('recorded'));
       await checking;
       expect(vm.stage, CollectStage.approved);
+    });
+  });
+
+  group('pre-launch review (2026-11-11)', () {
+    TerminalGatewayConfig gateway(String id, String currency) =>
+        TerminalGatewayConfig(
+          companyGatewayId: id,
+          label: 'Stripe $currency',
+          livemode: false,
+          accountCountry: currency == 'cad' ? 'CA' : 'US',
+          defaultCurrency: currency,
+          cardPaymentsActive: true,
+          surcharge: TerminalSurchargeConfig.fromJson(const {}),
+          locations: const [TerminalLocation(id: 'tml_1', displayName: 'Main')],
+        );
+
+    CollectCardPaymentViewModel vmFor({Future<String?> Function()? currency}) =>
+        CollectCardPaymentViewModel(
+          companyId: 'co_a',
+          invoice: invoice,
+          terminal: terminal,
+          repository: repo,
+          isAdmin: true,
+          merchantDisplayName: 'Acme',
+          precision: 2,
+          chargeCurrency: currency,
+          clock: () => now,
+          newId: () => 'col_${++ids}',
+          pollDelay: Duration.zero,
+        );
+
+    test(
+      'the gateway is the one that charges in the client\'s currency',
+      () async {
+        repo.configAnswer = TerminalConfig(
+          enabled: true,
+          planOk: true,
+          gateways: [gateway('cg_usd', 'usd'), gateway('cg_cad', 'cad')],
+        );
+        final vm = vmFor(currency: () async => 'CAD');
+        await vm.start();
+        expect(vm.gateway?.companyGatewayId, 'cg_cad');
+        expect(vm.canCollect, isTrue);
+      },
+    );
+
+    test('no gateway charges in the client\'s currency: said so, nothing '
+        'starts', () async {
+      repo.configAnswer = TerminalConfig(
+        enabled: true,
+        planOk: true,
+        gateways: [gateway('cg_usd', 'usd')],
+      );
+      final vm = vmFor(currency: () async => 'EUR');
+      await vm.start();
+      expect(vm.gateway, isNull);
+      expect(vm.problem?.serverCode, 'no_gateway_for_currency');
+      expect(vm.problem?.data['currency'], 'EUR');
+      expect(repo.calls, isNot(contains(startsWith('quote'))));
+    });
+
+    test(
+      'a currency that can\'t be told falls back to the first gateway',
+      () async {
+        repo.configAnswer = TerminalConfig(
+          enabled: true,
+          planOk: true,
+          gateways: [gateway('cg_usd', 'usd'), gateway('cg_cad', 'cad')],
+        );
+        final vm = vmFor(currency: () async => null);
+        await vm.start();
+        expect(vm.gateway?.companyGatewayId, 'cg_usd');
+      },
+    );
+
+    test('a config that never loaded is a connection problem, and Retry '
+        'loads it again', () async {
+      repo.configAnswer = const NetworkException('offline');
+      final vm = vmFor();
+      await vm.start();
+      expect(vm.gateway, isNull);
+      expect(vm.problem?.code, TerminalErrorCode.network);
+      expect(vm.problem?.serverCode, isNull);
+
+      repo.configAnswer = null;
+      // The failed fetch is remembered for a minute; Retry asks anyway.
+      await vm.retry();
+      expect(vm.gateway?.companyGatewayId, 'cg_1');
+      expect(vm.problem, isNull);
+      expect(vm.canCollect, isTrue);
+    });
+
+    test(
+      'a surcharge that rounds to nothing is not asked for at create',
+      () async {
+        final vm = await ready();
+        repo.quoteFee = Decimal.zero;
+        vm.setSurcharge(true);
+        await pumpEventQueue();
+        repo.creates.add(fakeIntent());
+        platform.session.reads.add(fakeCard);
+        repo.finalizes.add(fakeFinalize(10000));
+        platform.session.confirms.add(
+          const TerminalPaymentOutcome(
+            paymentIntentId: 'pi_1',
+            status: 'succeeded',
+          ),
+        );
+        repo.completes.add(fakeCompletion('recorded'));
+        await vm.collect();
+        expect(repo.createApplyFees, [false]);
+        expect(vm.stage, CollectStage.approved);
+      },
+    );
+
+    test('another card on a PaymentIntent the surcharge raised is told the '
+        'surcharge first', () async {
+      final vm = await ready();
+      vm.setSurcharge(true);
+      await pumpEventQueue();
+      repo.creates.add(fakeIntent());
+      platform.session.reads
+        ..add(fakeCard)
+        ..add(fakeRead(10300))
+        ..add(fakeRead(10300));
+      repo.finalizes
+        ..add(fakeFinalize(10300, recollect: true, surcharge: 3))
+        ..add(fakeFinalize(10300, surcharge: 3))
+        ..add(fakeFinalize(10300, surcharge: 3));
+      platform.session.confirms
+        ..add(const TerminalError(TerminalErrorCode.declined))
+        ..add(
+          const TerminalPaymentOutcome(
+            paymentIntentId: 'pi_1',
+            status: 'succeeded',
+          ),
+        );
+      repo.completes.add(fakeCompletion('recorded'));
+
+      final collecting = vm.collect();
+      await pumpEventQueue();
+      expect(vm.stage, CollectStage.surchargeNotice);
+      vm.continueWithSurcharge();
+      await collecting;
+      expect(vm.stage, CollectStage.declined);
+
+      final again = vm.tryAnotherCard();
+      await pumpEventQueue();
+      // The next card is read at the raised amount: its holder is told.
+      expect(vm.stage, CollectStage.surchargeNotice);
+      expect(platform.session.calls.where((c) => c == 'collect'), hasLength(2));
+      vm.continueWithSurcharge();
+      await again;
+      expect(vm.stage, CollectStage.approved);
+    });
+
+    test('a refused connection token says why, not just "unknown"', () async {
+      repo.tokenError = const TerminalServerError(
+        TerminalServerError.notEnabled,
+        'Card present is off',
+      );
+      final vm = vmFor();
+      await vm.start();
+      expect(vm.readerState, ReaderState.failed);
+      expect(vm.problem?.serverCode, TerminalServerError.notEnabled);
+      // The cached config is out of date too: asked again.
+      await pumpEventQueue();
+    });
+
+    test('every pending charge on an invoice is asked about', () async {
+      await terminal.notePending(
+        companyId: 'co_a',
+        invoiceId: 'inv_1',
+        paymentIntentId: 'pi_a',
+      );
+      await terminal.notePending(
+        companyId: 'co_a',
+        invoiceId: 'inv_1',
+        paymentIntentId: 'pi_b',
+      );
+      repo.completes
+        ..add(fakeCompletion('canceled'))
+        ..add(fakeCompletion('requires_confirmation'));
+      expect(
+        await terminal.recoverPending('co_a', 'inv_1'),
+        PendingRecovery.unknown,
+      );
+      expect(terminal.pendingAllFor('co_a', 'inv_1'), ['pi_b']);
+
+      repo.completes.add(fakeCompletion('recorded'));
+      expect(
+        await terminal.recoverPending('co_a', 'inv_1'),
+        PendingRecovery.recorded,
+      );
+      expect(terminal.pendingAllFor('co_a', 'inv_1'), isEmpty);
+      expect(
+        await terminal.recoverPending('co_a', 'inv_1'),
+        PendingRecovery.none,
+      );
     });
   });
 }

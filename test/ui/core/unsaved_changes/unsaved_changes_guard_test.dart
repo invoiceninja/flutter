@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/l10n/supported_locales.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_guard.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 class _DirtyNotifier extends ChangeNotifier {
   bool isDirty = false;
@@ -124,6 +125,55 @@ void main() {
       expect(result, isTrue);
       expect(src.discardCount, 1);
       expect(src.isDirty, isFalse);
+    });
+
+    testWidgets('an entry that blocks leaving refuses, says why, and is never '
+        'discarded', (tester) async {
+      final guard = UnsavedChangesGuard();
+      final editor = _DirtyNotifier()..isDirty = true;
+      final payment = _DirtyNotifier()..isDirty = true;
+      guard
+        ..register(
+          isDirty: () => editor.isDirty,
+          source: editor,
+          onDiscard: editor.reset,
+        )
+        ..register(
+          isDirty: () => payment.isDirty,
+          source: payment,
+          onDiscard: payment.reset,
+          blockedMessage: (_) => 'A card payment is under way.',
+        );
+
+      late bool result;
+      await tester.pumpWidget(
+        _LocalizationHost(
+          child: Builder(
+            builder: (ctx) => TextButton(
+              onPressed: () async {
+                result = await guard.confirmIfDirty(ctx);
+              },
+              child: const Text('go'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(find.text('A card payment is under way.'), findsOneWidget);
+      expect(find.text('Discard'), findsNothing);
+      await tester.tap(find.byType(PrimaryDialogAction));
+      await tester.pumpAndSettle();
+
+      expect(result, isFalse);
+      expect(editor.discardCount, 0);
+      expect(payment.discardCount, 0);
+
+      // Once the payment is over, leaving is the usual question again.
+      payment.reset();
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(find.text('Discard'), findsOneWidget);
     });
 
     testWidgets('confirmIfDirty returns false on Keep editing', (tester) async {

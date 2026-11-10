@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/terminal_controller.dart';
 import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
@@ -33,6 +34,7 @@ import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/terminal/views/collect_card_payment_screen.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
@@ -104,6 +106,7 @@ enum InvoiceAction {
   addComment,
   logCall,
   viewClient,
+
   copyLink,
   archive,
   restore,
@@ -637,30 +640,83 @@ class InvoiceActions {
     goEntityEdit(context, '/invoices', invoice.id, extra: openLineItem);
   }
 
-  /// Opens "Collect card payment", after the invoice's own unsent changes
-  /// have reached the server (the server charges what it has), or offers the
-  /// upgrade on a plan below Pro.
-  /// Before another payment is recorded on [invoice]: a card payment taken
-  /// on this device that may have been charged is checked with the server
-  /// first, and if it still can't be, the user is warned that recording one
-  /// by hand could count it twice. False to stop.
+  /// Before another payment is recorded on [invoice]: see
+  /// [cardPaymentsSettled].
   static Future<bool> cardPaymentSettled(
     BuildContext context,
     Services services,
     String companyId,
     Invoice invoice,
+  ) => cardPaymentsSettled(context, services, companyId, [invoice.id]);
+
+  /// Before another payment is recorded on any of [invoiceIds] (Mark Paid,
+  /// Enter Payment, a bulk Mark Paid, a new payment allocated to them): a
+  /// card payment taken on this device that may have been charged is
+  /// checked with the server first. If it turns out to have been charged it
+  /// is recorded now, and the user is told and stopped — the balance they
+  /// were about to pay isn't owed any more. If it still can't be answered
+  /// they are warned that recording a payment by hand could count it twice.
+  /// False to stop.
+  static Future<bool> cardPaymentsSettled(
+    BuildContext context,
+    Services services,
+    String companyId,
+    Iterable<String> invoiceIds,
   ) async {
     final terminal = services.terminal;
-    if (terminal.pendingFor(companyId, invoice.id) == null) return true;
-    if (await terminal.recoverPending(companyId, invoice.id)) return true;
+    final pending = [
+      for (final id in invoiceIds.toSet())
+        if (terminal.pendingFor(companyId, id) != null) id,
+    ];
+    if (pending.isEmpty) return true;
+    var recorded = false;
+    var unknown = false;
+    for (final id in pending) {
+      switch (await terminal.recoverPending(companyId, id)) {
+        case PendingRecovery.none:
+          break;
+        case PendingRecovery.recorded:
+          recorded = true;
+        case PendingRecovery.unknown:
+          unknown = true;
+      }
+    }
     if (!context.mounted) return false;
-    return showConfirmActionDialog(
+    if (recorded) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(ctx.tr('terminal_pending_recorded_title')),
+          content: Text(ctx.tr('terminal_pending_recorded')),
+          actions: [
+            PrimaryDialogAction(
+              label: ctx.tr('ok'),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      );
+      return false;
+    }
+    if (!unknown) return true;
+    final open = [
+      for (final id in pending) ...terminal.pendingAllFor(companyId, id),
+    ];
+    // Already warned about exactly these (Enter Payment, then its Save).
+    if (terminal.wasWarned(open)) return true;
+    final go = await showConfirmActionDialog(
       context,
       title: context.tr('terminal_pending_title'),
       message: context.tr('terminal_pending_warning'),
       destructive: true,
     );
+    if (go) terminal.noteWarned(open);
+    return go;
   }
+
+  /// Opens "Collect card payment", after the invoice's own unsent changes
+  /// have reached the server (the server charges what it has), or offers the
+  /// upgrade on a plan below Pro.
 
   static Future<void> collectCardPayment(
     BuildContext context,
@@ -697,13 +753,23 @@ class InvoiceActions {
         return;
       }
     }
-    // The client's currency and email, read once from Drift.
+    // The client's currency and email, and its group's currency, read once
+    // from Drift. The screen shows the server's currency once it quotes.
     Client? client;
+    var groupCurrencyId = '';
     try {
       client = await services.clients
           .watch(companyId: companyId, id: current.clientId)
           .first
           .timeout(const Duration(seconds: 2));
+      final groupId = client?.groupSettingsId ?? '';
+      if (groupId.isNotEmpty && (client?.currencyId ?? '').isEmpty) {
+        final group = await services.groupSettings
+            .watchByRealId(companyId: companyId, id: groupId)
+            .first
+            .timeout(const Duration(seconds: 2));
+        groupCurrencyId = group?.currencyId ?? '';
+      }
     } catch (_) {}
     if (!context.mounted) return;
     await showCollectCardPaymentScreen(
@@ -711,6 +777,7 @@ class InvoiceActions {
       companyId: companyId,
       invoice: current,
       client: client,
+      groupCurrencyId: groupCurrencyId,
     );
   }
 

@@ -30,6 +30,7 @@ Future<void> showCollectCardPaymentScreen(
   required String companyId,
   required Invoice invoice,
   Client? client,
+  String groupCurrencyId = '',
 }) => Navigator.of(context, rootNavigator: true).push<void>(
   MaterialPageRoute(
     fullscreenDialog: true,
@@ -37,6 +38,7 @@ Future<void> showCollectCardPaymentScreen(
       companyId: companyId,
       invoice: invoice,
       client: client,
+      groupCurrencyId: groupCurrencyId,
     ),
   ),
 );
@@ -47,6 +49,7 @@ class CollectCardPaymentScreen extends StatefulWidget {
     required this.companyId,
     required this.invoice,
     this.client,
+    this.groupCurrencyId = '',
     @visibleForTesting this.viewModel,
   });
 
@@ -55,6 +58,9 @@ class CollectCardPaymentScreen extends StatefulWidget {
 
   /// The invoice's client, for its currency and email, when known.
   final Client? client;
+
+  /// The client's group's currency, when the client inherits one.
+  final String groupCurrencyId;
 
   /// Tests drive the screen with their own (faked) view model.
   final CollectCardPaymentViewModel? viewModel;
@@ -87,7 +93,7 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
     _client = widget.client;
     _formatter = _services.formatterIfReady(widget.companyId);
     final precision =
-        _formatter?.precisionFor(clientCurrencyId: _client?.currencyId) ?? 2;
+        _formatter?.precisionFor(currencyId: _clientCurrencyId) ?? 2;
     _vm =
         (widget.viewModel ??
               CollectCardPaymentViewModel(
@@ -100,6 +106,7 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
                 merchantDisplayName: company?.name ?? '',
                 precision: precision,
                 clientEmail: _primaryEmail(_client),
+                chargeCurrency: _chargeCurrency,
               ))
           ..addListener(_onChanged);
     _amount = TextEditingController(text: _moneyInput(_vm.amount));
@@ -113,18 +120,37 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
       onUpdateFinished: (_) => setState(() => _updateProgress = null),
       onDisconnected: _vm.readerDisconnected,
     );
-    // A deep link's company switch asks first while a payment is underway.
+    // A company switch (a deep link's) waits while a payment is under way:
+    // every call that settles it is bound to this company, so after a
+    // switch a charged card could never be checked or recorded from here.
     _unregisterGuard = _services.unsavedChangesGuard.register(
       isDirty: () => _vm.inProgress,
       source: _vm,
-      onDiscard: () => unawaited(_vm.cancel()),
+      blockedMessage: (context) => context.tr('terminal_finish_first'),
     );
     if (_formatter == null) {
       _services.formatterFor(widget.companyId).then((f) {
-        if (mounted) setState(() => _formatter = f);
+        if (!mounted) return;
+        setState(() => _formatter = f);
+        _syncPrecision();
+        // The field was filled before the currency's format was known; only
+        // that placeholder text is replaced, never something typed.
+        if (_vm.stage == CollectStage.configure &&
+            _amount.text == _vm.amount.toString()) {
+          _amount.text = _moneyInput(_vm.amount);
+        }
       });
     }
     unawaited(_vm.start());
+  }
+
+  /// The client's currency code, for the gateway that can charge in it;
+  /// null when the client isn't known here (the company's currency would
+  /// be a guess).
+  Future<String?> _chargeCurrency() async {
+    if (_client == null) return null;
+    final f = await _services.formatterFor(widget.companyId);
+    return f.currencyCodeFor(currencyId: _clientCurrencyId);
   }
 
   static String _primaryEmail(Client? client) {
@@ -136,16 +162,39 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
     return '';
   }
 
+  /// The currency the card is charged in: the server's answer once it has
+  /// quoted, else the client's own, then its group's (the formatter falls
+  /// back to the company's). Never just the client's — one inheriting its
+  /// group's currency would show every figure in the company's.
+  String? get _currencyId {
+    final quoted = _vm.quote?.currencyId ?? '';
+    return quoted.isNotEmpty ? quoted : _clientCurrencyId;
+  }
+
+  String? get _clientCurrencyId {
+    final own = _client?.currencyId ?? '';
+    if (own.isNotEmpty) return own;
+    return widget.groupCurrencyId.isEmpty ? null : widget.groupCurrencyId;
+  }
+
   String _moneyInput(Decimal value) =>
-      _formatter?.inputMoney(value, currencyId: _client?.currencyId) ??
+      _formatter?.inputMoney(value, currencyId: _currencyId) ??
       value.toString();
 
   String _money(Decimal? value) =>
-      _formatter?.money(value, clientCurrencyId: _client?.currencyId) ??
-      '${value ?? ''}';
+      _formatter?.money(value, currencyId: _currencyId) ?? '${value ?? ''}';
+
+  /// The amount field rounds to the charged currency's decimals, which are
+  /// known for sure only once the formatter is ready and the server quoted.
+  void _syncPrecision() {
+    final f = _formatter;
+    if (f == null) return;
+    _vm.precision = f.precisionFor(currencyId: _currencyId);
+  }
 
   void _onChanged() {
     if (!mounted) return;
+    _syncPrecision();
     final stage = _vm.stage;
     if (stage != _lastStage) {
       _lastStage = stage;
@@ -504,13 +553,13 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
             style: Theme.of(context).textTheme.titleLarge,
           ),
         )
-      else if (_vm.quoting)
+      else if (_vm.quoting || _vm.starting)
         const LinearProgressIndicator()
       else
         Align(
           alignment: AlignmentDirectional.centerStart,
           child: TextButton(
-            onPressed: _vm.requote,
+            onPressed: _vm.retry,
             child: Text(context.tr('retry')),
           ),
         ),

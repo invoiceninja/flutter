@@ -11,6 +11,7 @@ import 'package:admin/ui/core/edit/entity_edit_screen_scaffold.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/features/payments/view_models/payment_edit_view_model.dart';
 import 'package:admin/ui/features/payments/widgets/edit/payment_edit_layout.dart';
+import 'package:admin/ui/features/invoices/widgets/invoice_actions.dart';
 import 'package:admin/ui/features/payments/widgets/payment_actions.dart';
 
 class PaymentEditScreen extends StatelessWidget {
@@ -75,6 +76,21 @@ class PaymentEditScreen extends StatelessWidget {
                 ? '${ctx.tr('edit')} · #${vm.draft.number}'
                 : ctx.tr('edit')),
       bodyBuilder: (ctx, vm) => PaymentEditLayout(vm: vm),
+      // A new payment on an invoice where a card payment this device took
+      // may have been charged could count the money twice.
+      confirmSave: (ctx, vm) {
+        if (!vm.isCreate) return Future.value(true);
+        final services = ctx.read<Services>();
+        return InvoiceActions.cardPaymentsSettled(
+          ctx,
+          services,
+          services.auth.session.value!.currentCompanyId,
+          [
+            for (final p in vm.draft.paymentables)
+              if (p.invoiceId.isNotEmpty) p.invoiceId,
+          ],
+        );
+      },
       resetToEmpty: (vm) => vm.resetToEmpty(),
       entityIdOf: (p) => p.id,
       actionsBuilder: (ctx, vm, onTap, saveButton) =>

@@ -1,6 +1,8 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
+import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/dialogs/discard_changes_dialog.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Tracks every visible editor that has unsaved in-memory edits, and gates
 /// navigation that would discard them.
@@ -27,15 +29,21 @@ class UnsavedChangesGuard extends ChangeNotifier {
 
   /// Register an editor. Returns the dispose callback — the caller must
   /// invoke it on unmount so the entry doesn't outlive the widget.
+  ///
+  /// [blockedMessage] makes the entry one that can't be discarded at all —
+  /// a card payment under way, whose server calls are bound to this
+  /// company: while it is dirty, leaving is refused with that message.
   VoidCallback register({
     required bool Function() isDirty,
     required Listenable source,
     VoidCallback? onDiscard,
+    String Function(BuildContext context)? blockedMessage,
   }) {
     final entry = _Entry(
       isDirty: isDirty,
       source: source,
       onDiscard: onDiscard,
+      blockedMessage: blockedMessage,
     );
     source.addListener(_bump);
     _entries.add(entry);
@@ -54,6 +62,24 @@ class UnsavedChangesGuard extends ChangeNotifier {
   /// re-appear the next time the screen rebuilds.
   Future<bool> confirmIfDirty(BuildContext context) async {
     if (!hasUnsaved) return true;
+    final blocked = _entries
+        .where((e) => e.blockedMessage != null && e.isDirty())
+        .firstOrNull;
+    if (blocked != null) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          content: Text(blocked.blockedMessage!(ctx)),
+          actions: [
+            PrimaryDialogAction(
+              label: ctx.tr('ok'),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      );
+      return false;
+    }
     final discard = await showDiscardChangesDialog(context);
     if (!discard) return false;
     for (final entry in _entries.toList()) {
@@ -71,8 +97,14 @@ class UnsavedChangesGuard extends ChangeNotifier {
 }
 
 class _Entry {
-  _Entry({required this.isDirty, required this.source, this.onDiscard});
+  _Entry({
+    required this.isDirty,
+    required this.source,
+    this.onDiscard,
+    this.blockedMessage,
+  });
   final bool Function() isDirty;
   final Listenable source;
   final VoidCallback? onDiscard;
+  final String Function(BuildContext context)? blockedMessage;
 }

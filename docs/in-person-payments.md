@@ -76,8 +76,13 @@ static on `StripeTerminal`; each payment is a `TerminalPayment` from `beginPayme
   company's `RequestScope`; a refusal the screen branches on comes back as a
   `TerminalServerError(code, message, data)` read from the body's `error_code` — 409 and 403 bodies
   are kept on `ConflictException.body` / `ServerException.body` for this — and a plain 422 is
-  `field_errors` with its first message. `apply_fee` goes in the quote's query as `1` / `0`. `finalize` times out at 12 s, inside Stripe's 30 s
-  between reading a card and charging it. The invoice is re-read after a create (a draft was marked
+  `field_errors` with its first message. `apply_fee` goes in the quote's query as `1` / `0`, and at
+  create only with a fee the quote actually came to (one that rounds to nothing is `fee_not_allowed`).
+  `finalize` times out at 12 s for the answer to start and 12 s more for its body, so it can take
+  about 24 s; what keeps a charge inside Stripe's 30 s between reading a card and charging it is the
+  25 s staleness check below, not this timeout. A refused connection token (a gateway an admin just
+  switched off, say) reaches the SDK as its own generic error, so the controller keeps the server's
+  reason for the screen (`takeTokenError`) and re-reads the config. The invoice is re-read after a create (a draft was marked
   sent) and after every `complete` / `cancel`; a recorded payment also re-reads its client and the
   payment.
 
@@ -88,9 +93,15 @@ static on `StripeTerminal`; each payment is a `TerminalPayment` from `beginPayme
 `Card` tile that leads on a draft too. It opens `showCollectCardPaymentScreen`, a full-screen route on
 the root navigator that is never saved as a route; `CollectCardPaymentViewModel` drives it.
 
-1. **Configure.** The first usable gateway and Location; the amount (a deposit if one is due, a
+1. **Configure.** The gateway whose Stripe account charges in the client's currency (the client's
+   own, else its group's, else the company's — Stripe Terminal takes only the account's own
+   currency; `TerminalConfig.gatewayFor`, the first usable one when the client isn't known) and its
+   Location; a config that never loaded is a connection problem with a Retry that loads it again,
+   never "Card present is off". The amount (a deposit if one is due, a
    draft's amount, else the balance); the surcharge switch only when the gateway allows it (an admin
-   acknowledges the rules first, `surcharge_acknowledgement`). Every figure is the server's `quote`.
+   acknowledges the rules first, `surcharge_acknowledgement`). Every figure is the server's `quote`,
+   shown in the currency the quote names (`currency_id`, which the server resolves through the
+   client's group) — before the first quote, in the client's or its group's currency.
    Permissions, the SDK and the reader start in parallel, so nothing waits after "Collect".
 2. **Create.** A new `collection_id` per attempt; the same one only to retry a create whose outcome
    is unknown (the server answers the same PaymentIntent). `collection_closed` gets a new id once;
@@ -98,11 +109,13 @@ the root navigator that is never saved as a route; `CollectCardPaymentViewModel`
    instead if it was charged after all).
 3. **Read, then finalize — after every read.** `finalize` may raise the PaymentIntent for a credit
    card's surcharge, or lower it again for a debit card on the next read: then the card is read
-   again (at most three reads). A read more than 25 s old by the time finalize answers is read again
+   again (at most four reads in a row: base, raised, lowered, and one that went stale). A read more than 25 s old by the time finalize answers is read again
    too (Stripe allows 30 s), and a finalize that fails cancels — a charge is never made on a guess.
 4. **Confirm** at the latest `amount_minor`. From finalize to the server's answer everything runs
    inside `TerminalController.guardCharge`: nothing — not Cancel, Back, a company switch or a
-   sign-out — interrupts it. A screen that closes before the charge gives the payment up (after
+   sign-out — interrupts it. A company switch (a deep link's) is refused outright while any payment
+   is under way on the screen — every call that settles it is bound to this company — through the
+   unsaved-changes guard's `blockedMessage`. A screen that closes before the charge gives the payment up (after
    finalize answers, if it was deciding); a charge already under way finishes, and the server
    records it.
 5. **Result.** One table maps `complete` (and `cancel`):
@@ -110,9 +123,9 @@ the root navigator that is never saved as a route; `CollectCardPaymentViewModel`
 | Answer | Screen |
 |---|---|
 | `recorded`, `unapplied` | Approved (and the unapplied note), receipt by email or QR |
-| `processing` | Recording — "Charged. The payment is being recorded." + Check again |
+| `recording` (the server holds the charge and is recording it) | Recording — "Charged. The payment is being recorded." + Check again |
 | `requires_payment_method` after a confirm | Declined — the charge failed; another card on a new payment session |
-| other `requires_*` after a confirm started, a confirm with an unknown outcome, `complete` failing (asked 3 times) | Checking — "We couldn't confirm whether the card was charged. Don't take another card for this invoice yet." + Check again, or Cancel the payment (the server records it instead if it was charged) |
+| Stripe's own `processing`, other `requires_*` after a confirm started, a confirm with an unknown outcome, `complete` failing (asked 3 times) | Checking — "We couldn't confirm whether the card was charged. Don't take another card for this invoice yet." + Check again, or Cancel the payment (the server records it instead if it was charged) |
 | `rejected`, `orphaned` | Charged, couldn't be recorded — contact support (the server alerted) |
 | `canceled`, `failed` | Cancelled — the only screen that says the card wasn't charged, with a decline |
 
@@ -121,14 +134,21 @@ SDK and server code has words (`terminal_error_text.dart`, tested exhaustively).
 
 Before a second tap that raises the amount, the screen stops on the surcharge (`surchargeNotice`:
 "Credit card: $103.00, including a $3.00 surcharge…") with Continue / Cancel — the customer may
-decline it and pay another way. "Charging" is shown only during a confirm; asking the server about a
+decline it and pay another way (a debit card isn't surcharged: Continue, then present it). **Try
+another card** on a PaymentIntent the surcharge already raised shows the notice again first: the
+next card is read at the raised amount. "Charging" is shown only during a confirm; asking the server about a
 payment (Check again, a cancel) is `settling` ("Checking with Stripe…").
 
 **A charge the app never heard back about isn't forgotten.** From the moment a confirm starts until
 the server answers for good, the PaymentIntent is kept on the device
 (`DevicePrefKeys.pendingCardPayments`, account scope). Opening the invoice asks the server again
-(`recoverPending`), and Enter Payment / Mark Paid check it first and, if it still can't be answered,
-warn that recording another payment could count it twice. The Checking, Recording and "couldn't be
+(`recoverPending`, every pending charge on the invoice, not just the first). Every way of recording
+a payment by hand checks first — `InvoiceActions.cardPaymentsSettled`, from Mark Paid and Enter
+Payment on the record screen, Mark Paid in the editor (`confirmSaveParam`), a bulk Mark Paid
+(`preflight`) and a new payment's Save (`confirmSave`, whichever screen opened it): a charge that
+turns out recorded stops the action and says so (the balance it was about to pay is gone); one
+that still can't be answered is warned about, once per charge per session. A deliberate sign-out
+forgets the list (account scope), as it forgets everything else on the device. The Checking, Recording and "couldn't be
 recorded" screens show the PaymentIntent as a copyable reference.
 
 ## Support runbook
@@ -247,9 +267,9 @@ It ships to every store user, whether or not they ever take a card.
   check also greps for `com.stripe`.
 - **The fork.** mek 5.7.3 has no `collectPaymentMethod` / `confirmPaymentIntent`, which the
   surcharge flow needs (read the card, let the server decide, then charge). The app pins
-  `hillelcoren/mek-packages@3f2cf999` (BreX900/mek-packages#171, which also fixes an Android cancel
-  that never answered) until a release ships it — `docs/upstream-workarounds.md` entry 19, which
-  also records a known Android issue left in the fork.
+  `hillelcoren/mek-packages@8f815343` (BreX900/mek-packages#171, which also fixes an Android cancel
+  that never answered, plus two fixes of ours: a re-created engine's token handler, and an iOS
+  cancel race) until a release ships it — `docs/upstream-workarounds.md` entry 19.
 
 ## Secrets never reach a log
 

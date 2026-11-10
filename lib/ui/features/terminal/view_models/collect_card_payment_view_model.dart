@@ -112,12 +112,14 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     required this.merchantDisplayName,
     required this.precision,
     this.clientEmail = '',
+    Future<String?> Function()? chargeCurrency,
     DateTime Function()? clock,
     String Function()? newId,
     this.pollDelay = const Duration(seconds: 2),
   }) : _invoice = invoice,
        _terminal = terminal,
        _repo = repository,
+       _chargeCurrency = chargeCurrency,
        _clock = clock ?? DateTime.now,
        _newId = newId ?? (() => const Uuid().v4()) {
     amount = defaultAmount(invoice);
@@ -127,10 +129,16 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
   final bool isAdmin;
   final String merchantDisplayName;
 
-  /// The client currency's decimals.
-  final int precision;
+  /// The charged currency's decimals. The screen corrects it once the
+  /// formatter is ready and the server has said which currency it charges.
+  int precision;
   final String clientEmail;
   final Duration pollDelay;
+
+  /// The ISO 4217 code the invoice is charged in (the client's, its
+  /// group's, else the company's), or null when it can't be told — then the
+  /// first gateway that takes cards is used and the server has the last word.
+  final Future<String?> Function()? _chargeCurrency;
   final TerminalController _terminal;
   final TerminalRepository _repo;
   final DateTime Function() _clock;
@@ -140,8 +148,9 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
   /// the card is read again instead.
   static const confirmWindow = Duration(seconds: 25);
 
-  /// Base, raised, lowered: a card is read at most this often in a row.
-  static const maxReads = 3;
+  /// Base, raised, lowered — plus one read that went stale: a card is read
+  /// at most this often in a row.
+  static const maxReads = 4;
 
   final Invoice _invoice;
   Invoice get invoice => _invoice;
@@ -225,6 +234,10 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
   bool get readAgain => _readAgain;
   bool _readAgain = false;
 
+  /// "Try another card" on a PaymentIntent the surcharge raised: the next
+  /// customer's card is read at the raised amount, so they are told first.
+  bool _noticeAgain = false;
+
   TerminalCompletion? get completion => _completion;
   TerminalCompletion? _completion;
 
@@ -270,16 +283,57 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
 
   /// Loads the company's gateway, quotes, and gets the reader ready in
   /// parallel, so the customer isn't kept waiting after "Collect".
+  ///
+  /// Also "Retry" while there is no gateway yet: a failed fetch is a
+  /// connection problem, not "Card present is off".
   Future<void> start() async {
+    if (_starting || _stage != CollectStage.configure) return;
+    _starting = true;
+    _problem = null;
+    _notify();
+    try {
+      await _start();
+    } finally {
+      _starting = false;
+      _notify();
+    }
+  }
+
+  bool _starting = false;
+
+  /// Loading the company's gateway, before there is one to quote with.
+  bool get starting => _starting;
+
+  Future<void> _start() async {
     var config = _terminal.configFor(companyId);
     if (config == null) {
       try {
         config = await _terminal.refreshConfig(companyId);
       } catch (_) {}
     }
-    final gateway = config?.usableGateway;
+    if (config == null) {
+      // Never answered (offline, a timeout): say so, and let Retry ask again.
+      _fail(
+        _terminal.configState(companyId) == TerminalConfigState.serverTooOld
+            ? const CollectProblem(serverCode: TerminalServerError.notEnabled)
+            : const CollectProblem(code: TerminalErrorCode.network),
+      );
+      return;
+    }
+    String? currency;
+    try {
+      currency = await _chargeCurrency?.call();
+    } catch (_) {}
+    final gateway = config.gatewayFor(currency);
     if (gateway == null) {
-      _fail(const CollectProblem(serverCode: TerminalServerError.notEnabled));
+      _fail(
+        config.usableGateway == null
+            ? const CollectProblem(serverCode: TerminalServerError.notEnabled)
+            : CollectProblem(
+                serverCode: 'no_gateway_for_currency',
+                data: {'currency': currency?.toUpperCase() ?? ''},
+              ),
+      );
       return;
     }
     _gateway = gateway;
@@ -339,7 +393,10 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
         _setReader(ReaderState.needsReader);
       }
     } catch (e) {
-      _setReader(ReaderState.failed, _problemOf(e));
+      _setReader(
+        ReaderState.failed,
+        _problemOf(_terminal.takeTokenError() ?? e),
+      );
     }
   }
 
@@ -389,7 +446,10 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
       _readerChoice = TerminalReaderChoice.bluetooth;
       _setReader(ReaderState.ready);
     } catch (e) {
-      _setReader(ReaderState.needsReader, _problemOf(e));
+      _setReader(
+        ReaderState.needsReader,
+        _problemOf(_terminal.takeTokenError() ?? e),
+      );
     }
   }
 
@@ -429,6 +489,10 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     _collectionId = null;
     unawaited(requote());
   }
+
+  /// "Retry" under the figures: loads the gateway again if that is what
+  /// failed, else quotes again.
+  Future<void> retry() => _gateway == null ? start() : requote();
 
   /// The server's figures for the current amount; the only source of what
   /// the screen shows.
@@ -473,7 +537,12 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
         companyGatewayId: gateway.companyGatewayId,
       );
       final config = await _terminal.refreshConfig(companyId);
-      _gateway = config?.usableGateway ?? gateway;
+      // The same gateway, with its surcharge now acknowledged.
+      _gateway =
+          config?.gateways
+              .where((g) => g.companyGatewayId == gateway.companyGatewayId)
+              .firstOrNull ??
+          gateway;
       _notify();
     } catch (e) {
       _problem = _problemOf(e);
@@ -537,7 +606,12 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
           invoiceId: _invoice.id,
           companyGatewayId: gateway.companyGatewayId,
           amount: amount,
-          applyFee: applySurcharge && quote.surchargeAllowed,
+          // Only a fee the server actually quoted: one that rounds to
+          // nothing is refused at create (`fee_not_allowed`).
+          applyFee:
+              applySurcharge &&
+              quote.surchargeAllowed &&
+              quote.feeGross > Decimal.zero,
           collectionId: _collectionId!,
           expectedTotal: quote.total,
         );
@@ -646,10 +720,10 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
         return;
       }
       final raised = _finalized;
-      if (_readAgain &&
-          raised != null &&
-          raised.recollect &&
-          raised.surcharge > Decimal.zero) {
+      if (raised != null &&
+          raised.surcharge > Decimal.zero &&
+          ((_readAgain && raised.recollect) || _noticeAgain)) {
+        _noticeAgain = false;
         // Card brands want the surcharge shown before the charge, with a way
         // to say no (pay with a debit card, or not at all).
         _stage = CollectStage.surchargeNotice;
@@ -806,6 +880,9 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     }
     _problem = null;
     _reads = 0;
+    // The PaymentIntent still carries the surcharge the last card was told
+    // about; whoever presents the next card is told again.
+    _noticeAgain = (_finalized?.surcharge ?? Decimal.zero) > Decimal.zero;
     await _read();
   }
 

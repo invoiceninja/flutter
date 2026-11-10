@@ -188,13 +188,25 @@ class InvoiceListScreen extends StatelessWidget {
           pluralSuccessKey: 'marked_sent_invoices',
           nothingKey: 'nothing_to_send',
         ),
-        const EntityListBulkAction(
+        EntityListBulkAction(
           actionId: 'mark_paid',
           icon: Icons.price_check_outlined,
           tooltipKey: 'mark_paid',
           singleSuccessKey: 'marked_paid_invoice',
           pluralSuccessKey: 'marked_paid_invoices',
           nothingKey: 'nothing_to_update',
+          // A card payment this device took on one of them may have been
+          // charged: never record a second payment over it unasked.
+          preflight: (ctx, eligible) async {
+            final services = ctx.read<Services>();
+            final ok = await InvoiceActions.cardPaymentsSettled(
+              ctx,
+              services,
+              services.auth.session.value!.currentCompanyId,
+              [for (final i in eligible.cast<Invoice>()) i.id],
+            );
+            return ok ? eligible : null;
+          },
         ),
         const EntityListBulkAction(
           actionId: 'auto_bill',

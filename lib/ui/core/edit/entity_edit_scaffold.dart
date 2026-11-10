@@ -56,6 +56,7 @@ class EntityEditScaffold<T> extends StatelessWidget {
     this.actionsBuilder,
     this.saveParamFor,
     this.confirmSaveParam,
+    this.confirmSave,
     this.onAfterSaveAction,
     this.onAfterSaveActionOnCreate,
     this.onSaveCleanup,
@@ -136,6 +137,12 @@ class EntityEditScaffold<T> extends StatelessWidget {
   final Future<bool> Function(BuildContext context, Object action)?
   confirmSaveParam;
 
+  /// Asked before every save — Save, Enter, and the save that a SAVE-PARAM
+  /// or AFTER-SAVE action makes first; false leaves the form as it is. A
+  /// new payment uses it to check a card payment still being confirmed on
+  /// an invoice it pays.
+  final Future<bool> Function(BuildContext context)? confirmSave;
+
   /// Runs the entity's existing `<E>Actions.dispatch` for an AFTER-SAVE
   /// action against the freshly-saved (or, on the skip-redundant-save
   /// path, the unchanged) entity. The per-entity closure casts `action`
@@ -206,6 +213,10 @@ class EntityEditScaffold<T> extends StatelessWidget {
       focus.unfocus();
       await Future<void>.delayed(Duration.zero);
       if (!context.mounted) return null;
+    }
+    final confirm = confirmSave;
+    if (confirm != null && (!await confirm(context) || !context.mounted)) {
+      return null;
     }
     final result = await vm.save();
     if (!context.mounted) return null;

@@ -86,19 +86,21 @@ class StripeTerminal {
   }
 
   /// Asks for what [kind] needs: location for both, and Bluetooth (Android
-  /// 12+ "Nearby devices") for a Bluetooth reader only. Concurrent calls
-  /// share one request. [TerminalPermission.blocked] means the system won't
-  /// ask again: offer [openSettings].
+  /// 12+ "Nearby devices") for a Bluetooth reader only. Concurrent calls for
+  /// the same [kind] share one request — never one for another kind, whose
+  /// answer wouldn't cover Bluetooth. [TerminalPermission.blocked] means the
+  /// system won't ask again: offer [openSettings].
   static Future<TerminalPermission> requestPermissions(
     TerminalReaderKind kind,
   ) {
     if (!isAvailable) return Future.value(TerminalPermission.denied);
-    return _permissionRequest ??= _requestPermissions(
+    return _permissionRequests[kind] ??= _requestPermissions(
       kind,
-    ).whenComplete(() => _permissionRequest = null);
+    ).whenComplete(() => _permissionRequests.remove(kind));
   }
 
-  static Future<TerminalPermission>? _permissionRequest;
+  static final Map<TerminalReaderKind, Future<TerminalPermission>>
+  _permissionRequests = {};
 
   static Future<TerminalPermission> _requestPermissions(
     TerminalReaderKind kind,
@@ -205,9 +207,19 @@ class StripeTerminal {
         readerDelegate: _BluetoothDelegate(),
       ),
     };
+    final generation = _generation;
     final connected = await _guard(
       () => _terminal.connectReader(found, configuration: configuration),
     );
+    if (generation != _generation) {
+      // A reset ran while this connected (a sign-out, another company): the
+      // reader belongs to an account that is gone, and must not serve the
+      // next one.
+      try {
+        await _terminal.disconnectReader().timeout(_stepTimeout);
+      } catch (_) {}
+      throw const TerminalError(TerminalErrorCode.sessionExpired, 'reset');
+    }
     return _reader(connected, reader.kind);
   }
 
@@ -246,11 +258,14 @@ class StripeTerminal {
   /// Starts a payment for the PaymentIntent behind [clientSecret]. One at a
   /// time: while another is unfinished this throws
   /// [TerminalErrorCode.readerBusy].
+  ///
+  /// A payment begun right after another was cancelled waits, at its first
+  /// [TerminalPayment.collect], for the SDK to let go of that one's read.
   static TerminalPayment beginPayment(String clientSecret) {
     if (_payment case final payment? when !payment.isFinished) {
       throw const TerminalError(TerminalErrorCode.readerBusy);
     }
-    return _payment = TerminalPayment._(clientSecret);
+    return _payment = TerminalPayment._(clientSecret, _payment?._stopping);
   }
 
   static Future<void> _start() async {
@@ -384,9 +399,16 @@ class StripeTerminal {
 /// the amount it expects. [cancel] works until [confirm] starts and is never
 /// lost: a payment cancelled between steps refuses every later step.
 class TerminalPayment {
-  TerminalPayment._(this._clientSecret);
+  TerminalPayment._(this._clientSecret, this._previous);
 
   final String _clientSecret;
+
+  /// The cancelled payment before this one, still stopping its read: the
+  /// SDK takes one operation at a time.
+  Future<void>? _previous;
+
+  /// Set by [cancel] while the SDK stops this payment's read.
+  Future<void>? _stopping;
   mek.PaymentIntent? _collected;
   mek.CancelableFuture<mek.PaymentIntent>? _operation;
   bool _busy = false;
@@ -408,6 +430,12 @@ class TerminalPayment {
     _enter();
     _collected = null;
     try {
+      final previous = _previous;
+      if (previous != null) {
+        _previous = null;
+        await previous;
+        _throwIfCancelled();
+      }
       final intent = await StripeTerminal._guard(
         () => StripeTerminal._terminal.retrievePaymentIntent(_clientSecret),
       );
@@ -512,6 +540,9 @@ class TerminalPayment {
             .timeout(const Duration(seconds: 5))
             .catchError((_) {}),
       );
+      _stopping = operation.result
+          .timeout(const Duration(seconds: 5))
+          .then<void>((_) {}, onError: (_) {});
     }
   }
 

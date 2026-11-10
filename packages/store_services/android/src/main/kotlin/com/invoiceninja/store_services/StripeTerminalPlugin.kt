@@ -45,6 +45,12 @@ class StripeTerminalPlugin :
   private var pending: MethodChannel.Result? = null
   private var pendingNeeded: List<String> = emptyList()
 
+  /// Whether Android would have explained each permission before this
+  /// request: a refusal that leaves no rationale behind is final only if
+  /// there was one, or if the app had asked before (a first dialog that was
+  /// dismissed, not answered, leaves none either).
+  private var pendingRationale: Map<String, Boolean> = emptyMap()
+
   override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
     context = binding.applicationContext
     channel = MethodChannel(binding.binaryMessenger, CHANNEL).also {
@@ -94,8 +100,10 @@ class StripeTerminalPlugin :
     val keystore =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             pm.hasSystemFeature(PackageManager.FEATURE_HARDWARE_KEYSTORE)
-    // Stripe ships its Tap to Pay kernels for ARM only.
-    val arm = Build.SUPPORTED_ABIS.any { it.startsWith("arm") }
+    // Stripe ships its Tap to Pay kernels for ARM only, and an x86 device
+    // that translates ARM code still runs this app's x86 build: the primary
+    // ABI is what counts.
+    val arm = Build.SUPPORTED_ABIS.firstOrNull()?.startsWith("arm") == true
     val blocker =
         when {
           Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU -> "unsupportedOs"
@@ -135,6 +143,7 @@ class StripeTerminalPlugin :
     if (granted(activity, needed)) return result.success("granted")
     pending = result
     pendingNeeded = needed
+    pendingRationale = needed.associateWith { activity.shouldShowRequestPermissionRationale(it) }
     activity.requestPermissions(
         (needed + Manifest.permission.ACCESS_COARSE_LOCATION).toTypedArray(),
         REQUEST_CODE,
@@ -152,20 +161,35 @@ class StripeTerminalPlugin :
     if (requestCode != REQUEST_CODE) return false
     // Approximate alone is not enough, so the answer is what is now granted.
     val activity = binding?.activity
+    val refused =
+        activity?.let { a ->
+          pendingNeeded.filter { a.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        }
     pending?.success(
         when {
-          activity == null -> "denied"
-          granted(activity, pendingNeeded) -> "granted"
-          // No rationale after a refusal: Android won't show the dialog again.
-          pendingNeeded.none {
-            activity.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED &&
-                activity.shouldShowRequestPermissionRationale(it)
-          } -> "blocked"
+          activity == null || refused == null -> "denied"
+          refused.isEmpty() -> "granted"
+          // A rationale left: Android will ask again.
+          refused.any { activity.shouldShowRequestPermissionRationale(it) } -> "denied"
+          // None left after one was there, or after an earlier request:
+          // Android won't show the dialog again.
+          refused.any { pendingRationale[it] == true || askedBefore(activity, it) } -> "blocked"
+          // The first dialog was dismissed, not answered.
           else -> "denied"
         })
+    activity?.let { a -> pendingNeeded.forEach { noteAsked(a, it) } }
     pending = null
     return true
   }
+
+  private fun prefs(context: Context) =
+      context.getSharedPreferences("invoice_ninja_terminal_permissions", Context.MODE_PRIVATE)
+
+  private fun askedBefore(context: Context, permission: String) =
+      prefs(context).getBoolean(permission, false)
+
+  private fun noteAsked(context: Context, permission: String) =
+      prefs(context).edit().putBoolean(permission, true).apply()
 
   private fun openSettings(): Boolean {
     val context = binding?.activity ?: context ?: return false

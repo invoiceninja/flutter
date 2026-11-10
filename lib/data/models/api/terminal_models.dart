@@ -49,6 +49,19 @@ class TerminalConfig {
     }
     return null;
   }
+
+  /// The gateway that can charge in [currencyCode] (ISO 4217, any case):
+  /// Stripe Terminal charges only in the account's own currency, and the
+  /// server refuses any other (`unsupported_currency`). With [currencyCode]
+  /// unknown, [usableGateway]; null when no gateway takes that currency.
+  TerminalGatewayConfig? gatewayFor(String? currencyCode) {
+    final code = currencyCode?.toLowerCase() ?? '';
+    if (code.isEmpty) return usableGateway;
+    for (final g in gateways) {
+      if (g.cardPaymentsActive && g.defaultCurrency == code) return g;
+    }
+    return null;
+  }
 }
 
 class TerminalGatewayConfig {
@@ -146,6 +159,7 @@ class TerminalQuote {
     required this.total,
     required this.surchargeAllowed,
     required this.reason,
+    this.currencyId = '',
   });
 
   factory TerminalQuote.fromJson(Map<String, dynamic> json) => TerminalQuote(
@@ -154,6 +168,7 @@ class TerminalQuote {
     total: parseMoney(json['total']),
     surchargeAllowed: _bool(json['surcharge_allowed']),
     reason: json['reason'] == null ? null : _string(json['reason']),
+    currencyId: _string(json['currency_id']),
   );
 
   final Decimal amount;
@@ -161,6 +176,11 @@ class TerminalQuote {
   final Decimal total;
   final bool surchargeAllowed;
   final String? reason;
+
+  /// The currency the card is charged in — the client's, resolved by the
+  /// server through its group and the company. Every figure on the screen
+  /// is shown in it; '' from a server that didn't say.
+  final String currencyId;
 }
 
 /// `POST /invoices/{id}/terminal/payment_intents`: the collection's

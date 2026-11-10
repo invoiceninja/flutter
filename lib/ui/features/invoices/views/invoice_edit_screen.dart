@@ -237,9 +237,22 @@ class InvoiceEditScreen extends StatelessWidget {
       // reached, so the same tap used to do it with no prompt at all. The
       // other SAVE-PARAM verbs (markSent / cancel / autoBill) carry
       // `confirm: true` on their action item and are gated by `guardedOnTap`.
-      confirmSaveParam: (BuildContext context, Object action) async =>
-          action != InvoiceAction.markPaid ||
-          await showMarkPaidConfirmDialog(context),
+      // A card payment this device took on it may have been charged too.
+      confirmSaveParam: (BuildContext context, Object action) async {
+        if (action != InvoiceAction.markPaid) return true;
+        final services = context.read<Services>();
+        final id = existingId;
+        if (id != null &&
+            !await InvoiceActions.cardPaymentsSettled(
+              context,
+              services,
+              services.auth.session.value!.currentCompanyId,
+              [id],
+            )) {
+          return false;
+        }
+        return context.mounted && await showMarkPaidConfirmDialog(context);
+      },
       onAfterSaveAction: (ctx, saved, a) {
         final services = ctx.read<Services>();
         return InvoiceActions.dispatch(

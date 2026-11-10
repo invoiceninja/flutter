@@ -1112,8 +1112,8 @@ packages:
     dependency: transitive
     description:
       path: mek_stripe_terminal
-      ref: "3f2cf999b24c9a94eda4c2698a2521658a673fc1"
-      resolved-ref: "3f2cf999b24c9a94eda4c2698a2521658a673fc1"
+      ref: "8f8153438cd49e625e4ca141c6e1aa791198c1aa"
+      resolved-ref: "8f8153438cd49e625e4ca141c6e1aa791198c1aa"
       url: "https://github.com/hillelcoren/mek-packages.git"
     source: git
     version: "5.7.3"

@@ -256,7 +256,7 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Issue / waiting on: [BreX900/mek-packages#171](https://github.com/BreX900/mek-packages/pull/171) (open). • Found: 2026-11-09 • mek_stripe_terminal: 5.7.3
 - Symptom: 5.7.3 offers only `processPaymentIntent` (read and charge in one call), so the server can't decide the surcharge between reading the card and charging it. On Android, cancelling `processPaymentIntent` never completes.
 - Root cause: mek 5.x exposes only `processPaymentIntent`, though both of Stripe's SDKs still have `collectPaymentMethod` / `confirmPaymentIntent`; the Android `stop*` handlers wait for a callback a successful cancel never sends.
-- Commit ref: not yet committed
+- Commit ref: 0129615f
 - Change(s):
   - `packages/store_services/pubspec.yaml` — **MUST-REVERT**: `mek_stripe_terminal` as a git dependency on `hillelcoren/mek-packages` @ `3f2cf999` (`path: mek_stripe_terminal`), instead of a pub version.
   - `pubspec.lock` — **MUST-REVERT**: the git pin that comes with it.

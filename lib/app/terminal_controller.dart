@@ -11,6 +11,7 @@ import 'package:admin/data/prefs/device_pref_keys.dart';
 import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/terminal_repository.dart';
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/terminal_platform.dart';
 import 'package:admin/domain/terminal/terminal_eligibility.dart';
 
@@ -32,7 +33,9 @@ class TerminalController extends ChangeNotifier {
     required AuthRepository auth,
     required DevicePrefsStore prefs,
     bool? platformReady,
-  }) : _repo = repository,
+    DateTime Function()? clock,
+  }) : _clock = clock ?? DateTime.now,
+       _repo = repository,
        _platform = platform,
        _auth = auth,
        _prefs = prefs,
@@ -46,6 +49,12 @@ class TerminalController extends ChangeNotifier {
   final AuthRepository _auth;
   final DevicePrefsStore _prefs;
   final bool? _platformReady;
+  final DateTime Function() _clock;
+
+  /// How long an answer stands: an admin who turns Card present on sees it
+  /// within minutes, and a failed fetch is tried again.
+  static const configLifetime = Duration(minutes: 5);
+  static const failedConfigRetry = Duration(minutes: 1);
 
   TerminalPlatform get platform => _platform;
   TerminalRepository get repository => _repo;
@@ -70,7 +79,8 @@ class TerminalController extends ChangeNotifier {
   set simulated(bool value) {
     if (_simulated == value) return;
     _simulated = value;
-    _reader = null;
+    // A reader connected the other way must not serve the next collection.
+    unawaited(disconnect());
     notifyListeners();
   }
 
@@ -106,13 +116,22 @@ class TerminalController extends ChangeNotifier {
   bool _canCreatePayment() =>
       _auth.session.value?.currentCompany?.can('create_payment') ?? false;
 
-  /// Asks the server (and this phone) once, when nothing cheaper rules the
-  /// feature out. Never throws and never reports: a server without the route
-  /// answers 404, which just means "not here".
+  /// Asks the server (and this phone) when nothing cheaper rules the
+  /// feature out. Never throws and never reports. A server without the route
+  /// answers 404 — "not here", remembered for the session; any other failure
+  /// is tried again after [failedConfigRetry], and an answer is refreshed
+  /// after [configLifetime].
   void ensureConfig(String companyId) {
     if (!platformReady || !_canCreatePayment()) return;
-    if (_configs.containsKey(companyId)) return;
-    unawaited(_load(companyId));
+    final entry = _configs[companyId];
+    if (entry != null) {
+      if (entry.loading || entry.unsupported) return;
+      final age = _clock().difference(entry.fetchedAt);
+      if (age < (entry.config == null ? failedConfigRetry : configLifetime)) {
+        return;
+      }
+    }
+    unawaited(_load(companyId, keep: entry?.config));
   }
 
   /// Re-reads the company's answer — after an admin acknowledged the
@@ -123,8 +142,8 @@ class TerminalController extends ChangeNotifier {
     return configFor(companyId);
   }
 
-  Future<void> _load(String companyId) async {
-    final entry = _configs[companyId] = _ConfigEntry();
+  Future<void> _load(String companyId, {TerminalConfig? keep}) async {
+    final entry = _configs[companyId] = _ConfigEntry(_clock())..config = keep;
     _deviceLoading ??= _platform
         .deviceSupport()
         .then((d) => _device = d)
@@ -136,7 +155,13 @@ class TerminalController extends ChangeNotifier {
       entry.config = config;
     } catch (e) {
       _log.fine('terminal/config unavailable for $companyId: ${e.runtimeType}');
+      // An older server: forget any answer. Anything else keeps the last one.
+      entry.unsupported = e is ServerException && e.statusCode == 404;
+      if (entry.unsupported) entry.config = null;
     }
+    entry
+      ..loading = false
+      ..fetchedAt = _clock();
     if (identical(_configs[companyId], entry)) notifyListeners();
   }
 
@@ -277,14 +302,18 @@ class TerminalController extends ChangeNotifier {
   /// session end or a company switch. Waits up to a minute for a charge in
   /// flight to be answered first.
   Future<void> reset() async {
-    if (_charges.isNotEmpty) {
-      try {
-        await Future.wait(
-          _charges.toList(),
-        ).timeout(const Duration(seconds: 60));
-      } catch (_) {
+    // Until none is left: one that ends may have started another (a read
+    // again after finalize).
+    final deadline = _clock().add(const Duration(seconds: 60));
+    while (_charges.isNotEmpty) {
+      final left = deadline.difference(_clock());
+      if (left <= Duration.zero) {
         _log.warning('reset while a card charge was still unanswered');
+        break;
       }
+      try {
+        await Future.any(_charges.toList()).timeout(left);
+      } catch (_) {}
     }
     _configs.clear();
     _reader = null;
@@ -304,5 +333,12 @@ class TerminalController extends ChangeNotifier {
 }
 
 class _ConfigEntry {
+  _ConfigEntry(this.fetchedAt);
+
+  DateTime fetchedAt;
   TerminalConfig? config;
+  bool loading = true;
+
+  /// The server has no such route: an older one. Not asked again.
+  bool unsupported = false;
 }

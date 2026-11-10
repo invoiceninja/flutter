@@ -652,6 +652,7 @@ class InvoiceActions {
     }
     var current = invoice;
     if (current.isDirty) {
+      Notify.info(context, context.tr('terminal_syncing_first'));
       try {
         current = (await services.invoices
             .watch(companyId: companyId, id: invoice.id)

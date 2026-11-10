@@ -5,6 +5,8 @@ import 'package:store_services/store_services.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/ltr_value.dart';
+import 'package:admin/ui/features/terminal/terminal_error_text.dart';
 
 /// Lists the Bluetooth card readers in range as they're found; a tap picks
 /// one. Closing the sheet stops the scan (docs/in-person-payments.md).
@@ -54,7 +56,7 @@ class _ReaderPickerSheetState extends State<_ReaderPickerSheet> {
 
   @override
   Widget build(BuildContext context) => SafeArea(
-    child: Padding(
+    child: SingleChildScrollView(
       padding: EdgeInsets.all(InSpacing.lg(context)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -76,18 +78,18 @@ class _ReaderPickerSheetState extends State<_ReaderPickerSheet> {
             ListTile(
               leading: const Icon(Icons.point_of_sale_outlined),
               title: Text(reader.label),
-              subtitle: Text(reader.serialNumber),
+              subtitle: LtrText(reader.serialNumber),
               onTap: () => Navigator.of(context).pop(reader),
             ),
           if (!_scanning && _found.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: InSpacing.sm),
               child: Text(
-                context.tr(
-                  _error == null
-                      ? 'terminal_reader_none_found'
-                      : 'terminal_error_reader_disconnected',
-                ),
+                context.tr(switch (_error) {
+                  null => 'terminal_reader_none_found',
+                  final TerminalError e => terminalErrorKey(e.code),
+                  _ => 'terminal_error_reader_disconnected',
+                }),
               ),
             ),
         ],

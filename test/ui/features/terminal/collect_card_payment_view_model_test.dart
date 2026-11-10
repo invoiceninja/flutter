@@ -124,7 +124,7 @@ void main() {
     repo.creates.add(fakeIntent());
     platform.session.reads
       ..add(fakeCard)
-      ..add(fakeCard);
+      ..add(fakeRead(10300));
     repo.finalizes
       ..add(fakeFinalize(10300, recollect: true))
       ..add(fakeFinalize(10300));
@@ -152,9 +152,10 @@ void main() {
     () async {
       final vm = await ready();
       repo.creates.add(fakeIntent());
-      for (var i = 0; i < 3; i++) {
-        platform.session.reads.add(fakeCard);
-      }
+      platform.session.reads
+        ..add(fakeCard)
+        ..add(fakeRead(10300, funding: 'debit'))
+        ..add(fakeRead(10000, funding: 'debit'));
       repo.finalizes
         ..add(fakeFinalize(10300, recollect: true))
         ..add(fakeFinalize(10000, recollect: true))
@@ -522,5 +523,172 @@ void main() {
       ),
       Decimal.fromInt(100),
     );
+  });
+
+  group('money review (2026-11-11)', () {
+    const charged = TerminalPaymentOutcome(
+      paymentIntentId: 'pi_1',
+      status: 'succeeded',
+    );
+
+    test('a screen closed while the server decides never charges', () async {
+      final vm = await ready();
+      repo.creates.add(fakeIntent());
+      platform.session.reads.add(fakeCard);
+      final deciding = Completer<TerminalFinalize>();
+      repo.finalizes.add(deciding);
+      repo.cancels.add(fakeCompletion('canceled'));
+
+      final collecting = vm.collect();
+      await pumpEventQueue();
+      expect(vm.stage, CollectStage.finalizing);
+      vm.dispose();
+      deciding.complete(fakeFinalize(10000));
+      await collecting;
+
+      expect(platform.session.calls, isNot(contains(startsWith('confirm'))));
+      expect(repo.calls, contains('cancel:pi_1'));
+    });
+
+    test(
+      'a decline nobody sees gives the reader and the invoice back',
+      () async {
+        final vm = await ready();
+        repo.creates.add(fakeIntent());
+        platform.session.reads.add(fakeCard);
+        repo.finalizes.add(fakeFinalize(10000));
+        final confirming = Completer<TerminalPaymentOutcome>();
+        platform.session.confirms.add(confirming);
+        repo.cancels.add(fakeCompletion('canceled'));
+
+        final collecting = vm.collect();
+        await pumpEventQueue();
+        expect(vm.stage, CollectStage.processing);
+        vm.dispose();
+        confirming.completeError(
+          const TerminalError(TerminalErrorCode.declined),
+        );
+        await collecting;
+        await pumpEventQueue();
+
+        expect(platform.session.isFinished, isTrue);
+        expect(repo.calls, contains('cancel:pi_1'));
+      },
+    );
+
+    test('a reset waits from finalize to the server\'s answer', () async {
+      final vm = await ready();
+      repo.creates.add(fakeIntent());
+      platform.session.reads.add(fakeCard);
+      final deciding = Completer<TerminalFinalize>();
+      repo.finalizes.add(deciding);
+      platform.session.confirms.add(charged);
+      repo.completes.add(fakeCompletion('recorded'));
+
+      final collecting = vm.collect();
+      await pumpEventQueue();
+      var reset = false;
+      final resetting = terminal.reset().then((_) => reset = true);
+      await pumpEventQueue();
+      expect(reset, isFalse);
+      deciding.complete(fakeFinalize(10000));
+      await collecting;
+      await resetting;
+      expect(vm.stage, CollectStage.approved);
+      expect(reset, isTrue);
+    });
+
+    test('an unknown outcome the server says failed takes another card on a '
+        'new payment', () async {
+      final vm = await ready();
+      repo.creates.add(fakeIntent());
+      platform.session.reads
+        ..add(fakeCard)
+        ..add(fakeCard);
+      repo.finalizes
+        ..add(fakeFinalize(10000))
+        ..add(fakeFinalize(10000));
+      platform.session.confirms
+        ..add(const TerminalError(TerminalErrorCode.outcomeUnknown))
+        ..add(charged);
+      repo.completes
+        ..add(fakeCompletion('requires_payment_method'))
+        ..add(fakeCompletion('recorded'));
+
+      await vm.collect();
+      expect(vm.stage, CollectStage.declined);
+      await vm.tryAnotherCard();
+      expect(platform.begun, 2);
+      expect(vm.stage, CollectStage.approved);
+    });
+
+    test('Checking can cancel the payment, which frees the invoice', () async {
+      final vm = await ready();
+      repo.creates.add(fakeIntent());
+      platform.session.reads.add(fakeCard);
+      repo.finalizes.add(fakeFinalize(10000));
+      platform.session.confirms.add(
+        const TerminalError(TerminalErrorCode.outcomeUnknown),
+      );
+      for (var i = 0; i < 3; i++) {
+        repo.completes.add(fakeCompletion('requires_confirmation'));
+      }
+      await vm.collect();
+      expect(vm.stage, CollectStage.checking);
+
+      repo.cancels.add(fakeCompletion('canceled'));
+      await vm.cancelUnconfirmed();
+      expect(vm.stage, CollectStage.cancelled);
+    });
+
+    test(
+      'an open collection still being created can\'t be cancelled yet',
+      () async {
+        final vm = await ready();
+        repo.creates.add(
+          const TerminalServerError(TerminalServerError.collectionOpen, '', {
+            'payment_intent_id': null,
+            'user': 'Sam',
+          }),
+        );
+        await vm.collect();
+        await vm.cancelOpenCollection();
+        expect(vm.stage, CollectStage.openCollection);
+        expect(vm.problem!.serverCode, 'collection_starting');
+        expect(repo.calls, isNot(contains(startsWith('cancel'))));
+      },
+    );
+
+    test('an open collection still charging is checked by its own '
+        'PaymentIntent', () async {
+      final vm = await ready();
+      repo.creates.add(
+        const TerminalServerError(TerminalServerError.collectionOpen, '', {
+          'payment_intent_id': 'pi_old',
+        }),
+      );
+      await vm.collect();
+      repo.cancels.add(fakeCompletion('processing'));
+      await vm.cancelOpenCollection();
+      expect(vm.stage, CollectStage.recording);
+
+      repo.completes.add(fakeCompletion('recorded'));
+      await vm.checkAgain();
+      expect(vm.stage, CollectStage.approved);
+    });
+
+    test('reads are bounded even when the facade keeps refusing', () async {
+      final vm = await ready();
+      repo.creates.add(fakeIntent());
+      for (var i = 0; i < 3; i++) {
+        platform.session.reads.add(fakeCard);
+        // The server says 10300, the read says 10000: always refused.
+        repo.finalizes.add(fakeFinalize(10300));
+      }
+      repo.cancels.add(fakeCompletion('canceled'));
+      await vm.collect();
+      expect(vm.stage, CollectStage.cancelled);
+      expect(platform.session.calls.where((c) => c == 'collect'), hasLength(3));
+    });
   });
 }

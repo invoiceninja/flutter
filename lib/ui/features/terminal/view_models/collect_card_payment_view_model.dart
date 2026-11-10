@@ -315,11 +315,10 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     final existing = _location ?? gateway.locations.firstOrNull;
     if (existing != null) return _location = existing;
     if (!isAdmin) {
+      // Only an admin can create the Stripe Location.
       _setReader(
         ReaderState.failed,
-        const CollectProblem(
-          serverCode: TerminalServerError.locationAddressRequired,
-        ),
+        const CollectProblem(serverCode: 'location_needs_admin'),
       );
       return null;
     }
@@ -438,6 +437,13 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
 
   // ------------------------------------------------------------ collect
 
+  /// The PaymentIntent of another attempt this screen is settling ("Cancel it
+  /// and start again"), for Check again and the receipt.
+  String? _settlingPaymentIntentId;
+
+  String? get _paymentIntentId =>
+      _intent?.paymentIntentId ?? _settlingPaymentIntentId;
+
   /// "Collect $X": creates the PaymentIntent and reads the card.
   Future<void> collect() async {
     if (!canCollect) return;
@@ -448,21 +454,28 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     _notify();
     final intent = await _create();
     if (intent == null) return;
-    if (_stage == CollectStage.cancelled) {
-      // Cancelled while the server was creating it.
+    _intent = intent;
+    if (_stage == CollectStage.cancelled || _disposed) {
+      // Cancelled (or the screen closed) while the server was creating it.
       await _cancelIntent(intent);
       return;
     }
-    _intent = intent;
-    try {
-      _session = _terminal.platform.beginPayment(intent.clientSecret);
-    } catch (e) {
-      _problem = _problemOf(e);
-      await _cancelIntent(intent);
+    if (!_startSession(intent)) {
+      await _abandon();
       return;
     }
     _reads = 0;
     await _read();
+  }
+
+  bool _startSession(TerminalIntent intent) {
+    try {
+      _session = _terminal.platform.beginPayment(intent.clientSecret);
+      return true;
+    } catch (e) {
+      _problem = _problemOf(e);
+      return false;
+    }
   }
 
   Future<TerminalIntent?> _create() async {
@@ -509,6 +522,7 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
       (e is ServerException && e.statusCode >= 500);
 
   TerminalIntent? _refused(TerminalServerError e) {
+    if (_stage == CollectStage.cancelled) return null;
     final problem = CollectProblem(
       serverCode: e.code,
       message: e.message,
@@ -527,41 +541,44 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
   }
 
   TerminalIntent? _backToConfigure(CollectProblem problem) {
+    if (_stage == CollectStage.cancelled) return null;
     _problem = problem;
-    if (_stage != CollectStage.cancelled) _stage = CollectStage.configure;
+    _stage = CollectStage.configure;
     _notify();
     return null;
   }
 
   /// `collection_open`: cancel the PaymentIntent that attempt left, then
-  /// start again. If it was charged after all, the server records it.
+  /// start again. If it was charged after all, the server records it, and
+  /// this screen shows that payment.
   Future<void> cancelOpenCollection() async {
+    if (_stage != CollectStage.openCollection) return;
     final pi = _problem?.data['payment_intent_id'];
-    if (_stage != CollectStage.openCollection || pi is! String || pi.isEmpty) {
+    if (pi is! String || pi.isEmpty) {
+      // Still being created on the server; it can't be cancelled yet.
+      _problem = const CollectProblem(serverCode: 'collection_starting');
+      _notify();
       return;
     }
-    _stage = CollectStage.creating;
+    _settlingPaymentIntentId = pi;
+    _stage = CollectStage.processing;
     _notify();
     try {
       final result = await _repo.cancel(companyId, pi, invoiceId: _invoice.id);
-      if (result.isRecorded) {
-        _settle(result);
-        return;
-      }
-      if (result.status != 'canceled') {
-        _stage = CollectStage.checking;
-        _problem = const CollectProblem(
-          serverCode: TerminalServerError.collectionOpen,
-        );
+      if (result.status == 'canceled') {
+        _settlingPaymentIntentId = null;
+        _problem = null;
+        _collectionId = null;
+        _stage = CollectStage.configure;
         _notify();
+        await requote();
         return;
       }
-      _problem = null;
-      _stage = CollectStage.configure;
-      _collectionId = null;
+      if (_settle(result)) return;
+      _stage = CollectStage.checking;
       _notify();
-      await requote();
     } catch (e) {
+      _settlingPaymentIntentId = null;
       _stage = CollectStage.openCollection;
       _problem = _problemOf(e);
       _notify();
@@ -573,6 +590,7 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     final session = _session!;
     final intent = _intent!;
     while (true) {
+      if (_abandoned) return;
       _stage = CollectStage.waiting;
       _notify();
       final TerminalCollected collected;
@@ -580,87 +598,110 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
         collected = await session.collect();
       } on TerminalError catch (e) {
         if (_abandoned) return;
+        if (_disposed || session.isCancelled) {
+          // Nobody is watching, or a reset took the reader: not charged.
+          await _abandon();
+          return;
+        }
         _declined(e);
         return;
       }
       if (_abandoned) return;
-      final readAt = _clock();
-      _collected = collected;
-      _stage = CollectStage.finalizing;
-      _notify();
-      final TerminalFinalize finalized;
-      try {
-        finalized = await _repo.finalize(companyId, intent.paymentIntentId);
-      } catch (e) {
-        // Never confirm on a guess.
-        _problem = _problemOf(e);
+      if (_disposed) {
         await _abandon();
         return;
       }
-      _finalized = finalized;
-      _reads++;
-      if (finalized.recollect) {
-        if (_reads >= maxReads) {
-          _problem = const CollectProblem(code: TerminalErrorCode.cardNotRead);
-          await _abandon();
-          return;
-        }
-        _readAgain = true;
-        continue;
-      }
-      if (_clock().difference(readAt) > confirmWindow) {
-        _readAgain = true;
-        continue;
-      }
-      _readAgain = false;
-      await _confirm(session, intent, finalized);
-      return;
+      _collected = collected;
+      final readAt = _clock();
+      // From here to the server's answer, nothing resets the SDK.
+      final again = await _terminal.guardCharge(
+        () => _finalizeAndConfirm(session, intent, readAt),
+      );
+      if (!again) return;
     }
   }
 
-  Future<void> _confirm(
+  /// Finalize, then confirm. True: read the card again.
+  Future<bool> _finalizeAndConfirm(
     TerminalPaymentSession session,
     TerminalIntent intent,
-    TerminalFinalize finalized,
+    DateTime readAt,
   ) async {
+    _stage = CollectStage.finalizing;
+    _notify();
+    final TerminalFinalize finalized;
+    try {
+      finalized = await _repo.finalize(companyId, intent.paymentIntentId);
+    } catch (e) {
+      // Never confirm on a guess.
+      _problem = _problemOf(e);
+      await _abandon();
+      return false;
+    }
+    _finalized = finalized;
+    _reads++;
+    if (_abandoned) return false;
+    if (_disposed) {
+      // The screen closed while the server decided: nobody would see a
+      // charge, so there is none.
+      await _abandon();
+      return false;
+    }
+    if (finalized.recollect || _clock().difference(readAt) > confirmWindow) {
+      return _readAgainOrStop();
+    }
+    _readAgain = false;
     _stage = CollectStage.processing;
     _notify();
-    await _terminal.guardCharge(() async {
-      try {
-        await session.confirm(
-          paymentIntentId: intent.paymentIntentId,
-          amount: finalized.amountMinor,
-        );
-      } on TerminalError catch (e) {
-        if (e.code == TerminalErrorCode.invalidState) {
-          // The read no longer matches the server's amount: read again.
-          _reads = 0;
-          unawaited(_read());
-          return;
-        }
-        if (e.code != TerminalErrorCode.outcomeUnknown) {
-          _declined(e);
-          return;
-        }
-        // May have been charged: only the server can say.
+    try {
+      await session.confirm(
+        paymentIntentId: intent.paymentIntentId,
+        amount: finalized.amountMinor,
+      );
+    } on TerminalError catch (e) {
+      if (e.code == TerminalErrorCode.invalidState) {
+        // The read no longer matches the server's amount: read again.
+        return _readAgainOrStop();
       }
-      await _check(intent);
-    });
+      if (e.code != TerminalErrorCode.outcomeUnknown) {
+        _declined(e);
+        return false;
+      }
+      // May have been charged: only the server can say.
+    }
+    await _check(intent.paymentIntentId);
+    return false;
+  }
+
+  Future<bool> _readAgainOrStop() async {
+    if (_reads >= maxReads) {
+      _problem = const CollectProblem(code: TerminalErrorCode.cardNotRead);
+      await _abandon();
+      return false;
+    }
+    _readAgain = true;
+    return true;
   }
 
   void _declined(TerminalError e) {
     _problem = CollectProblem(code: e.code, message: e.message);
     _stage = CollectStage.declined;
     _notify();
+    // A decline nobody will see must not hold the reader or the invoice.
+    if (_disposed) unawaited(_abandon());
   }
 
-  /// "Try another card": the same PaymentIntent, read again.
+  /// "Try another card": the same PaymentIntent, read again — on a new
+  /// payment session when the old one ended without a charge.
   Future<void> tryAnotherCard() async {
-    if (_stage != CollectStage.declined || _session == null) return;
-    if (_session!.isFinished) {
-      // The facade gave up on it (a charge that may have happened).
-      await _check(_intent!);
-      return;
+    final intent = _intent;
+    if (_stage != CollectStage.declined || intent == null) return;
+    final session = _session;
+    if (session == null || session.isFinished) {
+      if (!_startSession(intent)) {
+        await _abandon();
+        return;
+      }
     }
     _problem = null;
     _reads = 0;
@@ -669,15 +710,23 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
 
   /// Asks the server what happened, a few times: a charge Stripe has just
   /// made can take a moment to show.
-  Future<void> _check(TerminalIntent intent) async {
+  Future<void> _check(String paymentIntentId) async {
     for (var attempt = 0; attempt < 3; attempt++) {
       try {
         final result = await _repo.complete(
           companyId,
-          intent.paymentIntentId,
+          paymentIntentId,
           invoiceId: _invoice.id,
         );
         if (_settle(result)) return;
+        if (result.status == 'requires_payment_method') {
+          // The charge failed: the PaymentIntent takes another card.
+          _problem = const CollectProblem(code: TerminalErrorCode.declined);
+          _stage = CollectStage.declined;
+          _notify();
+          if (_disposed) unawaited(_abandon());
+          return;
+        }
       } catch (e) {
         _log.warning('complete failed: ${e.runtimeType}');
       }
@@ -689,14 +738,26 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
 
   /// "Check again" from Recording / Checking.
   Future<void> checkAgain() async {
-    final intent = _intent;
-    if (intent == null) return;
+    final pi = _paymentIntentId;
+    if (pi == null) return;
     if (_stage != CollectStage.checking && _stage != CollectStage.recording) {
       return;
     }
     _stage = CollectStage.processing;
     _notify();
-    await _terminal.guardCharge(() => _check(intent));
+    await _terminal.guardCharge(() => _check(pi));
+  }
+
+  /// "Cancel the payment" from Checking: safe even if it was charged — the
+  /// server then records it instead — and it frees the invoice at once.
+  Future<void> cancelUnconfirmed() async {
+    final pi = _paymentIntentId;
+    if (pi == null || _stage != CollectStage.checking) return;
+    _stage = CollectStage.processing;
+    _notify();
+    await _terminal.guardCharge(
+      () => _cancelPaymentIntent(pi, afterConfirm: true),
+    );
   }
 
   /// Maps a `complete` / `cancel` answer; false when it says nothing final.
@@ -746,7 +807,10 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     }
   }
 
+  /// Gives up before any charge: the reader stops, and the server cancels
+  /// the PaymentIntent.
   Future<void> _abandon() async {
+    if (_abandoned) return;
     _abandoned = true;
     _session?.cancel();
     _stage = CollectStage.cancelled;
@@ -755,21 +819,20 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     if (intent != null) await _cancelIntent(intent);
   }
 
-  Future<void> _cancelIntent(TerminalIntent intent) async {
+  Future<void> _cancelIntent(TerminalIntent intent) =>
+      _cancelPaymentIntent(intent.paymentIntentId, afterConfirm: false);
+
+  Future<void> _cancelPaymentIntent(
+    String paymentIntentId, {
+    required bool afterConfirm,
+  }) async {
     for (var attempt = 0; attempt < 3; attempt++) {
       try {
         final result = await _repo.cancel(
           companyId,
-          intent.paymentIntentId,
+          paymentIntentId,
           invoiceId: _invoice.id,
         );
-        if (result.status == 'canceled') {
-          _completion = result;
-          _stage = CollectStage.cancelled;
-          _collectionId = null;
-          _notify();
-          return;
-        }
         if (_settle(result)) return;
         // Stripe wouldn't cancel it (a charge in flight): it's a check now.
         _stage = CollectStage.checking;
@@ -779,24 +842,36 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
         if (attempt < 2) await Future<void>.delayed(pollDelay);
       }
     }
-    // The server will cancel it in 20 minutes if nobody does.
-    _log.warning('could not cancel ${intent.paymentIntentId}');
+    // The server cancels it after 20 minutes if nobody does. Before a
+    // confirm, the card wasn't charged; after one, nobody knows yet.
+    _log.warning('could not cancel $paymentIntentId');
+    _stage = afterConfirm ? CollectStage.checking : CollectStage.cancelled;
+    _notify();
   }
 
   // ------------------------------------------------------------- receipt
 
+  bool get sendingReceipt => _sendingReceipt;
+  bool _sendingReceipt = false;
+
   Future<bool> sendReceipt(String email) async {
-    final intent = _intent;
-    if (intent == null || !(_completion?.isRecorded ?? false)) return false;
+    final pi = _paymentIntentId;
+    if (pi == null || _sendingReceipt || !(_completion?.isRecorded ?? false)) {
+      return false;
+    }
+    _sendingReceipt = true;
+    _problem = null;
+    _notify();
     try {
-      await _repo.receipt(companyId, intent.paymentIntentId, email: email);
+      await _repo.receipt(companyId, pi, email: email);
       _receiptSent = true;
-      _notify();
       return true;
     } catch (e) {
       _problem = _problemOf(e);
-      _notify();
       return false;
+    } finally {
+      _sendingReceipt = false;
+      _notify();
     }
   }
 
@@ -830,10 +905,17 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  /// The screen closed. Before a charge the payment is given up; while the
+  /// server decides, [_finalizeAndConfirm] gives it up when it answers; a
+  /// charge in flight finishes, and the server records it.
   @override
   void dispose() {
     _disposed = true;
-    if (!locked && inProgress) unawaited(cancel());
+    switch (_stage) {
+      case CollectStage.waiting || CollectStage.declined:
+        unawaited(_abandon());
+      default:
+    }
     super.dispose();
   }
 }

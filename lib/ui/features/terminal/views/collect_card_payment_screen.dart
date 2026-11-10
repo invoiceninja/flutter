@@ -98,7 +98,10 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
               ))
           ..addListener(_onChanged);
     _amount = TextEditingController(text: _moneyInput(_vm.amount));
-    _email = TextEditingController(text: _vm.clientEmail);
+    _email = TextEditingController(text: _vm.clientEmail)
+      ..addListener(() {
+        if (mounted) setState(() {});
+      });
     _services.terminal.platform.events = TerminalReaderEvents(
       onDisplayMessage: (m) => setState(() => _readerMessage = m),
     );
@@ -132,13 +135,6 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
   String _money(Decimal? value) =>
       _formatter?.money(value, clientCurrencyId: _client?.currencyId) ??
       '${value ?? ''}';
-
-  /// A charged amount, from the minor units Stripe used.
-  String _minor(int minor) {
-    final precision = _vm.precision;
-    final scale = Decimal.fromInt(10).pow(precision).toDecimal();
-    return _money((Decimal.fromInt(minor) / scale).toDecimal());
-  }
 
   void _onChanged() {
     if (!mounted) return;
@@ -178,6 +174,16 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
     if (value != null && value != _vm.amount) _vm.setAmount(value);
   }
 
+  /// A typed amount counts even when the field never lost focus (a tap on
+  /// touch doesn't unfocus it): a changed amount is quoted first, and the
+  /// next tap collects it.
+  Future<void> _collect() async {
+    final before = _vm.amount;
+    _setAmount();
+    if (_vm.amount != before) return;
+    await _vm.collect();
+  }
+
   Future<void> _close() async {
     if (_vm.locked) return;
     if (_vm.inProgress) await _vm.cancel();
@@ -199,6 +205,9 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
           ),
           PrimaryDialogAction(
             label: context.tr('terminal_surcharge_accept'),
+            // A legal acknowledgement: never Enter's default.
+            autofocus: false,
+            showEnterHint: false,
             onPressed: () => Navigator.of(context).pop(true),
           ),
         ],
@@ -283,7 +292,12 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
       ),
       const SizedBox(height: InSpacing.xl),
       _Buttons(
-        primary: context.tr('terminal_try_another_card'),
+        primary: context.tr(switch (_vm.problem?.code) {
+          TerminalErrorCode.declined ||
+          TerminalErrorCode.cardNotRead ||
+          TerminalErrorCode.pinUnavailable => 'terminal_try_another_card',
+          _ => 'terminal_try_again',
+        }),
         onPrimary: _vm.tryAnotherCard,
         secondary: context.tr('cancel'),
         onSecondary: _close,
@@ -294,10 +308,16 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
       context,
       context.tr('terminal_recording'),
     ),
-    CollectStage.checking => _pending(
-      context,
-      context.tr('terminal_checking_help'),
-    ),
+    CollectStage.checking => [
+      ..._pending(context, context.tr('terminal_checking_help')),
+      const SizedBox(height: InSpacing.sm),
+      Center(
+        child: TextButton(
+          onPressed: _vm.cancelUnconfirmed,
+          child: Text(context.tr('terminal_cancel_payment')),
+        ),
+      ),
+    ],
     CollectStage.unrecorded => [
       _Status(
         text: context.tr('terminal_unrecorded'),
@@ -333,9 +353,7 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
 
   String _totalText() {
     final finalized = _vm.finalized;
-    if (finalized != null && finalized.amountMinor >= 0 && _vm.readAgain) {
-      return _minor(finalized.amountMinor);
-    }
+    if (finalized != null && _vm.readAgain) return _money(finalized.amount);
     return _money(_vm.quote?.total ?? _vm.amount);
   }
 
@@ -385,11 +403,7 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
           contentPadding: EdgeInsets.zero,
           value: _vm.applySurcharge,
           onChanged: _vm.setSurcharge,
-          title: Text(
-            context.tr('terminal_add_surcharge', {
-              'percent': '${_vm.gateway?.surcharge.feePercent ?? ''}',
-            }),
-          ),
+          title: Text(_surchargeLabel(context)),
           subtitle: Text(context.tr('terminal_surcharge_credit_only')),
         ),
       const SizedBox(height: InSpacing.sm),
@@ -409,7 +423,15 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
           ),
         )
       else if (_vm.quoting)
-        const LinearProgressIndicator(),
+        const LinearProgressIndicator()
+      else
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: TextButton(
+            onPressed: _vm.requote,
+            child: Text(context.tr('retry')),
+          ),
+        ),
       SizedBox(height: InSpacing.md(context)),
       _ReaderRow(vm: _vm, onPickReader: _pickReader),
       if (_vm.problem != null && _vm.readerState != ReaderState.failed) ...[
@@ -421,7 +443,7 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
       ],
       const SizedBox(height: InSpacing.xl),
       FilledButton(
-        onPressed: _vm.canCollect ? _vm.collect : null,
+        onPressed: _vm.canCollect ? _collect : null,
         child: Text(
           quote == null
               ? context.tr('collect_card_payment')
@@ -431,6 +453,20 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
         ),
       ),
     ];
+  }
+
+  /// "Add credit card surcharge (3%)", or without the figure when the fee
+  /// is a fixed amount.
+  String _surchargeLabel(BuildContext context) {
+    final percent = _vm.gateway?.surcharge.feePercent ?? Decimal.zero;
+    if (percent <= Decimal.zero) {
+      return context.tr('terminal_add_surcharge_plain');
+    }
+    final f = _formatter;
+    final text = f == null
+        ? percent.toString()
+        : f.inputAmount(percent.toDouble());
+    return context.tr('terminal_add_surcharge', {'percent': text});
   }
 
   List<Widget> _waiting(BuildContext context) {
@@ -445,7 +481,7 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
         text: again
             ? (finalized.surcharge > Decimal.zero
                   ? context.tr('terminal_tap_again_surcharge', {
-                      'amount': _minor(finalized.amountMinor),
+                      'amount': _money(finalized.amount),
                     })
                   : context.tr('terminal_tap_again'))
             : message != null
@@ -465,10 +501,11 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
 
   List<Widget> _approved(BuildContext context) {
     final done = _vm.completion;
-    final finalized = _vm.finalized;
-    final charged = finalized != null && finalized.amountMinor >= 0
-        ? _minor(finalized.amountMinor)
-        : _money(_vm.quote?.total);
+    // What the server recorded: after a refunded surcharge, or for another
+    // attempt's payment, that is not what this screen quoted.
+    final charged = done != null && done.isRecorded
+        ? _money(done.applied + done.unapplied)
+        : _money(_vm.finalized?.amount ?? _vm.quote?.total);
     final card = [
       if ((done?.brand ?? '').isNotEmpty) done!.brand.toUpperCase(),
       if ((done?.last4 ?? '').isNotEmpty) '•• ${done!.last4}',
@@ -510,14 +547,22 @@ class _CollectCardPaymentScreenState extends State<CollectCardPaymentScreen> {
           decoration: InputDecoration(labelText: context.tr('email')),
           keyboardType: TextInputType.emailAddress,
           autocorrect: false,
+          enableSuggestions: false,
           textInputAction: TextInputAction.send,
           onSubmitted: (_) => _sendReceipt(),
         ),
         const SizedBox(height: InSpacing.sm),
         OutlinedButton(
-          onPressed: _sendReceipt,
+          onPressed: _vm.sendingReceipt ? null : _sendReceipt,
           child: Text(context.tr('terminal_send_receipt')),
         ),
+        if (_vm.problem != null) ...[
+          const SizedBox(height: InSpacing.sm),
+          Text(
+            _problemText(context),
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ],
         if (_email.text.trim().isEmpty && receiptUrl.isNotEmpty) ...[
           SizedBox(height: InSpacing.md(context)),
           Text(

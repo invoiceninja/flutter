@@ -60,6 +60,8 @@ String? terminalServerErrorKey(String code) => switch (code) {
   TerminalServerError.notCollected => 'terminal_error_card_not_read',
   TerminalServerError.locationAddressRequired =>
     'terminal_server_location_address',
+  'collection_starting' => 'terminal_collection_starting',
+  'location_needs_admin' => 'terminal_ask_admin_location',
   _ => null,
 };
 

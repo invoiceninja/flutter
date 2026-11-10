@@ -8,6 +8,7 @@ import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/terminal_controller.dart';
 import 'package:admin/domain/terminal/terminal_eligibility.dart';
+import 'package:admin/data/services/terminal_server_error.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
@@ -60,13 +61,27 @@ class _CardReaderSectionState extends State<CardReaderSection> {
     final companyId = _companyId;
     final config = companyId == null ? null : _terminal.configFor(companyId);
     final gateway = config?.usableGateway;
-    final location = gateway?.locations.firstOrNull;
-    if (companyId == null || gateway == null || location == null) {
+    if (companyId == null || gateway == null) {
       Notify.warning(context, context.tr('terminal_server_not_enabled'));
+      return;
+    }
+    final company = _services.auth.session.value?.currentCompany;
+    final isAdmin = (company?.isAdmin ?? false) || (company?.isOwner ?? false);
+    var location = gateway.locations.firstOrNull;
+    if (location == null && !isAdmin) {
+      Notify.warning(context, context.tr('terminal_ask_admin_location'));
       return;
     }
     setState(() => _busy = true);
     try {
+      // The gateway's first reader: an admin creates its Stripe Location
+      // from the company address, as the collect screen does.
+      location ??= await _terminal.repository.createLocation(
+        companyId,
+        companyGatewayId: gateway.companyGatewayId,
+      );
+      if (!mounted) return;
+      unawaited(_terminal.refreshConfig(companyId));
       final permission = await _terminal.platform.requestPermissions(
         TerminalReaderKind.bluetooth,
       );
@@ -99,6 +114,15 @@ class _CardReaderSectionState extends State<CardReaderSection> {
       if (mounted) {
         Notify.error(context, context.tr(terminalErrorKey(e.code)));
       }
+    } on TerminalServerError catch (e) {
+      if (mounted) {
+        Notify.error(
+          context,
+          context.tr(
+            terminalServerErrorKey(e.code) ?? 'terminal_error_unknown',
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         Notify.error(context, context.tr('terminal_error_unknown'), error: e);
@@ -130,12 +154,11 @@ class _CardReaderSectionState extends State<CardReaderSection> {
               subtitle: Text(
                 tapToPay
                     ? context.tr('terminal_tap_to_pay_ready')
-                    : context.tr(
-                        terminalErrorKey(
-                          device?.tapToPayBlocker ??
-                              TerminalErrorCode.unsupportedDevice,
-                        ),
-                      ),
+                    : context.tr(switch (device?.tapToPayBlocker) {
+                        TerminalErrorCode.unsupportedOs =>
+                          'terminal_error_unsupported_os',
+                        _ => 'terminal_tap_to_pay_unavailable',
+                      }),
               ),
             ),
             if (kCardPresentBluetooth)

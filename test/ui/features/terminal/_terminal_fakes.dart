@@ -176,35 +176,73 @@ class FakeTerminalRepo implements TerminalRepository {
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
+/// Keeps the facade's money rules (`TerminalPayment`): a confirm charges
+/// only the last read, for its PaymentIntent and amount, and a payment that
+/// was cancelled or charged takes no further step.
 class FakeSession implements TerminalPaymentSession {
   final reads = Script<TerminalCollected>();
   final confirms = Script<TerminalPaymentOutcome>();
   final calls = <String>[];
   bool finished = false;
+  bool cancelled = false;
+  TerminalCollected? _read;
+
+  /// A new payment on the same session object (the platform hands this one
+  /// out again).
+  void restart() {
+    finished = false;
+    cancelled = false;
+    _read = null;
+  }
 
   @override
   bool get isFinished => finished;
 
   @override
-  bool get isCancelled => calls.contains('cancel');
+  bool get isCancelled => cancelled;
 
   @override
-  Future<TerminalCollected> collect() {
+  Future<TerminalCollected> collect() async {
+    if (cancelled) throw const TerminalError(TerminalErrorCode.canceled);
+    if (finished) throw const TerminalError(TerminalErrorCode.invalidState);
     calls.add('collect');
-    return reads.next('collect');
+    _read = null;
+    final read = await reads.next('collect');
+    if (cancelled) throw const TerminalError(TerminalErrorCode.canceled);
+    return _read = read;
   }
 
   @override
   Future<TerminalPaymentOutcome> confirm({
     required String paymentIntentId,
     required int amount,
-  }) {
+  }) async {
+    if (cancelled) throw const TerminalError(TerminalErrorCode.canceled);
+    final read = _read;
     calls.add('confirm:$paymentIntentId:$amount');
-    return confirms.next('confirm');
+    if (read == null ||
+        read.paymentIntentId != paymentIntentId ||
+        read.amount != amount) {
+      throw const TerminalError(TerminalErrorCode.invalidState);
+    }
+    _read = null;
+    try {
+      final outcome = await confirms.next('confirm');
+      finished = true;
+      return outcome;
+    } on TerminalError catch (e) {
+      if (e.code == TerminalErrorCode.outcomeUnknown) finished = true;
+      rethrow;
+    }
   }
 
   @override
-  void cancel() => calls.add('cancel');
+  void cancel() {
+    if (finished) return;
+    calls.add('cancel');
+    cancelled = true;
+    finished = true;
+  }
 }
 
 class FakeTerminalPlatform implements TerminalPlatform {
@@ -259,7 +297,16 @@ class FakeTerminalPlatform implements TerminalPlatform {
   Future<TerminalReader?> connectedReader() async => null;
 
   @override
-  TerminalPaymentSession beginPayment(String clientSecret) => session;
+  int begun = 0;
+
+  @override
+  TerminalPaymentSession beginPayment(String clientSecret) {
+    if (begun > 0 && !session.finished) {
+      throw const TerminalError(TerminalErrorCode.readerBusy);
+    }
+    begun++;
+    return session..restart();
+  }
 
   @override
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
@@ -304,3 +351,13 @@ const fakeCard = TerminalCollected(
   method: 'card_present',
   funding: 'credit',
 );
+
+/// A read of the PaymentIntent at [amount] minor units.
+TerminalCollected fakeRead(int amount, {String funding = 'credit'}) =>
+    TerminalCollected(
+      paymentIntentId: 'pi_1',
+      amount: amount,
+      currency: 'usd',
+      method: 'card_present',
+      funding: funding,
+    );

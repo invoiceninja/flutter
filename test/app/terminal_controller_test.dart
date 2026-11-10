@@ -256,6 +256,48 @@ void main() {
     );
   });
 
+  test(
+    'a failed fetch is tried again after a minute, an answer after five',
+    () async {
+      var now = DateTime(2026, 11, 11, 12);
+      final timed = TerminalController(
+        repository: repo,
+        platform: platform,
+        auth: auth,
+        prefs: prefs,
+        platformReady: true,
+        clock: () => now,
+      );
+      repo.configAnswer = const ServerException(500, 'boom');
+      timed.ensureConfig('co_a');
+      await settle();
+      timed.ensureConfig('co_a');
+      await settle();
+      expect(repo.calls, ['config:co_a']);
+
+      now = now.add(const Duration(minutes: 2));
+      repo.configAnswer = _config();
+      timed.ensureConfig('co_a');
+      await settle();
+      expect(
+        timed.availabilityFor('co_a', invoice),
+        TerminalAvailability.available,
+      );
+
+      // A later failure keeps the last answer.
+      now = now.add(const Duration(minutes: 6));
+      repo.configAnswer = const ServerException(500, 'boom');
+      timed.ensureConfig('co_a');
+      await settle();
+      expect(repo.calls, hasLength(3));
+      expect(
+        timed.availabilityFor('co_a', invoice),
+        TerminalAvailability.available,
+      );
+      timed.dispose();
+    },
+  );
+
   test('nothing is asked when the platform is not ready', () async {
     final off = TerminalController(
       repository: repo,

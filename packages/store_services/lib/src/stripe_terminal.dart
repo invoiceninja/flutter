@@ -467,9 +467,12 @@ class TerminalPayment {
     _collected = null;
     try {
       // Never kept for cancel: a cancel can't undo a charge.
+      // Bounded: a confirm that never answers is an unknown outcome, not a
+      // screen locked for good.
       final confirmed = await StripeTerminal._terminal
           .confirmPaymentIntent(collected)
-          .result;
+          .result
+          .timeout(const Duration(minutes: 2));
       _finished = true;
       return TerminalPaymentOutcome(
         paymentIntentId: confirmed.id,

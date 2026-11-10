@@ -385,6 +385,12 @@ void main() {
     repo.configAnswer = _config();
     terminal.ensureConfig('co_a');
     await settle();
+    final gateway = _gateway();
+    await terminal.prepare(
+      companyId: 'co_a',
+      gateway: gateway,
+      location: gateway.locations.single,
+    );
     final charge = Completer<String>();
     final guarded = terminal.guardCharge(() => charge.future);
     var resetDone = false;
@@ -397,5 +403,11 @@ void main() {
     await reset;
     expect(platform.calls, contains('reset'));
     expect(terminal.configFor('co_a'), isNull);
+  });
+
+  test('a sign-out on a phone that never opened a card session leaves the '
+      'SDK alone', () async {
+    await terminal.reset();
+    expect(platform.calls, isNot(contains('reset')));
   });
 }

@@ -284,6 +284,8 @@ void main() {
         'downloads_folder',
         'review_prompt_json',
         'welcome_json',
+        'card_reader_used',
+        'pending_card_payments_json',
       };
       for (final key in DevicePrefKeys.all) {
         if (addedAfterV12.contains(key.name)) {

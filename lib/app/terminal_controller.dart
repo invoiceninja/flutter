@@ -423,9 +423,10 @@ class TerminalController extends ChangeNotifier {
         await Future.any(_charges.toList()).timeout(left);
       } catch (_) {}
     }
+    // Nothing to reset when no card session was ever opened (most sign-outs).
     // A newer session prepared while this waited has already reset the SDK
     // for its own account: leave it alone.
-    if (!platformReady || _prepared != prepared) return;
+    if (!platformReady || prepared == 0 || _prepared != prepared) return;
     try {
       await _platform.reset();
     } catch (_) {}

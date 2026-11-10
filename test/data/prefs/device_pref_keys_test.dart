@@ -41,6 +41,7 @@ void main() {
     'downloads_folder': PrefScope.device,
     'review_prompt_json': PrefScope.device,
     'welcome_json': PrefScope.device,
+    'card_reader_used': PrefScope.account,
   };
 
   final names = [for (final k in DevicePrefKeys.all) k.name];

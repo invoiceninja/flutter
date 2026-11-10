@@ -302,6 +302,16 @@ abstract final class DevicePrefKeys {
     PrefScope.device,
   );
 
+  /// A Bluetooth card reader has been connected in this app, so invoices
+  /// offer "Collect card payment" on a phone without Tap to Pay
+  /// (`TerminalController`, docs/in-person-payments.md). Account scope: it
+  /// follows the Stripe account that reader was used with.
+  static const cardReaderUsed = PrefKey<bool>(
+    'card_reader_used',
+    PrefCodec.boolean,
+    PrefScope.account,
+  );
+
   /// In the order they were added; append new keys at the end.
   static const List<PrefKey<Object>> all = [
     locale,
@@ -334,6 +344,7 @@ abstract final class DevicePrefKeys {
     downloadsFolder,
     reviewPrompt,
     welcome,
+    cardReaderUsed,
   ];
 
   /// The rows a data wipe leaves in place: the [PrefScope.device] keys and the

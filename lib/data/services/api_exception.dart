@@ -62,7 +62,12 @@ class ValidationException extends ApiException {
 }
 
 class ConflictException extends ApiException {
-  const ConflictException([super.message = 'Conflict']);
+  const ConflictException([super.message = 'Conflict', this.body]);
+
+  /// The decoded 409 envelope, for endpoints that explain a conflict in it —
+  /// the in-person payment routes send `{error_code, ...}`
+  /// (docs/in-person-payments.md).
+  final Map<String, dynamic>? body;
 }
 
 /// The entity doesn't exist server-side. Subtype of [ConflictException]
@@ -173,9 +178,16 @@ class RateLimitedException extends ApiException {
 }
 
 class ServerException extends ApiException {
-  const ServerException(this.statusCode, [String message = 'Server error'])
-    : super(message);
+  const ServerException(
+    this.statusCode, [
+    String message = 'Server error',
+    this.body,
+  ]) : super(message);
   final int statusCode;
+
+  /// The decoded body, kept only for a 403 — the in-person payment routes
+  /// explain a refusal in it (`{error_code, ...}`).
+  final Map<String, dynamic>? body;
 }
 
 class NetworkException extends ApiException {

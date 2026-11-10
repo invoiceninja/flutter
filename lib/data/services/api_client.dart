@@ -1221,7 +1221,7 @@ class ApiClient {
         if (errorType == 'plan_required') {
           throw PlanRequiredException(message);
         }
-        throw ServerException(status, message);
+        throw ServerException(status, message, json);
       case 412:
         // Invoice Ninja signals "password-protected route — resend with
         // X-API-PASSWORD-BASE64" via 412 Precondition Failed (body is
@@ -1248,7 +1248,7 @@ class ApiClient {
         // into the Outbox with the server's message intact.
         throw ServerException(status, message);
       case 409:
-        throw ConflictException(message);
+        throw ConflictException(message, json);
       case 422:
         final raw = json?['errors'];
         final fieldErrors = <String, List<String>>{};

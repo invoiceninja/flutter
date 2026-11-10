@@ -204,6 +204,9 @@ const Map<String, String> kGatewayTypeLabelKey = <String, String>{
   '27': 'mybank',
   '28': 'pay_later',
   '29': 'advanced_cards',
+  '30': 'mobile_payment',
+  '31': 'promptpay',
+  '32': 'card_present',
 };
 
 /// Maps a gateway provider key to the `system_log.type_id` value(s) the server

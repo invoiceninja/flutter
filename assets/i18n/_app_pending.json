@@ -1835,5 +1835,9 @@
   "sign_here_hint": "Sign here",
   "docuninja_seats_used": ":count of :total seats used",
   "docuninja_company_setup_help_touch": "Your account exists but this company is not set up yet. Please tap the button below to set it up.",
-  "sign_in_browser": "Sign on the web"
+  "sign_in_browser": "Sign on the web",
+  "mobile_payment": "Mobile payment",
+  "promptpay": "PromptPay",
+  "card_present": "Card present",
+  "card_present_help": "Take cards in person with the mobile app"
 }

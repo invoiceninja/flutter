@@ -50,6 +50,35 @@ static on `StripeTerminal`; each payment is a `TerminalPayment` from `beginPayme
   becoming `unknown`. Brands and statuses come back in Stripe's own spelling (`mastercard`,
   `requires_capture`).
 
+## Who sees "Collect card payment", and what the app asks the server
+
+- **The server decides.** `TerminalController.ensureConfig` asks `GET /terminal/config` once per
+  company per session, and only after the cheap gates pass (`kCardPresentEnabled`, the mobile app
+  with Stripe's SDK, not the demo, `create_payment`) — a user without that permission would get a
+  401. An older server answers 404; that, or any other failure, is remembered as "not here" for the
+  session, with no toast and no report.
+- **`terminalAvailability`** (`lib/domain/terminal/terminal_eligibility.dart`, pure) adds the
+  invoice (not deleted, paid, cancelled, reversed or unsaved; drafts are fine — the server marks
+  them sent) and how this phone can read a card: Tap to Pay when the phone can and the gateway's
+  Stripe account is in `kTapToPayAndroidCountries`, else a Bluetooth reader only once one has been
+  connected in this app (`DevicePrefKeys.cardReaderUsed`, account scope) — not on every phone that
+  merely has Bluetooth. A hosted plan below Pro shows it as an upgrade.
+- **Build switches**: `IN_CARD_PRESENT`, `IN_CARD_PRESENT_BLUETOOTH`, `IN_CARD_PRESENT_SURCHARGE`
+  (all default true) pull the feature or one part of it without a code change.
+- **The SDK session is one Stripe account and Location** (`account: company/gateway/location`): a
+  connection token belongs to exactly one.
+- **A session end or a company switch resets it** (`onBeforeLogout`, `onActiveCompanyChanged`),
+  after waiting up to a minute for a charge in flight (`guardCharge`) to be answered.
+- **`TerminalRepository` is online-only** (the CLAUDE.md outbox exception): every call in the
+  company's `RequestScope`; a refusal the screen branches on comes back as a
+  `TerminalServerError(code, message, data)` read from the body's `error_code` — 409 and 403 bodies
+  are kept on `ConflictException.body` / `ServerException.body` for this — and a plain 422 is
+  `field_errors` with its first message. `apply_fee` goes in the quote's query as `1` / `0`
+  (Laravel's `boolean` refuses `true`). `finalize` times out at 12 s, inside Stripe's 30 s
+  between reading a card and charging it. The invoice is re-read after a create (a draft was marked
+  sent) and after every `complete` / `cancel`; a recorded payment also re-reads its client and the
+  payment.
+
 ## The device check and permissions are ours, not the SDK's
 
 Stripe's Android SDK checks permissions but never asks; its iOS SDK may prompt for location at a

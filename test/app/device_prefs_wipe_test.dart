@@ -191,6 +191,11 @@ final Map<PrefKey<Object>, _Probe> _probes = {
     (s) => s.welcome.noteOpened(),
     (s) => s.welcome.state.shownAt == null,
   ),
+  // A reader used with one account doesn't offer card payments to the next.
+  DevicePrefKeys.cardReaderUsed: _Probe(
+    (s) => s.terminal.noteReaderUsed(),
+    (s) => !s.terminal.readerUsed,
+  ),
 };
 
 final _certificate = CertificateFacts(

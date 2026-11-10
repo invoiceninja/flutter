@@ -16,6 +16,7 @@ import 'package:admin/app/back_online_signal.dart';
 import 'package:admin/app/confirm_actions_controller.dart';
 import 'package:admin/app/mobile_app_promo_controller.dart';
 import 'package:admin/app/review_prompt_controller.dart';
+import 'package:admin/app/terminal_controller.dart';
 import 'package:admin/app/welcome_controller.dart';
 import 'package:admin/app/whats_new_controller.dart';
 import 'package:admin/app/sign_out_notice.dart';
@@ -93,6 +94,8 @@ import 'package:admin/data/repositories/product_repository.dart';
 import 'package:admin/data/repositories/project_repository.dart';
 import 'package:admin/data/repositories/purchase_order_repository.dart';
 import 'package:admin/data/repositories/quickbooks_repository.dart';
+import 'package:admin/data/repositories/terminal_repository.dart';
+import 'package:admin/data/services/terminal_platform.dart';
 import 'package:admin/data/repositories/quote_repository.dart';
 import 'package:admin/data/repositories/recurring_expense_repository.dart';
 import 'package:admin/data/repositories/recurring_invoice_repository.dart';
@@ -343,6 +346,7 @@ class Services implements SidebarBadgeContext {
     required this.company,
     required this.companies,
     required this.quickbooks,
+    required this.terminal,
     required this.calendarConnection,
     required this.dashboard,
     required this.projectCharts,
@@ -595,6 +599,12 @@ class Services implements SidebarBadgeContext {
   /// the connect / disconnect side-effects (one_time_token + authorize URL,
   /// disconnect endpoint).
   final QuickbooksRepository quickbooks;
+
+  /// In-person card payments (docs/in-person-payments.md): the server's
+  /// `terminal/config` per company, this phone's card readers, and the reader
+  /// connection kept across collections. Reset at every session end and
+  /// company switch.
+  final TerminalController terminal;
 
   /// Calendar connection (Google / Microsoft). Stateless integration repo —
   /// the connection lives on `user.settings` server-side and is read back via
@@ -1890,6 +1900,20 @@ class Services implements SidebarBadgeContext {
       apiClient: apiClient,
       auth: auth,
     );
+    final terminal = TerminalController(
+      repository: TerminalRepository(
+        apiClient: apiClient,
+        refreshInvoice: (companyId, id) =>
+            entities.invoices.refreshByIds(companyId: companyId, ids: [id]),
+        refreshClients: (companyId, ids) =>
+            entities.clients.refreshByIds(companyId: companyId, ids: ids),
+        refreshPayment: (companyId, id) =>
+            entities.payments.refreshByIds(companyId: companyId, ids: [id]),
+      ),
+      platform: const StoreTerminalPlatform(),
+      auth: auth,
+      prefs: devicePrefs,
+    );
     final dashboardApi = DashboardApi(apiClient);
     final dashboardRepo = DashboardRepository(db: db, api: dashboardApi);
     final projectChartsApi = ProjectChartsApi(apiClient);
@@ -2061,6 +2085,8 @@ class Services implements SidebarBadgeContext {
       // Each Invoice Ninja company pairs with its own DocuNinja company and
       // token, picked by company_key.
       docuNinjaSession.reset();
+      // A card reader is connected under one company's Stripe account.
+      unawaited(terminal.reset());
       priorOnActiveCompanyChangedForCalendar?.call(companyId);
     };
     // Fan-out the bundled per-entity arrays the /refresh envelope carries
@@ -2345,6 +2371,9 @@ class Services implements SidebarBadgeContext {
       // waits on the native side (bounded), and nothing above should wait
       // behind it.
       await services.homeWidgets?.signOut();
+      // The card reader's session belongs to the outgoing user's company.
+      // Waits (bounded) for a card charge in flight to be answered first.
+      await terminal.reset();
       if (priorOnBeforeLogout != null) await priorOnBeforeLogout();
     };
     // Only on the destructive paths (a destroy logout, a different identity's
@@ -2570,6 +2599,7 @@ class Services implements SidebarBadgeContext {
       company: companyRepo,
       companies: companiesApi,
       quickbooks: quickbooksRepo,
+      terminal: terminal,
       calendarConnection: calendarConnectionRepo,
       dashboard: dashboardRepo,
       projectCharts: projectChartsApi,

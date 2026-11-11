@@ -98,6 +98,7 @@ jobs:
           $pkg = Get-ChildItem -Path build/windows/x64/runner/Release -Filter *.msix -Recurse | Select-Object -First 1
           if (-not $pkg) { Write-Error "::error::No .msix produced by msix:create"; exit 1 }
           "path=$($pkg.FullName)" >> $env:GITHUB_OUTPUT
+          "dir=$($pkg.DirectoryName)" >> $env:GITHUB_OUTPUT
           Write-Host "MSIX: $($pkg.FullName)"
 
       # Install the Microsoft Store Developer CLI (`msstore`) onto the runner.
@@ -127,7 +128,9 @@ jobs:
 
       # Upload the MSIX into the app's pending submission and STOP there
       # (--noCommit): the next step adds the release notes, then commits.
-      #   -i      : the exact .msix to publish.
+      #   -i      : the FOLDER holding the .msix (msix:create writes exactly
+      #             one). It is --inputDirectory: given the file itself, the
+      #             CLI fails with "Input directory does not exist."
       #   --appId : the app's Store ID, 9NG93WNXN797 (for an MSIX app the
       #             submission API's application id is the 9N… Store ID; the
       #             account's other app, 9N3F2BBCFDR6, is the old one).
@@ -136,7 +139,7 @@ jobs:
         shell: pwsh
         env:
           MS_STORE_PRODUCT_ID: ${{ secrets.MS_STORE_PRODUCT_ID }}
-        run: msstore publish -i "${{ steps.msix.outputs.path }}" --appId "$env:MS_STORE_PRODUCT_ID" --noCommit
+        run: msstore publish -i "${{ steps.msix.outputs.dir }}" --appId "$env:MS_STORE_PRODUCT_ID" --noCommit
 
       # Write the digest into every listing's release notes and COMMIT the
       # submission: it goes to certification automatically and publishes to the

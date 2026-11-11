@@ -12,7 +12,9 @@ ServingServer? readServingServer() {
     if (root == null) return null;
     final location = web.window.location;
     return parseServingServer(
-      attribute: root.getAttribute,
+      // A closure, not a tear-off: the web compilers reject tearing off an
+      // external JS-interop member (getAttribute).
+      attribute: (name) => root.getAttribute(name),
       origin: location.origin,
       pathname: location.pathname,
     );

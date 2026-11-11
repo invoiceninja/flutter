@@ -1,0 +1,9 @@
+- DocuNinja e-signatures for hosted accounts
+- A setup wizard and welcome for new accounts
+- Sign in with Google on iOS and macOS
+- Search matches every word, in any order
+- Apply one payment across many invoices
+- Share client and vendor portal links
+- Links to our WordPress plugin
+- Android 8 or newer is now required
+- AppImage and Linux background fixes

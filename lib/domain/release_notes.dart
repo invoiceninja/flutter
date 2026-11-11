@@ -261,6 +261,17 @@ const List<ReleaseNotes> kReleaseNotes = [
     version: '5.1.24',
     highlights: [
       ReleaseHighlight(
+        icon: Icons.search,
+        title: 'Search by any words',
+        body: 'Every word you type is matched, in any order, across fields.',
+      ),
+      ReleaseHighlight(
+        icon: Icons.payments,
+        title: 'Apply a payment to many invoices',
+        body: "Tick the client's open invoices and see what is left to apply.",
+        target: ReleaseHighlightRoute('/payments', module: EntityType.payment),
+      ),
+      ReleaseHighlight(
         icon: Icons.storefront_outlined,
         title: 'Invoice Ninja for WordPress',
         body: 'Add a store, quote requests and client accounts to your site.',
@@ -282,6 +293,23 @@ const List<ReleaseNotes> kReleaseNotes = [
     ],
     items: [
       ReleaseNoteItem(
+        'Added: DocuNinja e-signatures for hosted accounts: send documents '
+        'for signature, manage templates, users and settings, sign your own '
+        'invitations, and see when an invoice, quote or purchase order has '
+        'been signed.',
+      ),
+      ReleaseNoteItem(
+        'Added: A setup wizard and a "Start getting paid" checklist for new '
+        "accounts, and a Welcome that shows what's changed for anyone coming "
+        'from the previous app.',
+      ),
+      // Hidden on Apple builds by the 2.3.10 word check (it bans "google");
+      // TestFlight testers read it in What to Test, whose filter allows it.
+      ReleaseNoteItem(
+        'Added: Sign in with Google on iOS and macOS.',
+        hiddenOn: {ReleaseNoteSurface.appleStore},
+      ),
+      ReleaseNoteItem(
         'Added: Settings > Account Management > Integrations links to our '
         'WordPress plugin, for admins on a Pro, Enterprise or self-hosted '
         'account, and API Tokens shows how to connect it.',
@@ -295,8 +323,37 @@ const List<ReleaseNotes> kReleaseNotes = [
         },
       ),
       ReleaseNoteItem(
+        'Updated: Search matches every word you type, in any order and across '
+        'fields, so "s22 120hz" finds "Samsung Galaxy S22 5G OLED 120Hz".',
+      ),
+      ReleaseNoteItem(
+        "Updated: Entering a payment shows each invoice's open amount in full, "
+        "a Select Invoices checklist applies it across the client's open "
+        'invoices, and the converted amount can be edited.',
+      ),
+      ReleaseNoteItem(
+        'Updated: Share Link is now Share Internal Link, and documents, '
+        'clients and vendors can share their Client or Vendor Portal Link. '
+        "Lists on a record's tabs show the columns chosen on the main list, "
+        'payments gain an Invoice Number column, and exported or emailed '
+        'reports keep your column order.',
+      ),
+      ReleaseNoteItem(
         'Updated: Android 8 or newer is now required.',
         hiddenOn: {ReleaseNoteSurface.appleStore},
+      ),
+      ReleaseNoteItem(
+        'Fixed: The AppImage opens again, and a running timer no longer keeps '
+        'the Linux app busy in the background '
+        '[#189](https://github.com/invoiceninja/flutter/issues/189) '
+        '[#190](https://github.com/invoiceninja/flutter/issues/190)',
+        hiddenOn: {ReleaseNoteSurface.appleStore},
+      ),
+      ReleaseNoteItem(
+        "Fixed: Share Link from a list row's menu on a phone, two crashes in "
+        'the notes editor, and the filter sheet freezing on a key typed after '
+        'other words. Connecting Stripe, PayPal, WePay, GoCardless or Square '
+        'no longer adds a second, unconnected gateway.',
       ),
     ],
   ),

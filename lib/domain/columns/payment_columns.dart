@@ -5,6 +5,7 @@ import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/custom_field_columns.dart';
+import 'package:admin/domain/columns/payment_invoice_numbers_cell.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/company_gateway_name_label.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
@@ -108,6 +109,19 @@ final List<PaymentColumn> kAllPaymentColumns = <PaymentColumn>[
         ? cellEmpty()
         : cellText(p.transactionReference),
     valueBuilder: (p) => cellNonZeroString(p.transactionReference),
+  ),
+  // The invoices the payment is applied to. They live in the paymentables
+  // (payload), so there is nothing to order by; their numbers ride on the
+  // payment (`include=invoices`), so the cell costs no request.
+  PaymentColumn(
+    id: PaymentFieldIds.invoiceNumber,
+    labelKey: 'invoice_number',
+    sortable: false,
+    width: 160,
+    cellBuilder: (p, _) => PaymentInvoiceNumbersCell(payment: p),
+    valueBuilder: (p) => [
+      for (final id in paymentInvoiceIds(p)) ?paymentInvoiceNumber(p, id),
+    ].join(', '),
   ),
   PaymentColumn(
     id: PaymentFieldIds.gatewayId,

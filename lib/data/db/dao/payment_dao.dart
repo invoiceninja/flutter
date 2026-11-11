@@ -41,6 +41,11 @@ class PaymentFieldIds {
   // Display-only (tags live in the payload) — never add to sortOptions.
   static const String tagIds = 'payment_tag_ids';
 
+  /// The invoices this payment is applied to, read from the paymentables —
+  /// display-only. The id is admin-portal's (`PaymentFields.invoiceNumber`),
+  /// so a layout saved there shows the column here.
+  static const String invoiceNumber = 'invoice_number';
+
   /// Column id only — this table has no `assigned_user_id` column (the value
   /// lives in the payload JSON), so it is never a valid *sort* field. Same
   /// shape as [TaskFieldIds.assignedUserId].

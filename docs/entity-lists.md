@@ -55,6 +55,23 @@ both. Read the label through `column.resolveLabel(context)` — a bare
 name**: quotes / credits / purchase orders / recurring invoices all read
 `invoice1..4`, and recurring expenses read `expense1..4`.
 
+### An embedded list reads the saved columns and drops its parent's
+
+**A list embedded in a record's tab reads the standalone list's saved columns,
+never writes them, and drops the column naming its parent.** The old app showed
+a Columns button on a client's Payments tab; here the tab had only the registry
+defaults, so a column picked on the Payments list (Private Notes, Invoice
+Number) vanished one click into a client (forum topic 23653).
+`GenericListViewModel` now subscribes to `user_settings.table_columns` for an
+embedded list too, while `setColumns` / `resetColumns` still return early: one
+layout per entity, edited on the standalone list, and no second Columns button
+in the tab's slim toolbar. `_resolveColumns` then leaves out every column whose
+`labelKey` is one of `lockedFilterKeyIds` — a locked filter key and its column
+share a translation key (`client`, `vendor`, `project`) — because that column
+repeats the parent down every row. The drop is render-only (`columnIds` and the
+stored layout keep the id) and never leaves no columns at all. Pinned by
+`generic_list_view_model_embedded_columns_test.dart`.
+
 ## List status tabs
 
 A one-tap status strip above every entity list — `All / Draft / Unpaid / Overdue` on Invoices, and so on for the other 13 entities that declare status counters (invoiceninja/flutter#98: reaching a draft through the search field's filter menu cost three or four taps). It is a **view over the sidebar-counter catalog**, not a second one: `lib/domain/list_status_tabs.dart` adds only the tab *order* (lifecycle, deliberately not the badge lists' "most actionable first") and the optional server translation. Labels, tones and the inventory gate all resolve from the entity's own `badgeModes` at render time.

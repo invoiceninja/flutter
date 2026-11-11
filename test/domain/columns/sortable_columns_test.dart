@@ -293,6 +293,7 @@ void main() {
       'payment': [
         PaymentFieldIds.tagIds,
         PaymentFieldIds.privateNotes,
+        PaymentFieldIds.invoiceNumber,
         ...sharedMetadata,
         ...payloadAssignee,
       ],

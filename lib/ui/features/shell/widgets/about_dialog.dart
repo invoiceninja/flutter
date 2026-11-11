@@ -53,7 +53,6 @@ Future<void> showAppAboutDialog(BuildContext context) async {
     context: context,
     builder: (ctx) => _AboutDialog(
       serverVersion: services.serverVersion,
-      userEmail: session?.userEmail,
       isSelfHosted: session?.isSelfHosted,
       isOwner: company?.isOwner ?? false,
       isAdmin: company?.isAdmin ?? false,
@@ -143,7 +142,6 @@ bool _canShowHealthCheck(AuthSession? s) {
 class _AboutDialog extends StatelessWidget {
   const _AboutDialog({
     required this.serverVersion,
-    required this.userEmail,
     required this.isSelfHosted,
     required this.isOwner,
     required this.isAdmin,
@@ -160,7 +158,6 @@ class _AboutDialog extends StatelessWidget {
   });
 
   final ValueListenable<String?> serverVersion;
-  final String? userEmail;
   final bool? isSelfHosted;
   final bool isOwner;
   final bool isAdmin;
@@ -257,13 +254,6 @@ class _AboutDialog extends StatelessWidget {
                   ),
                 ],
               ),
-              if (userEmail != null && userEmail!.isNotEmpty) ...[
-                SizedBox(height: InSpacing.md(context)),
-                Text(
-                  userEmail!,
-                  style: TextStyle(fontSize: 12, color: tokens.ink3),
-                ),
-              ],
               if (onShowWelcome != null ||
                   onShowWhatsNew != null ||
                   onShowMobileApp != null ||

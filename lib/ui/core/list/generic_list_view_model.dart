@@ -815,10 +815,11 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       _applyIntentState(pending);
       _schedulePersist();
     }
-    // Embedded lists render the entity's default columns held in memory; they
-    // don't read (or write) the user's saved standalone-list column layout —
-    // same isolation as the nav_state guard below.
-    if (!isEmbedded) _subscribeColumns();
+    // Embedded lists follow the user's saved column layout too — a record's
+    // Payments tab shows the columns picked on the Payments list — but never
+    // write it ([setColumns] / [resetColumns] return early): the picker lives
+    // on the standalone list only.
+    _subscribeColumns();
     _subscribe();
     _subscribeCustomValues();
     // Embedded lists ignore saved-view / nav_state writes — they're scoped to
@@ -1610,8 +1611,8 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       watchDistinctCustomValues(columnIndex);
 
   Future<void> setColumns(List<String> ids) async {
-    // Embedded lists have no Columns picker and must not touch the shared
-    // standalone-list column preference.
+    // Embedded lists have no Columns picker: they read the standalone
+    // list's column preference and never write it.
     if (isEmbedded) return;
     final next = List<String>.unmodifiable(ids);
     if (listEquals(next, _columnIds)) return;
@@ -1983,6 +1984,19 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     for (final id in ids) {
       final col = byId[id];
       if (col != null) out.add(col);
+    }
+    // An embedded list is scoped to one parent record, so the column naming
+    // that parent (Client on a client's Payments tab) repeats one value down
+    // every row. A locked filter key and its column share a translation key
+    // (`client`, `vendor`, `project`), which is the match. Render-only, like
+    // the drop above — and never down to no columns at all.
+    final locked = lockedFilterKeyIds;
+    if (locked.isNotEmpty) {
+      final scoped = [
+        for (final c in out)
+          if (!locked.contains(c.labelKey)) c,
+      ];
+      if (scoped.isNotEmpty) return scoped;
     }
     return out;
   }

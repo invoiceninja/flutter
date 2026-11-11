@@ -485,6 +485,7 @@ Rule of thumb: small / mostly-read / company-shared (≲ a few hundred rows) →
 - **Every field the entity's edit screen can set earns a column** → `docs/entity-lists.md`
 - **Real Drift column ⇒ `sortable: true` plus a `_sortExpression` case in the DAO. Derived or payload-only ⇒ `sortable: false` plus an entry in `sortable_columns_test`'s `displayOnly` map.** → `docs/entity-lists.md`
 - **Custom-field slots go through `customFieldColumns` (`custom_field_columns.dart`), never a hand-written `custom1` column.** → `docs/entity-lists.md`
+- **A list embedded in a record's tab reads the standalone list's saved columns, never writes them, and drops the column naming its parent.** → `docs/entity-lists.md`
 - **Client and Vendor ids must also join `k<Entity>ColumnIds`** (`column_ids_match_registry_test`); hiding a column is never destructive; label created-by with `user`, never `created_by`. → `docs/entity-lists.md`
 
 ## List status tabs

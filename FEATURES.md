@@ -402,6 +402,8 @@ the honest default.
 | Payment — import (CSV) | ✅ | 🟡 | ✅ | ✅ | |
 | Payment — custom fields | ✅ | ✅ | ✅ | ✅ | |
 | Payment — list column for private notes | ✅ | ✅ | ✅ | | |
+| Payment — Invoice Number list column (the invoice the payment is applied to, linked; `+N` for the rest) | ✅ | ✅ | ✅ | | v1's `invoice_number` column id, so a layout saved there carries over |
+| Record tabs (a client's Payments, Invoices…) show the columns chosen on that entity's main list, without the column naming the record itself | ❌ | ✅ | ✅ | | v1 had its own Columns button on the tab; v2 keeps one layout per entity, edited on the main list |
 | Payment — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---

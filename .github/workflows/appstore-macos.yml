@@ -262,6 +262,11 @@ jobs:
       # method=app-store on a macOS archive emits a signed Mac App Store .pkg
       # (installer-signed) via the committed macos/ExportOptions.plist, which
       # names both certs (signingCertificate + installerSigningCertificate).
+      # Each name is matched against the start of the certificate's common
+      # name, so the installer one is "3rd Party Mac Developer Installer" (our
+      # certificate's CN, the legacy name for that type): "Mac Installer
+      # Distribution" matched nothing and failed 5.1.24's export with "No
+      # certificate ... matching 'Mac Installer Distribution' found".
       - name: Export Mac App Store package
         run: |
           set -euo pipefail

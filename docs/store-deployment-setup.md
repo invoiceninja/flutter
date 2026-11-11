@@ -503,6 +503,7 @@ Two exceptions:
 | ASC: *"the bundle version must be higher than the previously uploaded version"* | You didn't bump. iOS and macOS share the pubspec version. |
 | Archive fails on an entitlement mismatch | The App ID is missing a capability the entitlements declare — Sign in with Apple (both), Associated Domains + App Groups (iOS), App Sandbox + Keychain Sharing (macOS). See §3E step 1. |
 | macOS: `No signing certificate "Mac App Distribution" found` on every target | The keychain has no Apple Distribution identity. A combined `.p12` whose two certificates share one key imports as one of them (§3E step 2). Use `APPLE_DISTRIBUTION_CERT_P12_BASE64` plus `MAC_INSTALLER_CERT_BASE64`. |
+| macOS: export fails with `No certificate for team … matching 'Mac Installer Distribution' found` | `installerSigningCertificate` in `macos/ExportOptions.plist` is matched against the start of the certificate's common name. Ours is `3rd Party Mac Developer Installer: …`, so that is the name the plist gives. Check yours with `security find-identity -v`. |
 | macOS: `No valid "3rd Party Mac Developer Installer" identity` | `MAC_INSTALLER_CERT_BASE64` is not the installer certificate issued from the same CSR as the Apple Distribution one (§3E step 2). |
 | Apple upload auth fails | `APP_STORE_CONNECT_PRIVATE_KEY` was base64-encoded. It must be the **raw** `.p8` text. |
 | Store: upload validation rejects the package | `msix_config` `identity_name` / `publisher` / `publisher_display_name` in `pubspec.yaml` don't exactly match Partner Center → Product identity. |

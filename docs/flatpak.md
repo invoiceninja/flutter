@@ -225,10 +225,14 @@ collaborators. So each side does its half:
      removals because flathub.org still served v1's 5.0.204.
 3. **Deploy to all's `flathub` leg** (`.github/workflows/flathub.yml` running
    `tools/follow_flathub_release.sh`) reads only. Its steps:
-   - Waits up to 90 minutes for the PR.
-   - Fails, with the PR link, on a failed test build.
-   - Waits for the merge. If the checks pass and nobody merges it, it ends green with a warning
-     naming the PR to merge.
+   - Waits up to 90 minutes for the PR. If none appears, it ends green with a warning to run
+     that repo's **Update app** workflow: the hourly cron there is throttled on a quiet repo
+     (5.1.24's PR waited until the workflow was dispatched by hand, 5 hours after the last
+     scheduled run).
+   - Fails, with the PR link, on a failed test build or a PR closed unmerged. These are the
+     only red outcomes besides a missing Flathub repo.
+   - Waits for the merge. If the checks pass, or are still running, and nobody has merged it,
+     it ends green with a warning naming the PR to merge.
    - Watches `flathub.org/api/v2/appstream/com.invoiceninja.InvoiceNinja` for the version for 45
      minutes. A merge that isn't listed yet is still a success, because publishing takes hours.
 

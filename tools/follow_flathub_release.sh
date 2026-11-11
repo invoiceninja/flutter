@@ -20,6 +20,13 @@ set -euo pipefail
 #   4. wait a while for flathub.org to list the version; a merge it doesn't
 #      list yet is still a success (publishing takes hours).
 #
+# Only a real problem fails: a failed test build, a PR closed unmerged, or no
+# Flathub repo. "Not there yet" ends green with a warning saying what's left:
+# no PR by the deadline (that repo's hourly cron is throttled on a quiet repo:
+# 5.1.24's waited 5 h for a hand-dispatched run), or a test build still running
+# when the wait ends. A red Deploy to all leg for either was noise, and
+# nothing on this side can hurry Flathub.
+#
 # Usage:
 #   tools/follow_flathub_release.sh [version]     # default: pubspec's
 #
@@ -71,9 +78,9 @@ while :; do
     --json number,url,state 2>/dev/null || echo '[]')"
   [[ "$(jq length <<<"$pr_json")" -gt 0 ]] && break
   if (($(date +%s) >= until_pr)); then
-    annotate error "No $branch PR on $REPO after $PR_WAIT_MINUTES min: run that repo's update workflow (Actions → Update), or check its last run."
-    summary "Flathub: no update PR for $version yet. Check https://github.com/$REPO/actions"
-    exit 1
+    annotate warning "No $branch PR on $REPO after $PR_WAIT_MINUTES min: run that repo's update workflow (Actions → Update app), or wait for its schedule."
+    summary "Flathub: no update PR for $version yet. Run Update app at https://github.com/$REPO/actions to open it now."
+    exit 0
   fi
   echo "Waiting for the $branch PR on $REPO..."
   sleep "$POLL_SECONDS"
@@ -112,9 +119,9 @@ while :; do
       summary "Flathub: $version built on both architectures; merge $url to publish it."
       exit 0
     fi
-    annotate error "Flathub's test build for $version had not finished after $MERGE_WAIT_MINUTES min: $url"
-    summary "Flathub: the test build for $version is still running. $url"
-    exit 1
+    annotate warning "Flathub's test build for $version had not finished after $MERGE_WAIT_MINUTES min: $url"
+    summary "Flathub: the test build for $version is still running; merge $url once it passes."
+    exit 0
   fi
   echo "PR #$number: $(tr "[:upper:]" "[:lower:]" <<<"$state"), checks: $(tr '\n' ' ' <<<"${buckets:-none yet}")"
   sleep "$POLL_SECONDS"

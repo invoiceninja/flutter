@@ -12,8 +12,10 @@ name: Deploy to Flathub
 # <release> into the metainfo, which Flathub shows as the changelog.
 #
 # So this workflow only reads — tools/follow_flathub_release.sh waits for the
-# PR, fails on a failed test build, and reports merged / published in the job
-# summary. It never writes to Flathub, and nothing in this repo may: Flathub's
+# PR, fails only on a failed test build or a closed PR, and reports how far it
+# got in the job summary. "Not there yet" (no PR, or a build still running,
+# when the wait ends) is a warning, not a red leg: that repo's hourly cron is
+# throttled and its merges are manual until auto-merge is enabled. It never writes to Flathub, and nothing in this repo may: Flathub's
 # generative-AI policy keeps every Flathub-side file and PR human-written
 # (docs/flatpak.md). No secrets, no test gate (it builds nothing).
 #

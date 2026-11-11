@@ -94,12 +94,13 @@ esac
     expect(summary(), contains('merge https://example/pr/7'));
   });
 
-  test('a build still running at the deadline fails', () async {
+  test('a build still running at the deadline ends green, saying so', () async {
     write('pr_state', 'OPEN');
     write('checks', 'pass\npending\n');
     final result = await run();
-    expect(result.exitCode, 1);
+    expect(result.exitCode, 0, reason: '${result.stderr}');
     expect(summary(), contains('still running'));
+    expect(summary(), contains('https://example/pr/7'));
   });
 
   test('a PR closed unmerged fails', () async {
@@ -109,12 +110,13 @@ esac
   });
 
   test(
-    'no update PR by the deadline fails, pointing at the update workflow',
+    'no update PR by the deadline ends green, pointing at the update workflow',
     () async {
       write('pr_list.json', '[]');
       final result = await run();
-      expect(result.exitCode, 1);
+      expect(result.exitCode, 0, reason: '${result.stderr}');
       expect(summary(), contains('no update PR for 9.9.9'));
+      expect(summary(), contains('Update app'));
     },
   );
 

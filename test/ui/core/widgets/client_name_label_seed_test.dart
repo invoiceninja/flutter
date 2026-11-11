@@ -105,6 +105,15 @@ void main() {
     expect(find.text('—'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
+    // The cold miss fetches the client once Drift has answered "not cached",
+    // and Drift answers on the real event loop, not the test's fake clock. Let
+    // it, then pump so the fetch (failed fast by the fixture) completes and
+    // cancels ApiClient's request-timeout timer. On Flutter 3.47 the query
+    // happened to land inside the last pump; on 3.50 it lands after the test
+    // body, leaving that timer pending at teardown.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
     await tester.pump(const Duration(milliseconds: 1));
   });
 

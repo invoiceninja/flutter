@@ -17,6 +17,7 @@ import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/wysiwyg_design_view_model.dart';
 
 import '../../../../../_localization_helper.dart';
+import '../../../../../_support/google_fonts_settle.dart';
 
 class _FakeDesignsApi implements DesignsApi {
   @override
@@ -91,6 +92,7 @@ void main() {
       ),
     );
     await tester.pump();
+    await settleGoogleFonts(tester);
     expect(tester.takeException(), isNull);
 
     expect(find.text('R-0042'), findsOneWidget);

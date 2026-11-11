@@ -58,6 +58,7 @@
   <title>Invoice Ninja</title>
   <link rel="manifest" href="manifest.json">
 
+  <!-- glue:start loader-style (shared with tools/web_deploy/index.blade.php) -->
   <style>
     /* Boot loader shown until Flutter paints its first frame. Ported from
        admin-portal/web/index.html — three-dot spinner from
@@ -115,19 +116,24 @@
       40% { box-shadow: 0 2.5em 0 0; }
     }
   </style>
+  <!-- glue:end -->
 
   <!-- pdf.js (PDF preview on the web) loads from our own origin, not unpkg.
        `printing` reads this before its dynamic import; resolving against the
        base URI keeps a non-root `--base-href` (the demo's /admin/) working.
        The vendored files must match printing's pinned pdf.js version —
        test/lint/vendored_pdfjs_version_test.dart. -->
+  <!-- glue:start pdfjs -->
   <script>
     window.dartPdfJsBaseUrl = new URL('pdfjs/', document.baseURI).href;
   </script>
+  <!-- glue:end -->
 </head>
 <body>
   <!-- Boot loader — removed once Flutter renders (see script below). -->
+  <!-- glue:start loader -->
   <div id="loader"><div class="loader"></div></div>
+  <!-- glue:end -->
 
   <!--
     You can customize the "flutter_bootstrap.js" script.
@@ -138,6 +144,7 @@
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
   <script src="flutter_bootstrap.js" async></script>
+  <!-- glue:start first-frame -->
   <script>
     (function () {
       // Drop the boot loader once Flutter paints its first frame. The loader
@@ -146,6 +153,8 @@
       var painted = false;
       window.addEventListener('flutter-first-frame', function () {
         painted = true;
+        // Read by Deploy to Web's boot smoke (docs/web-deploy.md).
+        window.__flutterFirstFrame = true;
         var el = document.getElementById('loader');
         if (el && el.parentNode) el.parentNode.removeChild(el);
       });
@@ -170,5 +179,6 @@
       }, 30000);
     })();
   </script>
+  <!-- glue:end -->
 </body>
 </html>

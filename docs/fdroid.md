@@ -191,6 +191,11 @@ flutter build apk --release
 tools/prepare_foss.sh --restore      # back to the store build, byte-for-byte
 ```
 
+`tools/prepare_foss.sh --web` is the same prepare for the web build (`.github/workflows/web.yml`):
+it runs only step 1 (the twin) and step 3 (the FOSS lock and its checks). The sqlite3mc source and
+the ML Kit plugin are native-only, so a web build never reads them. One FOSS web build serves
+hosted and self-hosted servers (docs/web-deploy.md). `--restore` undoes it the same way.
+
 `tools/prepare_foss.sh --update-lock` is the exception: it only rewrites `tools/foss/pubspec.lock`,
 working on a copy, so it is safe in the shared checkout (§ F-Droid resolves a committed FOSS lock).
 

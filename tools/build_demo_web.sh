@@ -42,23 +42,15 @@ flutter build web --wasm --release \
 # index.html via the Pages ETag — loads the new bootstrap + app code. The engine
 # files under canvaskit/ are immutable per Flutter SDK, so they're left as-is
 # (busting them every deploy would force a needless multi-MB re-download).
-token="$(cat build/web/main.dart.wasm build/web/main.dart.mjs build/web/main.dart.js \
-  | shasum -a 256 | cut -c1-12)"
-sed -i '' \
-  -e "s#\"main.dart.wasm\"#\"main.dart.wasm?v=$token\"#g" \
-  -e "s#\"main.dart.mjs\"#\"main.dart.mjs?v=$token\"#g" \
-  -e "s#\"main.dart.js\"#\"main.dart.js?v=$token\"#g" \
-  build/web/flutter_bootstrap.js
-sed -i '' \
-  "s#src=\"flutter_bootstrap.js\"#src=\"flutter_bootstrap.js?v=$token\"#" \
+# The bootstrap half is shared with Deploy to Web (tools/stamp_web_cache_bust.sh);
+# index.html is the demo's own page, so its stamp stays here.
+token="$("$repo_root/tools/stamp_web_cache_bust.sh" build/web)"
+V="$token" perl -pi -e 's#src="flutter_bootstrap\.js"#src="flutter_bootstrap.js?v=$ENV{V}"#' \
   build/web/index.html
-# Fail loudly if a future Flutter output change breaks the rewrites above,
+# Fail loudly if a future Flutter output change breaks the rewrite above,
 # rather than silently shipping an un-busted (cache-stale) build.
 grep -q "src=\"flutter_bootstrap.js?v=$token\"" build/web/index.html \
   || { echo "!! cache-bust failed: index.html not stamped" >&2; exit 1; }
-grep -q "main.dart.wasm?v=$token" build/web/flutter_bootstrap.js \
-  || { echo "!! cache-bust failed: flutter_bootstrap.js not stamped" >&2; exit 1; }
-echo "==> cache-bust token: $token"
 
 if [[ "$deploy_dir" == "-" ]]; then
   echo "==> build complete — build/web/ (deploy skipped)"

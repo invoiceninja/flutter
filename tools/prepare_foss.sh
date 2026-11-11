@@ -10,6 +10,11 @@
 #   tools/prepare_foss.sh --update-lock
 #                                    regenerate tools/foss/pubspec.lock after
 #                                    pubspec.lock changes; touches nothing else.
+#   tools/prepare_foss.sh --web      steps 1 and 3 only, for the web build
+#                                    (.github/workflows/web.yml): sqlite3mc and
+#                                    the Android plugin are native-only, so
+#                                    neither touches a web build
+#                                    (docs/web-deploy.md). --restore undoes it.
 #   tools/prepare_foss.sh --offline  the same prepare with no network, for the
 #                                    Flatpak build on Flathub (docs/flatpak.md):
 #                                    the sqlite3mc amalgamation must already be
@@ -40,14 +45,16 @@ FLUTTER="${FLUTTER:-flutter}"
 # Anything else would fall through to a full prepare, which rewrites the
 # checkout — the wrong outcome for a mistyped --update-lock.
 case "${1:-}" in
-  "" | --restore | --update-lock | --offline) ;;
+  "" | --restore | --update-lock | --offline | --web) ;;
   *)
-    echo "usage: tools/prepare_foss.sh [--offline | --restore [--force] | --update-lock]" >&2
+    echo "usage: tools/prepare_foss.sh [--offline | --web | --restore [--force] | --update-lock]" >&2
     exit 2
     ;;
 esac
 OFFLINE=false
 [[ "${1:-}" == "--offline" ]] && OFFLINE=true
+WEB=false
+[[ "${1:-}" == "--web" ]] && WEB=true
 
 # Keep in lockstep with the SQLite3MultipleCiphers release that the resolved
 # `sqlite3` package ships prebuilt (its tool/download_sqlite.dart at the
@@ -223,8 +230,11 @@ fi
 cp tools/foss/pubspec_overrides.yaml pubspec_overrides.yaml
 echo "Wrote pubspec_overrides.yaml (store_services -> packages/store_services_foss)."
 
-# 2. sqlite3mc from source.
-if sqlite3mc_present; then
+# 2. sqlite3mc from source. Native-only: a web build uses the vendored
+# web/sqlite3.wasm and never runs the hook, so --web skips this step.
+if $WEB; then
+  echo "--web: skipping sqlite3mc (native-only)."
+elif sqlite3mc_present; then
   echo "sqlite3mc amalgamation already present."
 elif $OFFLINE; then
   # Flathub's builder has no network: the manifest declares the pinned zip as
@@ -251,7 +261,9 @@ else
   echo "Fetched sqlite3mc amalgamation into $SQLITE3MC_DIR."
 fi
 
-if grep -q "^      path: $SQLITE3MC_C\$" pubspec.yaml; then
+if $WEB; then
+  :
+elif grep -q "^      path: $SQLITE3MC_C\$" pubspec.yaml; then
   echo "pubspec.yaml already builds sqlite3mc from source."
 else
   if [[ "$(grep -c '^      source: sqlite3mc$' pubspec.yaml)" != "1" ]]; then
@@ -284,6 +296,10 @@ rm -f .dart_tool/foss_store_pubspec.lock
 # dependency — and F-Droid's scan reads every build.gradle in the tree, used
 # or not. The twin replaced the package above, so nothing builds it; delete
 # it (docs/fdroid.md). --restore brings it back from the snapshot.
+if $WEB; then
+  echo "FOSS web build prepared. Next: $FLUTTER build web --wasm --release"
+  exit 0
+fi
 rm -rf packages/store_services/android
 echo "Removed packages/store_services/android (ML Kit) from the FOSS tree."
 

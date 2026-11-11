@@ -1,0 +1,241 @@
+name: Deploy to Web
+
+# Manual only. Builds the web app and lays it into the server repo's
+# public/flutter/, where the backend's boot page (tools/web_deploy/
+# index.blade.php, staged as resources/views/flutter/index.blade.php) serves it
+# in place of admin-portal's build — the replacement for `build_client`.
+# docs/web-deploy.md.
+#
+# TEST MODE ONLY for now: it clones invoiceninja/invoiceninja anonymously,
+# stages the build into that throwaway clone, proves the staged tree is
+# complete and boots, and reports exactly what a commit would change. Nothing
+# is committed or pushed — there is no token and no push step. The commit step
+# arrives with Phase 2 (docs/web-deploy.md § Going live), as `mode: commit`.
+#
+# Shaped like the store workflows (test/lint/deploy_all_workflow_test.dart) so
+# Deploy to all can call it later: skip_tests on workflow_call only, a `test`
+# job, and one job that needs it.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: What to do. Test mode builds, stages and reports; it never commits.
+        type: choice
+        options: [test]
+        default: test
+  workflow_call:
+    inputs:
+      skip_tests:
+        description: Set only by deploy-all.yml, whose release job already ran _test.yaml.
+        type: boolean
+        default: false
+      mode:
+        description: test (build, stage and report; nothing is committed).
+        type: string
+        default: test
+
+permissions:
+  contents: read
+
+# Never `deploy-all` (the caller's group): a caller and a callee in one group
+# deadlock. A second dispatch waits for the first instead of cancelling it.
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+jobs:
+  test:
+    # Skipped only under deploy-all.yml (skip_tests), whose release ran it once.
+    if: ${{ !inputs.skip_tests }}
+    uses: ./.github/workflows/_test.yaml
+
+  deploy-web:
+    needs: test
+    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
+    name: Build, stage and check (test mode)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MODE: ${{ inputs.mode || 'test' }}
+      BACKEND_REPO: https://github.com/invoiceninja/invoiceninja.git
+      BACKEND_BRANCH: v5-develop
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Refuse anything but test mode
+        run: |
+          if [ "$MODE" != "test" ]; then
+            echo "::error::Only test mode exists so far; '$MODE' is Phase 2 (docs/web-deploy.md)."
+            exit 1
+          fi
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      # One FOSS build serves hosted and self-hosted: nothing in store_services
+      # runs on web, and self-hosted stays free of store SDKs as admin-portal's
+      # main.foss.dart.js was. --web skips the native-only steps.
+      - name: Use the FOSS dependency graph
+        run: tools/prepare_foss.sh --web
+
+      - name: Generate code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # --pwa-strategy=none: no service worker at all (the boot page clears the
+      # old app's). --no-web-resources-cdn: the engine is served from our folder.
+      - name: Build web
+        run: flutter build web --wasm --release --no-web-resources-cdn --pwa-strategy=none
+
+      - name: Cache-bust, manifest, build.json
+        id: prep
+        run: |
+          set -euo pipefail
+          tools/stamp_web_cache_bust.sh build/web >/dev/null
+          # An installed PWA must open the boot page at the site root, not the
+          # folder (which has no index and answers 403). The build copy only;
+          # web/manifest.json also serves the GitHub Pages demo.
+          jq '.start_url = "../" | .scope = "../"' build/web/manifest.json > manifest.tmp
+          mv manifest.tmp build/web/manifest.json
+          version="$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml)"
+          jq -n --arg version "$version" --arg sha "$GITHUB_SHA" \
+            --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --arg built_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{version: $version, sha: $sha, run_url: $run_url, built_at: $built_at}' \
+            > build/web/build.json
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "bootstrap_hash=$(sha256sum build/web/flutter_bootstrap.js | cut -c1-12)" >> "$GITHUB_OUTPUT"
+
+      # Anonymous and sparse: the backend's history is about 4 GiB, and
+      # --no-cone keeps the checkout to the two folders this writes (cone mode
+      # would also pull every file directly under public/).
+      - name: Stage into a throwaway clone of the backend
+        id: stage
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --filter=blob:none --no-checkout -b "$BACKEND_BRANCH" "$BACKEND_REPO" backend
+          git -C backend sparse-checkout set --no-cone '/public/flutter/' '/resources/views/flutter/'
+          git -C backend checkout -q
+          mkdir -p backend/public/flutter backend/resources/views/flutter
+          rsync -a --delete \
+            --exclude /index.html --exclude /flutter_service_worker.js \
+            --exclude /drift_worker.dart --exclude /.last_build_id \
+            --exclude '*.symbols' \
+            build/web/ backend/public/flutter/
+          python3 tools/web_deploy/render_boot_page.py --blade \
+            --version "${{ steps.prep.outputs.bootstrap_hash }}" \
+            -o backend/resources/views/flutter/index.blade.php
+          echo "backend_sha=$(git -C backend rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Only the two folders may change, nothing may be dropped by the backend's
+      # .gitignore, and every staged file must be tracked.
+      - name: Change gate
+        id: changes
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          git add -A
+          status="$(git status --porcelain --ignored --untracked-files=all)"
+          if grep -q '^!!' <<<"$status"; then
+            echo "::error::The backend's .gitignore drops staged files:"; grep '^!!' <<<"$status"; exit 1
+          fi
+          outside="$(cut -c4- <<<"$status" | grep -vE '^(public/flutter/|resources/views/flutter/)' || true)"
+          if [ -n "$outside" ]; then
+            echo "::error::Changes outside public/flutter/ and resources/views/flutter/:"; echo "$outside"; exit 1
+          fi
+          tracked="$(git ls-files public/flutter | wc -l)"
+          files="$(find public/flutter -type f | wc -l)"
+          if [ "$tracked" != "$files" ]; then
+            echo "::error::$files files staged but $tracked tracked."; exit 1
+          fi
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          echo "size=$(du -sh public/flutter | cut -f1)" >> "$GITHUB_OUTPUT"
+          git diff --cached --stat | tail -1 > ../diffstat.txt
+
+      - name: Assemble the served roots
+        run: |
+          set -euo pipefail
+          v="${{ steps.prep.outputs.bootstrap_hash }}"
+          # site/index.html is the page as the server would render it (served:
+          # logs in to its own origin); site/standalone.html is the same page
+          # without data-served, so a local copy can sign in to any server.
+          mkdir -p site
+          cp -a backend/public/flutter site/flutter
+          python3 tools/web_deploy/render_boot_page.py --static --version "$v" -o site/index.html
+          python3 tools/web_deploy/render_boot_page.py --static --standalone --version "$v" -o site/standalone.html
+          cp tools/web_deploy/serve.py site/serve.py
+          # dart2js smoke: the same tree (hard links) with the bootstrap asking
+          # for the canvaskit renderer, which rules out the skwasm (WASM) build.
+          mkdir -p smoke-js
+          cp -al site/flutter smoke-js/flutter
+          cp site/index.html smoke-js/index.html
+          rm smoke-js/flutter/flutter_bootstrap.js
+          sed 's/_flutter\.loader\.load();/_flutter.loader.load({config:{renderer:"canvaskit"}});/' \
+            site/flutter/flutter_bootstrap.js > smoke-js/flutter/flutter_bootstrap.js
+          grep -q 'renderer:"canvaskit"' smoke-js/flutter/flutter_bootstrap.js
+
+      - name: Served-files gate
+        run: |
+          set -euo pipefail
+          python3 tools/web_deploy/serve.py site 8000 &
+          server=$!
+          trap 'kill $server' EXIT
+          sleep 1
+          python3 tools/web_deploy/check_served_files.py site http://127.0.0.1:8000 | tee files-gate.txt
+
+      # A hard gate. If headless WebGL proves flaky on the runner, add
+      # `continue-on-error: true` here and the summary says so.
+      - name: Boot smoke (WASM and dart2js)
+        id: smoke
+        run: |
+          set -euo pipefail
+          python3 tools/web_deploy/serve.py site 8001 &
+          wasm_server=$!
+          python3 tools/web_deploy/serve.py smoke-js 8002 &
+          js_server=$!
+          trap 'kill $wasm_server $js_server' EXIT
+          sleep 1
+          tools/web_deploy/smoke_webdriver.sh http://127.0.0.1:8001/ 120 | tee smoke-wasm.txt
+          CHROMEDRIVER_PORT=9516 tools/web_deploy/smoke_webdriver.sh http://127.0.0.1:8002/ 120 | tee smoke-js.txt
+
+      - name: Upload the staged site
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-staged
+          path: site/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          gz() { [ -f "$1" ] && gzip -9c "$1" | wc -c | awk '{printf "%.1f MB", $1/1048576}' || echo "n/a"; }
+          old="$(git -C backend show HEAD:public/main.dart.js 2>/dev/null | gzip -9c | wc -c | awk '{printf "%.1f MB", $1/1048576}')"
+          {
+            echo "## TEST MODE: nothing committed or pushed; servers still run admin-portal."
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| App | ${{ steps.prep.outputs.version }} at \`${GITHUB_SHA:0:8}\` |"
+            echo "| Staged on backend \`$BACKEND_BRANCH\` | \`${{ steps.stage.outputs.backend_sha }}\` |"
+            echo "| Would commit | ${{ steps.changes.outputs.files }} files, ${{ steps.changes.outputs.size }} under public/flutter/, plus resources/views/flutter/index.blade.php |"
+            echo "| Diff | $(cat diffstat.txt 2>/dev/null) |"
+            echo "| Download (gzip) | main.dart.wasm $(gz build/web/main.dart.wasm), main.dart.js $(gz build/web/main.dart.js); old app's main.dart.js $old |"
+            echo "| Served-files gate | $(tail -1 files-gate.txt 2>/dev/null || echo 'did not run') |"
+            echo "| Boot smoke, WASM | $(head -1 smoke-wasm.txt 2>/dev/null || echo 'did not run') |"
+            echo "| Boot smoke, dart2js | $(head -1 smoke-js.txt 2>/dev/null || echo 'did not run') |"
+            echo "| Phase 2 commit message | \`Admin Portal v2 - ${{ steps.prep.outputs.version }} [skip ci]\` |"
+            echo
+            echo "Try it locally (standalone.html has the usual server field, so it can sign in to the demo server):"
+            echo
+            echo '```'
+            echo "gh run download $GITHUB_RUN_ID -R $GITHUB_REPOSITORY -n web-staged -D web-staged"
+            echo "cd web-staged && python3 serve.py ."
+            echo '# open http://127.0.0.1:8000/standalone.html'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

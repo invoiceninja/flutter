@@ -703,6 +703,7 @@ Web is a supported target; native behavior stays **byte-identical** — every di
 
 - **Web storage is unencrypted drift WASM over IndexedDB/OPFS, and the token lives in `localStorage` — a locked decision; don't add an encryption layer without re-deciding.**
 - **A web database reset must be verified, and a store the browser won't delete is abandoned (generation-bumped), never reopened.** → `docs/architecture.md`
+- **Deploy to Web stages the build in `public/flutter/` and, for now, never commits.** → `docs/web-deploy.md`
 - **Regenerate the vendored `web/sqlite3.wasm` and `web/drift_worker.js` on any `drift` / `sqlite3` bump** — version skew is the #1 web runtime failure.
 - **Re-vendor `web/pdfjs/` on any `printing` bump — the web PDF preview loads pdf.js from our own origin, at exactly the version `printing` pins (`vendored_pdfjs_version_test`).** → `docs/web-platform-differences.md`
 - **The URL strategy stays hash (`/#/clients`)** — locked, so any static host works; never `PathUrlStrategy`.

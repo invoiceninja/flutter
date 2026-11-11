@@ -3,6 +3,7 @@ import 'package:flutter/semantics.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/serving_server.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
@@ -70,6 +71,9 @@ class _LoginScreenState extends State<LoginScreen> {
       auth: context.read<Services>().auth,
       certificateTrust: context.read<CertificateTrustStore?>(),
       passkeyReadiness: context.read<PasskeyReadiness?>(),
+      // Registered only on a page an Invoice Ninja server served
+      // (docs/web-deploy.md); null everywhere else.
+      served: context.read<ServingServer?>(),
     );
   }
 
@@ -299,13 +303,17 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Image.asset(
-          isDark
-              ? 'assets/images/logo_dark.png'
-              : 'assets/images/logo_light.png',
-          height: 48,
-        ),
-        const SizedBox(height: InSpacing.xl),
+        // A white-labelled account's own server shows no Invoice Ninja logo
+        // before sign-in, as admin-portal did.
+        if (!(_vm.served?.whiteLabel ?? false)) ...[
+          Image.asset(
+            isDark
+                ? 'assets/images/logo_dark.png'
+                : 'assets/images/logo_light.png',
+            height: 48,
+          ),
+          const SizedBox(height: InSpacing.xl),
+        ],
         const _SignOutNoticeCard(),
         AuthSurfaceCard(
           shadow: tokens.shadow2,
@@ -370,20 +378,25 @@ class _LoginScreenState extends State<LoginScreen> {
     final vm = _vm;
     final busy = vm.busy;
     final showSocial = vm.isHosted && (vm.googleEnabled || vm.appleEnabled);
+    // A page an Invoice Ninja server served signs in to that server: there is
+    // no platform or URL to choose.
+    final served = vm.served != null;
     return [
-      AuthEyebrowLabel(context.tr('select_platform').toUpperCase()),
-      _SegmentedToggle<bool>(
-        value: vm.isHosted,
-        segments: [
-          _Segment(value: true, label: context.tr('hosted')),
-          _Segment(value: false, label: context.tr('self_hosted')),
-        ],
-        // Locked while Continue is in flight, so the answer can't land for a
-        // server the user has already switched away from.
-        onChanged: busy ? null : vm.setHosted,
-      ),
-      SizedBox(height: InSpacing.lg(context)),
-      if (!vm.isHosted) ...[
+      if (!served) ...[
+        AuthEyebrowLabel(context.tr('select_platform').toUpperCase()),
+        _SegmentedToggle<bool>(
+          value: vm.isHosted,
+          segments: [
+            _Segment(value: true, label: context.tr('hosted')),
+            _Segment(value: false, label: context.tr('self_hosted')),
+          ],
+          // Locked while Continue is in flight, so the answer can't land for
+          // a server the user has already switched away from.
+          onChanged: busy ? null : vm.setHosted,
+        ),
+        SizedBox(height: InSpacing.lg(context)),
+      ],
+      if (!vm.isHosted && !served) ...[
         AuthField(
           key: const ValueKey('login_url'),
           label: context.tr('server_url'),

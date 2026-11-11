@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
+import 'package:admin/app/serving_server.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
@@ -68,8 +69,13 @@ class LoginViewModel extends ChangeNotifier {
     this.certificateTrust,
     this.passkeyReadiness,
     this.passkeyAuthenticator = const PlatformPasskeyAuthenticator(),
+    this.served,
     bool? isWeb,
   }) : _isWeb = isWeb ?? kIsWeb {
+    // A page an Invoice Ninja server served signs in to that server, hosted or
+    // not; the view drops the server choice (docs/web-deploy.md).
+    final page = served;
+    if (page != null) isHosted = page.isHosted;
     // Dev-machine credential pre-fill. Allowed in debug + profile builds so
     // perf testing with `flutter run --profile` keeps working, but blocked in
     // release so a stray `--dart-define-from-file=dev.json` at release build
@@ -82,12 +88,21 @@ class LoginViewModel extends ChangeNotifier {
     // button is there when the credentials step opens rather than a moment
     // later. Only the cache is touched; the step's own check sets the state.
     passkeyReadiness
-        ?.isReady(apiBaseUrl: Env.hostedApiUrl, isHosted: true)
+        ?.isReady(
+          apiBaseUrl: served?.apiUrl ?? Env.hostedApiUrl,
+          isHosted: served?.isHosted ?? true,
+        )
         .catchError((Object _) => false)
         .ignore();
   }
 
   final AuthRepository auth;
+
+  /// The server that served this web page, if one did ([ServingServer]). It
+  /// fixes the server: [setHosted] does nothing, and every request goes to its
+  /// [ServingServer.apiUrl] — never `Env.hostedApiUrl`, which would send a
+  /// staging or demo page's sign-in to production.
+  final ServingServer? served;
 
   /// Whether a passkey can sign in against the chosen server on this device
   /// (docs/passkeys.md). Null — a test, or a host without it — hides the
@@ -105,7 +120,9 @@ class LoginViewModel extends ChangeNotifier {
   /// network error also suggests the certificate. Injectable for tests.
   final bool _isWeb;
 
-  /// True = use `Env.hostedApiUrl`; false = use [urlOverride].
+  /// True = use `Env.hostedApiUrl`; false = use [urlOverride]. When [served],
+  /// the page's server is used either way and this keeps only its other
+  /// meanings (the session's hosted flag, no `X-API-SECRET`).
   bool isHosted = true;
 
   LoginStep _step = LoginStep.email;
@@ -291,7 +308,7 @@ class LoginViewModel extends ChangeNotifier {
   }
 
   void setHosted(bool value) {
-    if (isHosted == value) return;
+    if (served != null || isHosted == value) return;
     isHosted = value;
     _urlErrorKey = null;
     // Different origin → the previous host's answer no longer applies.
@@ -320,7 +337,9 @@ class LoginViewModel extends ChangeNotifier {
   /// (Device Settings isn't reachable from here).
   TrustedCertificate? get trustedCertificateForUrl {
     final store = certificateTrust;
-    if (store == null || isHosted || store.pins.isEmpty) return null;
+    if (store == null || isHosted || served != null || store.pins.isEmpty) {
+      return null;
+    }
     final url = resolveSelfHostedBaseUrl(
       urlOverride,
       allowInsecureHttpAnywhere: true,
@@ -394,7 +413,9 @@ class LoginViewModel extends ChangeNotifier {
       key: 'network_error_with_message',
       params: {'message': e.message},
     );
-    if (_isWeb && !isHosted && baseUrl != null) {
+    // Not for a served page: the browser just loaded it from this server, so
+    // its certificate is not what failed.
+    if (_isWeb && !isHosted && served == null && baseUrl != null) {
       _errorDetailKey = 'web_certificate_hint';
       _openServerUrl = baseUrl;
     }
@@ -541,6 +562,10 @@ class LoginViewModel extends ChangeNotifier {
   /// server); release restricts http to local network addresses. The policy
   /// itself lives in the pure [resolveSelfHostedBaseUrl] so it stays testable.
   ({String? url, String? errorKey}) _resolveBaseUrl() {
+    final page = served;
+    // The page's own origin: no http-only-on-LAN rule, it is where this page
+    // was loaded from.
+    if (page != null) return (url: page.apiUrl, errorKey: null);
     if (isHosted) return (url: Env.hostedApiUrl, errorKey: null);
     return resolveSelfHostedBaseUrl(
       urlOverride,

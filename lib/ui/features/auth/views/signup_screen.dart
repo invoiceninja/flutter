@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/serving_server.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
@@ -34,6 +35,7 @@ class _SignupScreenState extends State<SignupScreen> {
     _vm = SignupViewModel(
       auth: services.auth,
       passwordCache: services.passwordCache,
+      served: context.read<ServingServer?>(),
     );
   }
 

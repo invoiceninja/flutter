@@ -9,6 +9,7 @@ import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:store_services/store_services.dart';
 
+import 'package:admin/app/serving_server.dart';
 import 'package:admin/app/entity_links.dart';
 import 'package:admin/data/repositories/docuninja/docuninja_session.dart';
 import 'package:admin/data/services/docuninja/docuninja_api.dart';
@@ -425,6 +426,10 @@ Future<void> _bootstrap() async {
             ? null // bare `/new` (no base) → fall back to the default route
             : '/${restoredUri.pathSegments.sublist(0, restoredUri.pathSegments.length - 1).join('/')}')
       : restoredRaw;
+  // The Invoice Ninja server that served this web page, if one did
+  // (docs/web-deploy.md): the sign-in uses its URL, and `?signup=true` there
+  // opens the signup screen (hosted only).
+  final servingServer = readServingServer();
   final initialLocation = services.auth.isAuthenticated
       ? (restored == null
             ? defaultPostLoginRoute(services.auth.session.value)
@@ -432,7 +437,9 @@ Future<void> _bootstrap() async {
                 restored,
                 services.entityRegistry.uiRoutePaths,
               ))
-      : '/login';
+      : (servingServer != null && servingServer.isHosted && servingServer.signup
+            ? '/signup'
+            : '/login');
 
   mark('nav-state + route resolve');
   // Registered here, fires once `runApp`'s first frame is on screen. Never
@@ -454,6 +461,7 @@ Future<void> _bootstrap() async {
       dbWasReset: opened.wasReset,
       localDataRecovery: opened.recovery,
       initialLocation: initialLocation,
+      servingServer: servingServer,
     ),
   );
 }
@@ -558,12 +566,18 @@ class InvoiceNinjaApp extends StatefulWidget {
     required this.dbWasReset,
     required this.initialLocation,
     this.localDataRecovery,
+    this.servingServer,
     super.key,
   });
 
   final Services services;
   final bool dbWasReset;
   final String initialLocation;
+
+  /// The Invoice Ninja server that served this web page, if one did
+  /// ([readServingServer], docs/web-deploy.md). Provided only when set, read
+  /// as `context.read<ServingServer?>()`.
+  final ServingServer? servingServer;
 
   /// What opening the database carried across from a reset store, or failed
   /// to — told to the user once by [LocalDataRecoveryNotice].
@@ -637,6 +651,8 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         isAdmin: me.isAdmin || me.isOwner,
       ).toSet();
     },
+    // Signup is hosted-only: a self-hosted server's page can't reach it.
+    isSignupAllowed: () => widget.servingServer?.isHosted ?? true,
     initialLocation: widget.initialLocation,
   );
 
@@ -844,6 +860,10 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         Provider<PasskeyReadiness>.value(
           value: widget.services.passkeyReadiness,
         ),
+        // Only on a page an Invoice Ninja server served; read as
+        // `context.read<ServingServer?>()` by the login and signup screens.
+        if (widget.servingServer != null)
+          Provider<ServingServer>.value(value: widget.servingServer!),
         Provider<PasskeyRepository>.value(value: widget.services.passkeys),
         // DocuNinja (docs/docuninja.md), read as `context.read<…?>()` for the
         // same reason. The session is a `ValueNotifier`, which a plain

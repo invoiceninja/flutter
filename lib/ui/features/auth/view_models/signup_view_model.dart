@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:admin/app/serving_server.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
@@ -11,14 +12,24 @@ import 'package:admin/ui/features/auth/view_models/social_sign_in.dart';
 
 /// State machine for the in-app signup screen.
 ///
-/// Hosted-only by construction: the base URL is always [Env.hostedApiUrl]
-/// (self-hosted in-app signup is not a validated path — the login screen
-/// offers its signup link only when "Hosted" is selected, like React). Mirrors [LoginViewModel]'s busy / error /
+/// Hosted-only by construction: the base URL is [Env.hostedApiUrl], or the
+/// hosted server that served this web page ([served]; a staging or demo page
+/// must not create its accounts in production). Self-hosted in-app signup is
+/// not a validated path — the login screen offers its signup link only when
+/// "Hosted" is selected, like React, and the router blocks it on a self-hosted
+/// page. Mirrors [LoginViewModel]'s busy / error /
 /// fieldErrors machinery so the screen surfaces server validation inline.
 class SignupViewModel extends ChangeNotifier {
-  SignupViewModel({required this.auth, this.passwordCache});
+  SignupViewModel({required this.auth, this.passwordCache, this.served});
 
   final AuthRepository auth;
+
+  /// The server that served this web page, if one did (docs/web-deploy.md).
+  /// Its URL replaces [Env.hostedApiUrl], and its referral code (`?rc=`)
+  /// goes with the signup.
+  final ServingServer? served;
+
+  String get _baseUrl => served?.apiUrl ?? Env.hostedApiUrl;
 
   /// Primed with the password just chosen, so the setup wizard can save the
   /// user's name: `PUT /users/{id}` is password-protected, and asking for a
@@ -127,10 +138,11 @@ class SignupViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       await auth.signup(
-        baseUrl: Env.hostedApiUrl,
+        baseUrl: _baseUrl,
         isHosted: true,
         email: email,
         password: password,
+        referralCode: served?.referralCode ?? '',
       );
       passwordCache?.set(password);
       return true;
@@ -173,7 +185,7 @@ class SignupViewModel extends ChangeNotifier {
   Future<bool> submitApple() => _submitSocial(
     () => signInWithApple(
       auth: auth,
-      baseUrl: Env.hostedApiUrl,
+      baseUrl: _baseUrl,
       isHosted: true,
       create: true,
     ),
@@ -185,7 +197,7 @@ class SignupViewModel extends ChangeNotifier {
   Future<bool> submitGoogle() => _submitSocial(
     () => signInWithGoogle(
       auth: auth,
-      baseUrl: Env.hostedApiUrl,
+      baseUrl: _baseUrl,
       isHosted: true,
       create: true,
     ),

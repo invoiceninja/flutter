@@ -653,6 +653,15 @@ void goEntityCreateFullWidth(
 /// the [StatefulShellRoute.indexedStack] branch list — adding an entity
 /// module is one new `EntityBranch` in the registry's branch order, not
 /// 30 lines of copy-pasted branch wiring.
+/// Where a signed-out visit to `/signup` goes when signup isn't offered:
+/// `/login`. Signup is hosted-only, so a page a self-hosted server served
+/// (docs/web-deploy.md) has no signup to reach, even by URL. Null otherwise.
+String? signupRedirect({
+  required bool loggedIn,
+  required String location,
+  required bool signupAllowed,
+}) => !loggedIn && location == '/signup' && !signupAllowed ? '/login' : null;
+
 GoRouter buildRouter({
   required bool Function() isAuthenticated,
   required String Function() postLoginRoute,
@@ -663,6 +672,7 @@ GoRouter buildRouter({
   bool Function()? isCompanySetupRequired,
   Set<String> Function()? disabledModuleRoots,
   Set<String> Function()? createForbiddenRoots,
+  bool Function()? isSignupAllowed,
   String initialLocation = '/clients',
 }) {
   return GoRouter(
@@ -692,6 +702,12 @@ GoRouter buildRouter({
       // `isAuthenticated()` → the `loggedIn && atAuthPage` rule below
       // bounces to the post-login route automatically (no manual nav).
       final loc = state.matchedLocation;
+      final signupBlocked = signupRedirect(
+        loggedIn: loggedIn,
+        location: loc,
+        signupAllowed: isSignupAllowed?.call() ?? true,
+      );
+      if (signupBlocked != null) return signupBlocked;
       final atAuthPage = loc == '/login' || loc == '/signup';
       if (!loggedIn && !atAuthPage) return '/login';
       if (loggedIn && atAuthPage) return postLoginRoute();

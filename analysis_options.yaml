@@ -4,7 +4,8 @@ analyzer:
   language:
     strict-casts: true
     strict-inference: true
-    strict-raw-types: true
+    # strict-raw-types is now the no_raw_types lint below (dart-lang/sdk#63517,
+    # flutter/flutter#187692); strict-casts and strict-inference stay modes.
   errors:
     invalid_annotation_target: ignore
     # Suggested syntax `?'key': value` is parser-supported in Dart 3.11 SDK but
@@ -30,6 +31,7 @@ linter:
     - always_declare_return_types
     - avoid_print
     - always_use_package_imports
+    - no_raw_types
     - prefer_single_quotes
     - sort_pub_dependencies
     - unawaited_futures

@@ -269,6 +269,17 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Versions: Android pins Stripe Terminal 5.6.0 (mek's `build.gradle.kts`); iOS resolves 5.8.1 through SwiftPM `from: "5.6.0"`, held by the committed `Package.resolved`. mek's subproject `buildscript` asks for AGP 9.0.1 / Kotlin 2.3.20 against the app's AGP 8.11 / Kotlin 2.2; it builds because the parent classloader wins — recheck after an AGP or Flutter bump.
 - Recheck trigger: each mek_stripe_terminal release, and when #171 is merged.
 
+## 20. super_keyboard compiles against Android SDK 34, which AGP 9 refuses
+
+- Issue / waiting on: no upstream issue filed yet; super_keyboard 0.4.2 (latest, pulled in by super_editor) still sets `compileSdk = 34`. • Found: 2026-11-12 • Flutter: 3.47.7, AGP 9.1.1
+- Symptom: `flutter build apk` fails at `:super_keyboard:checkDebugAarMetadata`: "Dependency ':flutter_plugin_android_lifecycle' requires libraries and applications that depend on it to compile against version 36 or later of the Android APIs. :super_keyboard is currently compiled against android-34."
+- Root cause: AGP 9 checks every library module's compileSdk against its dependencies' AAR metadata; AGP 8.11 didn't, so a plugin pinned to 34 built until the AGP 9.1.1 bump that Flutter 3.50 requires.
+- Commit ref: not yet committed
+- Change(s):
+  - `android/build.gradle.kts` — **MUST-REVERT**: a `subprojects { afterEvaluate { … } }` block raises any Android library module whose compileSdk is below 36 to 36. compileSdk only chooses the API stubs compiled against; minSdk and targetSdk, which set runtime behaviour, are untouched.
+- Revert: delete that block once super_keyboard (and any other plugin it caught) compiles against 36 or later, and confirm `flutter build apk --debug` still passes.
+- Recheck trigger: any super_editor / super_keyboard bump; grep the resolved `super_keyboard-*/android/build.gradle` for `compileSdk`.
+
 ## Considered but NOT tracked (permanent adaptations — do not revert)
 
 These look workaround-shaped but are correct-forever (or inherent), not "waiting on an upstream fix". Listed so they aren't re-litigated:

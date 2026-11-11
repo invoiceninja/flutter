@@ -102,7 +102,7 @@ jobs:
           echo "rollout=$ROLLOUT" >> "$GITHUB_OUTPUT"
           echo "fraction=$(awk -v p="$ROLLOUT" 'BEGIN { printf "%.2f", p / 100 }')" >> "$GITHUB_OUTPUT"
 
-      # JDK 17 pinned explicitly. AGP 8.11.1 + Gradle require JDK 17, and
+      # JDK 17 pinned explicitly. AGP 9.1.1 + Gradle 9.3.1 require JDK 17, and
       # android/app/build.gradle.kts compiles against JavaVersion.VERSION_17.
       # The CI `build-android` compile gate leans on the runner's default JDK,
       # but a publish workflow shouldn't let a runner-image bump silently change

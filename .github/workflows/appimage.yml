@@ -219,6 +219,7 @@ jobs:
           test -f squashfs-root/usr/bin/lib/libapp.so
           test -f squashfs-root/usr/bin/data/icudtl.dat
           test -x squashfs-root/usr/bin/lib/crashpad_handler  # must be +x or Sentry crashes the app at startup (posix_spawn EACCES)
+          test -f squashfs-root/usr/lib/libsqlite3mc.so  # opened by bare name, so it must sit on the rpath beside the engine (flutter#190)
           if ldd squashfs-root/usr/bin/admin | grep -i 'not found'; then
             echo "ERROR: unresolved shared libraries in the bundled executable" >&2
             exit 1

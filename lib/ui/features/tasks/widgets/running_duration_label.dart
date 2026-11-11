@@ -75,13 +75,54 @@ class RunningDurationLabel extends StatefulWidget {
 }
 
 class _RunningDurationLabelState extends State<RunningDurationLabel>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   Timer? _ticker;
 
   /// Null when [RunningDurationLabel.showDot] is false — no dot means no
   /// pulse, so we don't spin up a ticker that would keep scheduling frames
   /// for nothing (the wide duration column is the `showDot:false` caller).
   AnimationController? _pulse;
+
+  /// Whether the user asked the OS for less motion; the dot then holds still.
+  bool _reduceMotion = false;
+
+  /// The pulse repeats forever, and a repeating animation is a full frame
+  /// sixty times a second for as long as a timer runs — on every screen,
+  /// because the shell's pill mounts this label. So it runs only while the app
+  /// is `resumed` (on desktop: the window has focus). The framework stops
+  /// frames by itself only once the app is `hidden`, and a Wayland compositor
+  /// never tells the window it was minimized or covered, so there the pulse
+  /// kept the GPU busy in the background for as long as a timer ran
+  /// (invoiceninja/flutter#189). Losing focus is the one signal every platform
+  /// sends. A null state (no lifecycle reported yet, and every widget test)
+  /// counts as resumed.
+  bool get _shouldPulse {
+    final state = WidgetsBinding.instance.lifecycleState;
+    return !_reduceMotion &&
+        (state == null || state == AppLifecycleState.resumed);
+  }
+
+  /// Starts or parks the pulse to match [_shouldPulse]. Parked, the dot sits
+  /// at full strength rather than wherever the fade happened to be.
+  void _syncPulse() {
+    final pulse = _pulse;
+    if (pulse == null) return;
+    if (_shouldPulse) {
+      if (!pulse.isAnimating) pulse.repeat(reverse: true);
+    } else {
+      pulse
+        ..stop()
+        ..value = 1.0;
+    }
+  }
+
+  AnimationController _newPulse() => AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1000),
+  );
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) => _syncPulse();
 
   /// The rendered duration string. Driven by the ticker via a notifier so
   /// a tick repaints *only* the label `Text` (not the Row / dot /
@@ -137,17 +178,16 @@ class _RunningDurationLabelState extends State<RunningDurationLabel>
     super.initState();
     _label = ValueNotifier<String>(_compute());
     _startTicker();
-    if (widget.showDot) {
-      _pulse = AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 1000),
-      )..repeat(reverse: true);
-    }
+    WidgetsBinding.instance.addObserver(this);
+    // Started in didChangeDependencies, which runs before the first build.
+    if (widget.showDot) _pulse = _newPulse();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    _syncPulse();
     final pref = watchShowSeconds(context);
     if (pref == _secondsPref) return;
     final before = _precision;
@@ -165,12 +205,8 @@ class _RunningDurationLabelState extends State<RunningDurationLabel>
     // a dot that is never painted.
     if (oldWidget.showDot != widget.showDot) {
       _pulse?.dispose();
-      _pulse = widget.showDot
-          ? (AnimationController(
-              vsync: this,
-              duration: const Duration(milliseconds: 1000),
-            )..repeat(reverse: true))
-          : null;
+      _pulse = widget.showDot ? _newPulse() : null;
+      _syncPulse();
     }
     if (oldWidget.start != widget.start ||
         oldWidget.base != widget.base ||
@@ -183,6 +219,7 @@ class _RunningDurationLabelState extends State<RunningDurationLabel>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
     _pulse?.dispose();
     _label.dispose();

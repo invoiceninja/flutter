@@ -57,6 +57,62 @@ void main() {
     expect(dot, findsNothing);
   });
 
+  // invoiceninja/flutter#189: the pulse repeats forever, so it is the one
+  // thing in the app that draws sixty frames a second for as long as a timer
+  // runs. A Wayland compositor never reports a minimized or covered window as
+  // hidden, so the framework's own "no frames while hidden" never applied.
+  group('the pulse runs only while the app is resumed', () {
+    void setLifecycle(WidgetTester tester, AppLifecycleState state) =>
+        tester.binding.handleAppLifecycleStateChanged(state);
+
+    double dotOpacity(WidgetTester tester) => tester
+        .widget<Opacity>(find.ancestor(of: dot, matching: find.byType(Opacity)))
+        .opacity;
+
+    testWidgets('losing focus parks the dot, solid, with no frame pending', (
+      tester,
+    ) async {
+      addTearDown(() => setLifecycle(tester, AppLifecycleState.resumed));
+      await tester.pumpWidget(wrap(showDot: true));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.binding.hasScheduledFrame, isTrue);
+
+      setLifecycle(tester, AppLifecycleState.inactive);
+      await tester.pump();
+      await tester.pump();
+      expect(tester.binding.hasScheduledFrame, isFalse);
+      expect(dotOpacity(tester), 1.0);
+
+      setLifecycle(tester, AppLifecycleState.resumed);
+      await tester.pump();
+      expect(tester.binding.hasScheduledFrame, isTrue);
+    });
+
+    testWidgets('a label mounted while unfocused does not start it', (
+      tester,
+    ) async {
+      addTearDown(() => setLifecycle(tester, AppLifecycleState.resumed));
+      setLifecycle(tester, AppLifecycleState.inactive);
+      await tester.pumpWidget(wrap(showDot: true));
+      await tester.pump();
+      expect(dot, findsOneWidget);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+    });
+
+    testWidgets('reduced motion holds the dot still', (tester) async {
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: wrap(showDot: true),
+        ),
+      );
+      await tester.pump();
+      expect(dot, findsOneWidget);
+      expect(dotOpacity(tester), 1.0);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+    });
+  });
+
   group('Show Seconds preference', () {
     late AppDatabase db;
     late ShowSecondsController controller;

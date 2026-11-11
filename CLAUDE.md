@@ -160,6 +160,7 @@ When styling a page: read `design_tokens.dart`, reuse `InTheme`, prefer `Theme.o
 
 - **The drawn window buttons are the one exception to every shape rule below.** → `docs/desktop-window-state.md`
 - **Every decorative animation runs through `InMotion.of(context)`, so reduced motion is zero, and the device buzzes only through `InHaptics`.** → `docs/motion-and-haptics.md`
+- **An animation that repeats forever runs only while the app is `resumed` and motion is not reduced — a Wayland window is never told it is hidden, so nothing else stops its frames.** → `docs/motion-and-haptics.md`
 
 **Always rounded rectangles, never pills.** Use `RoundedRectangleBorder(borderRadius: BorderRadius.circular(InRadii.r2))` (or `.r1` / `.r3` per size) — never `StadiumBorder`, never `BorderRadius.circular(999)`. Material 3 defaults `SegmentedButton` / `Chip` / `FloatingActionButton.extended` to pills, so `theme.dart` registers the rounded shape on every relevant component theme; new widgets inherit it. Add new component themes to `theme.dart` rather than overriding inline.
 

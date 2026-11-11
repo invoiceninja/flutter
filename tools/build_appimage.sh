@@ -208,13 +208,48 @@ export LDAI_OUTPUT="InvoiceNinja-${version}-x86_64.AppImage"
 export LDAI_NO_APPSTREAM=1          # don't let a metainfo warning abort packaging
 export LDAI_RUNTIME_FILE="$tools_dir/runtime-x86_64"
 
+# Native-asset libraries (sqlite3mc, from the sqlite3 package's build hook) are
+# opened by bare name at runtime: nothing links against them, so linuxdeploy,
+# which follows only link-time dependencies, leaves them behind in usr/bin/lib.
+# But it also moves the engine into usr/lib and points the executable's rpath
+# there, so the loader no longer searches usr/bin/lib and the app died at
+# startup with "libsqlite3mc.so: cannot open shared object file"
+# (invoiceninja/flutter#190). Deploy each one explicitly, next to the engine.
+# The names come from the bundle's own manifest, which is what the engine
+# reads: {"...libsqlite3.g.dart":["absolute","libsqlite3mc.so"]}.
+native_asset_args=()
+native_asset_names=()
+manifest="$bundle/data/flutter_assets/NativeAssetsManifest.json"
+while IFS= read -r name; do
+  [[ -n "$name" ]] || continue
+  if [[ ! -f "$bundle/lib/$name" ]]; then
+    echo "ERROR: native asset $name is missing from $bundle/lib." >&2
+    exit 1
+  fi
+  native_asset_args+=(--library "$bundle/lib/$name")
+  native_asset_names+=("$name")
+done < <(grep -oE '"absolute","[^"/]+"' "$manifest" 2>/dev/null | cut -d'"' -f4 | sort -u)
+if [[ ! " ${native_asset_names[*]:-} " == *" libsqlite3mc.so "* ]]; then
+  echo "ERROR: libsqlite3mc.so is not in $manifest" >&2
+  echo "       - the database could not open." >&2
+  exit 1
+fi
+
 set -x
 linuxdeploy-x86_64.AppImage --appdir "$appdir" \
   --executable "$bundle/admin" \
+  "${native_asset_args[@]}" \
   --desktop-file "$repo_root/appimage/com.invoiceninja.InvoiceNinja.desktop" \
   --icon-file "$repo_root/snap/gui/invoiceninja.png" --icon-filename com.invoiceninja.InvoiceNinja \
   --plugin gtk --output appimage
 set +x
+
+for name in "${native_asset_names[@]}"; do
+  if [[ ! -f "$appdir/usr/lib/$name" ]]; then
+    echo "ERROR: linuxdeploy did not place $name in usr/lib." >&2
+    exit 1
+  fi
+done
 
 # --- verify the output exists ---
 if [[ ! -f "$output" ]]; then

@@ -102,6 +102,13 @@ class CompanyGatewayEditViewModel extends GenericEditViewModel<CompanyGateway> {
     return 'credentials';
   }
 
+  /// True while this is a new gateway of a kind the server creates itself at
+  /// the end of the web setup — there is nothing for the app to save, and a
+  /// Save would post a second, unconnected record (Sentry PRODUCTION-85E).
+  /// Same rule as admin-portal's `disableSave`.
+  bool isCreatedOnWeb({required bool isHosted}) =>
+      isCreate && draft.usesWebSetup(isHosted: isHosted);
+
   @override
   Future<SaveResult<CompanyGateway>> performSave() async {
     if (savesAsCreate) {

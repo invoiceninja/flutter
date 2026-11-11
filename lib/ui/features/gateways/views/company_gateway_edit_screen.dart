@@ -165,6 +165,9 @@ class _CompanyGatewayEditScreenState extends State<CompanyGatewayEditScreen> {
       bodyBuilder: (ctx, vm) =>
           _GatewayEditBody(vm: vm, initialTab: widget.initialTab),
       resetToEmpty: (vm) => vm.reset(emptyDraft: vm.emptyDraft()),
+      // No Save for a gateway the web setup creates — see `isCreatedOnWeb`.
+      canSave: (vm) =>
+          !vm.isSaving && !vm.isCreatedOnWeb(isHosted: _isHosted(context)),
       entityIdOf: (g) => g.id,
       actionsBuilder: (ctx, vm, onTap, saveButton) =>
           EntityOverflowActionBar<CompanyGatewayAction>(
@@ -321,7 +324,7 @@ class _TabbedBody extends StatelessWidget {
 
   Widget _credentialsTab(BuildContext context, Gateway? gateway) {
     if (gateway == null) return _loadingTab(context);
-    if (vm.draft.isOAuthGateway) {
+    if (vm.draft.usesWebSetup(isHosted: _isHosted(context))) {
       return OAuthStubCard(gateway: gateway);
     }
     return GatewayConfigForm(vm: vm, gateway: gateway);
@@ -359,3 +362,6 @@ class _Tab extends StatelessWidget {
     );
   }
 }
+
+bool _isHosted(BuildContext context) =>
+    context.read<Services>().auth.session.value?.isHosted ?? false;

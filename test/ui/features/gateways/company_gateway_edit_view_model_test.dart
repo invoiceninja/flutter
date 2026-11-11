@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:admin/data/models/domain/company_gateway.dart';
 import 'package:admin/data/repositories/company_gateway_repository.dart';
 import 'package:admin/domain/gateway_constants.dart';
 import 'package:admin/ui/features/gateways/view_models/company_gateway_edit_view_model.dart';
@@ -39,5 +40,44 @@ void main() {
         expect(vm.emptyDraft().acceptedCreditCards, kAllCreditCardTypes);
       },
     );
+  });
+
+  // Sentry PRODUCTION-85E: Save on a new PayPal Platform gateway posted a
+  // record the web setup was about to create itself.
+  group('CompanyGatewayEditViewModel.isCreatedOnWeb', () {
+    CompanyGatewayEditViewModel vm(String key, {CompanyGateway? existing}) =>
+        CompanyGatewayEditViewModel(
+          repo: _FakeGatewayRepo(),
+          companyId: 'co-1',
+          existing: existing,
+          initialGatewayKey: key,
+        );
+
+    test('a new web-setup gateway has nothing to save', () {
+      expect(vm(kGatewayPayPalPlatform).isCreatedOnWeb(isHosted: true), isTrue);
+      expect(vm(kGatewaySquare).isCreatedOnWeb(isHosted: true), isTrue);
+    });
+
+    test('a self-hosted Square gateway is a form, so it saves', () {
+      expect(vm(kGatewaySquare).isCreatedOnWeb(isHosted: false), isFalse);
+    });
+
+    test('an existing web-setup gateway still saves its settings', () {
+      const existing = CompanyGateway(
+        id: 'Wpmbk5ezJn',
+        gatewayKey: kGatewayPayPalPlatform,
+      );
+      expect(
+        vm(
+          kGatewayPayPalPlatform,
+          existing: existing,
+        ).isCreatedOnWeb(isHosted: true),
+        isFalse,
+      );
+    });
+
+    test('an ordinary new gateway saves', () {
+      expect(vm(kGatewayStripe).isCreatedOnWeb(isHosted: true), isFalse);
+    });
   });
 }

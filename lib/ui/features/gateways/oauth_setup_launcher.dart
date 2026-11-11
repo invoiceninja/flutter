@@ -26,6 +26,8 @@ Uri? buildOAuthSetupUrl({
       return Uri.parse('$cleanUrl/paypal?hash=$hash');
     case kGatewayGoCardlessOAuth:
       return Uri.parse('$cleanUrl/gocardless/oauth/connect/$hash');
+    case kGatewaySquare:
+      return Uri.parse('$cleanUrl/square/oauth/connect/$hash');
     default:
       return null;
   }

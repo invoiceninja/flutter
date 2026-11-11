@@ -215,7 +215,7 @@ class CompanyGatewayActions {
           // Strip server-owned fields; navigate to the new row's edit screen for
           // review. (React clones server-side via `POST .../clone`; we clone
           // offline through the outbox instead — same outcome, different path.)
-          var cleaned = gateway.copyWith(
+          final cleaned = gateway.copyWith(
             id: '',
             label: gateway.label.isEmpty ? '' : '${gateway.label} (copy)',
             createdAt: 0,
@@ -224,12 +224,10 @@ class CompanyGatewayActions {
             isDeleted: false,
             isDirty: false,
           );
-          // Don't carry an OAuth provider's connected-account credentials into
-          // the clone — clear config so it starts fresh (the user re-runs
-          // setup). Non-OAuth gateways keep their config, matching React.
-          if (gateway.isOAuthGateway) {
-            cleaned = cleaned.withConfig(const <String, dynamic>{});
-          }
+          // The config rides along for every provider, connected-account
+          // ones included — the server's own clone (`replicate()`) does the
+          // same. A web-setup gateway cloned without it is a record nothing
+          // can connect: the setup flow writes its own.
           final result = await services.companyGateways.create(
             companyId: companyId,
             draft: cleaned,

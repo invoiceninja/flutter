@@ -49,14 +49,22 @@ const String kGatewayChip = 'c7a8e2f1b4d90635a3f8e1c9b2d4a6e0';
 const String kGatewayLawPay = 'f4lafbnygsmkflagbqp7zqnfpgeoekdn';
 const String kGatewayPayware = 'b0a6294fca4488c2bab58f3e11e3c623';
 
-/// Gateway types that require an OAuth-driven setup flow (external redirect,
-/// per-type custom UI). The Credentials tab on the edit screen substitutes a
-/// stub card for these; Phase 2 implements the real flows. Lookup is by
-/// `Gateway.id` (the same value stored on `CompanyGateway.gatewayKey`).
-const Set<String> kOAuthGatewayKeys = <String>{
+/// Gateway types that are only ever connected through the web setup flow
+/// (an external redirect the server finishes by writing the gateway itself).
+/// The Credentials tab on the edit screen substitutes a setup card for these.
+/// Mirrors React's `hostedGateways` (`.../create/components/Credentials.tsx`).
+/// Lookup is by `Gateway.id` (the value stored on
+/// `CompanyGateway.gatewayKey`). See `CompanyGateway.usesWebSetup`.
+const Set<String> kWebSetupGatewayKeys = <String>{
   kGatewayStripeConnect,
   kGatewayPayPalPlatform,
   kGatewayWePay,
+};
+
+/// Gateway types that connect through the web setup flow on the **hosted**
+/// platform only. Self-hosted, they are ordinary credential forms — the
+/// server's OAuth routes need the hosted app's own client id.
+const Set<String> kHostedWebSetupGatewayKeys = <String>{
   kGatewayGoCardlessOAuth,
   kGatewaySquare,
 };

@@ -101,7 +101,16 @@ abstract class CompanyGateway with _$CompanyGateway {
   /// `preserveTempId`: keep the tmp id in the JSON. Local Drift writes pass
   /// `true` so id-remap continues to work; outbound `POST /company_gateways`
   /// passes `false` so the server assigns the real id.
+  ///
+  /// A create with no credentials sends `config: '{}'`, never `''`: the
+  /// server's `ConvertEmptyStringsToNull` turns a blank into `null`, which
+  /// `StoreCompanyGatewayRequest` skips and `fill()` then writes over the
+  /// factory default — a NOT NULL violation and a 500 (Sentry
+  /// PRODUCTION-85E). `'{}'` is what React and admin-portal send, and the
+  /// server merges the gateway's default fields into it. An update is left
+  /// as is — `UpdateCompanyGatewayRequest` already tolerates a blank.
   Map<String, dynamic> toApiJson({bool preserveTempId = false}) {
+    final isNew = id.isEmpty || id.startsWith('tmp_');
     final json = CompanyGatewayApi(
       id: id,
       gatewayKey: gatewayKey,
@@ -122,7 +131,7 @@ abstract class CompanyGateway with _$CompanyGateway {
       alwaysShowRequiredFields: alwaysShowRequiredFields,
       tokenBilling: tokenBilling,
       label: label,
-      config: config,
+      config: isNew && config.isEmpty ? '{}' : config,
       feesAndLimits: feesAndLimits,
       testMode: testMode,
       createdAt: createdAt,
@@ -199,10 +208,26 @@ abstract class CompanyGateway with _$CompanyGateway {
     return customFallback;
   }
 
-  /// True when this entity points at one of the OAuth-driven gateway types
-  /// (Stripe Connect, PayPal Platform / PPCP, WePay, GoCardless OAuth,
-  /// Square). The Credentials tab swaps to a setup-stub card for these.
-  bool get isOAuthGateway => kOAuthGatewayKeys.contains(gatewayKey);
+  /// True when this gateway is connected on the web rather than by typing
+  /// credentials: the Credentials tab shows the setup card instead of the
+  /// form, and a new one is never saved from the app (the server writes the
+  /// record when the web setup finishes).
+  ///
+  /// Stripe Connect, PayPal Platform / PPCP and WePay always are. Square is
+  /// on hosted only, and GoCardless on hosted only while it is new or
+  /// already connected by OAuth (`config.oauth2`) — a hosted GoCardless
+  /// gateway set up with an access token keeps its form. Self-hosted, both
+  /// are plain credential forms. Mirrors React's `Credentials.tsx`.
+  bool usesWebSetup({required bool isHosted}) {
+    if (kWebSetupGatewayKeys.contains(gatewayKey)) return true;
+    if (!isHosted) return false;
+    if (gatewayKey == kGatewaySquare) return true;
+    if (gatewayKey == kGatewayGoCardlessOAuth) {
+      final isNew = id.isEmpty || id.startsWith('tmp_');
+      return isNew || parsedConfig['oauth2'] == true;
+    }
+    return false;
+  }
 
   /// True when this gateway has `kGatewayCustom` as its provider — these
   /// have no `fields` schema; users define their own credential keys.

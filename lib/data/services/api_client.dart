@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
+import 'package:admin/data/services/api_uri.dart';
 import 'package:admin/app/debug_capture_store.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/version.dart';
@@ -311,7 +312,7 @@ class ApiClient {
       throw const DemoModeException();
     }
     final creds = _requireCreds();
-    final uri = Uri.parse(creds.baseUrl).resolve(path);
+    final uri = apiUri(creds.baseUrl, path);
     final headers = _buildHeaders(creds: creds, contentTypeJson: body != null);
     final encoded = body == null ? null : jsonEncode(body);
     final response = await _sendNoRedirect(
@@ -362,7 +363,7 @@ class ApiClient {
       throw const DemoModeException();
     }
     final creds = _requireCreds();
-    final uri = Uri.parse(creds.baseUrl).resolve(path);
+    final uri = apiUri(creds.baseUrl, path);
     final headers = _buildHeaders(creds: creds, contentTypeJson: false);
     final response = await _sendNoRedirect(
       method: 'GET',
@@ -417,7 +418,7 @@ class ApiClient {
       throw const DemoModeException();
     }
     final creds = _requireCreds();
-    final uri = Uri.parse(creds.baseUrl).resolve(path);
+    final uri = apiUri(creds.baseUrl, path);
     final headers = _buildHeaders(creds: creds, contentTypeJson: body != null);
     final encoded = body == null ? null : jsonEncode(body);
     final response = await _sendNoRedirect(
@@ -487,7 +488,7 @@ class ApiClient {
   }) async {
     if (Env.demoMode) throw const DemoModeException();
     final creds = _requireCreds();
-    final uri = Uri.parse(creds.baseUrl).resolve(path);
+    final uri = apiUri(creds.baseUrl, path);
     final abort = Completer<void>();
     final req = _ProbedMultipartRequest('POST', uri, abort.future)
       ..followRedirects = false
@@ -609,15 +610,13 @@ class ApiClient {
         'fileName': fileName,
         'chunkSize': chunk.length,
       });
-      final uri = Uri.parse(creds.baseUrl)
-          .resolve(path)
-          .replace(
-            queryParameters: {
-              'chunk_number': '$i',
-              'total_chunks': '$total',
-              ...queryTrue,
-            },
-          );
+      final uri = apiUri(creds.baseUrl, path).replace(
+        queryParameters: {
+          'chunk_number': '$i',
+          'total_chunks': '$total',
+          ...queryTrue,
+        },
+      );
       _log.fine(
         'uploadMultipartChunked: chunk $i/$total ($fileName, ${chunk.length}B)',
       );
@@ -689,7 +688,7 @@ class ApiClient {
     bool unauthorizedIsAnswer = false,
   }) async {
     final creds = _requireCreds();
-    var uri = Uri.parse(creds.baseUrl).resolve(path);
+    var uri = apiUri(creds.baseUrl, path);
     if (query != null && query.isNotEmpty) {
       uri = uri.replace(queryParameters: {...uri.queryParameters, ...query});
     }
@@ -1085,7 +1084,7 @@ class ApiClient {
       try {
         final response = await _sendNoRedirect(
           method: 'GET',
-          uri: Uri.parse(creds.baseUrl).resolve('/api/v1/ping'),
+          uri: apiUri(creds.baseUrl, '/api/v1/ping'),
           headers: _buildHeaders(creds: creds, contentTypeJson: false),
         );
         final ok = response.statusCode >= 200 && response.statusCode < 300;

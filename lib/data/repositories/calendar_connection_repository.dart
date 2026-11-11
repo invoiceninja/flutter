@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:admin/data/services/api_uri.dart';
 import 'package:admin/data/models/api/calendar_connection_api_model.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_client.dart';
@@ -71,9 +72,10 @@ class CalendarConnectionRepository {
       throw StateError('cannot build calendar authorize URL without baseUrl');
     }
     // The authorize route lives under `/api/v1` — do NOT strip the segment.
-    return Uri.parse(
+    return apiUri(
       baseUrl,
-    ).resolve('/api/v1/calendar_connection/$provider/authorize/$hash');
+      '/api/v1/calendar_connection/$provider/authorize/$hash',
+    );
   }
 
   /// The security-critical confirmation call. The server verifies the

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'package:admin/data/services/api_uri.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/version.dart';
 import 'package:admin/data/models/api/login_response_api_model.dart';
@@ -99,7 +100,7 @@ class AuthService {
     String? secret,
   }) async {
     final response = await _post(
-      Uri.parse(baseUrl).resolve('/api/v1/login'),
+      apiUri(baseUrl, '/api/v1/login'),
       headers: _headers(
         isHosted: isHosted,
         contentTypeJson: true,
@@ -134,7 +135,7 @@ class AuthService {
     String? secret,
   }) async {
     final response = await _post(
-      Uri.parse(baseUrl).resolve('/api/v1/passkeys/login/options'),
+      apiUri(baseUrl, '/api/v1/passkeys/login/options'),
       headers: _headers(
         isHosted: isHosted,
         contentTypeJson: true,
@@ -164,7 +165,7 @@ class AuthService {
     String? secret,
   }) async {
     final response = await _post(
-      Uri.parse(baseUrl).resolve('/api/v1/login'),
+      apiUri(baseUrl, '/api/v1/login'),
       headers: _headers(
         isHosted: isHosted,
         contentTypeJson: true,
@@ -215,7 +216,7 @@ class AuthService {
     required String email,
   }) async {
     final response = await _post(
-      Uri.parse(baseUrl).resolve('/api/v1/login/precheck'),
+      apiUri(baseUrl, '/api/v1/login/precheck'),
       headers: _headers(isHosted: isHosted, contentTypeJson: true),
       body: jsonEncode({'email': email}),
       timeout: interactiveTimeout,
@@ -256,7 +257,7 @@ class AuthService {
     required String email,
   }) async {
     final response = await _post(
-      Uri.parse(baseUrl).resolve('/api/v1/sms_reset'),
+      apiUri(baseUrl, '/api/v1/sms_reset'),
       headers: _headers(isHosted: isHosted, contentTypeJson: true),
       body: jsonEncode({'email': email}),
       timeout: interactiveTimeout,
@@ -276,7 +277,7 @@ class AuthService {
     required String code,
   }) async {
     final response = await _post(
-      Uri.parse(baseUrl).resolve('/api/v1/sms_reset/confirm'),
+      apiUri(baseUrl, '/api/v1/sms_reset/confirm'),
       headers: _headers(isHosted: isHosted, contentTypeJson: true),
       body: jsonEncode({'email': email, 'code': code}),
       timeout: interactiveTimeout,
@@ -306,9 +307,7 @@ class AuthService {
     required String token,
   }) async {
     final response = await _post(
-      Uri.parse(
-        baseUrl,
-      ).resolve('/api/v1/refresh?first_load=true&include_static=true'),
+      apiUri(baseUrl, '/api/v1/refresh?first_load=true&include_static=true'),
       headers: {
         ..._headers(isHosted: isHosted, contentTypeJson: true),
         'X-API-Token': token,
@@ -346,7 +345,7 @@ class AuthService {
         ? '/api/v1/oauth_login?create=true'
         : '/api/v1/oauth_login';
     final response = await _post(
-      Uri.parse(baseUrl).resolve(path),
+      apiUri(baseUrl, path),
       headers: _headers(isHosted: isHosted, contentTypeJson: true),
       body: jsonEncode({
         'provider': provider,
@@ -391,7 +390,10 @@ class AuthService {
     String referralCode = '',
   }) async {
     final response = await _post(
-      Uri.parse(baseUrl).resolve('/api/v1/signup?rc=$referralCode'),
+      apiUri(
+        baseUrl,
+        '/api/v1/signup?rc=${Uri.encodeQueryComponent(referralCode)}',
+      ),
       headers: _headers(isHosted: isHosted, contentTypeJson: true),
       body: jsonEncode({
         'email': email,
@@ -416,7 +418,7 @@ class AuthService {
     String? secret,
   }) async {
     final response = await _post(
-      Uri.parse(baseUrl).resolve('/api/v1/reset_password'),
+      apiUri(baseUrl, '/api/v1/reset_password'),
       headers: _headers(
         isHosted: isHosted,
         contentTypeJson: true,

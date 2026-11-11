@@ -1,3 +1,4 @@
+import 'package:admin/data/services/api_uri.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/request_scope.dart';
@@ -113,7 +114,7 @@ class QuickbooksRepository {
     if (baseUrl == null || baseUrl.isEmpty) {
       throw StateError('cannot build QuickBooks authorize URL without baseUrl');
     }
-    return Uri.parse(baseUrl).resolve('/quickbooks/authorize/$token');
+    return apiUri(baseUrl, '/quickbooks/authorize/$token');
   }
 
   /// Disconnect the integration server-side. Mirrors React

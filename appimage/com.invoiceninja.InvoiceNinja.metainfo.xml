@@ -89,6 +89,18 @@
     <control>touch</control>
   </supports>
   <releases>
+    <release version="5.1.24" date="2026-11-11">
+      <description>
+        <ul>
+          <li>DocuNinja e-signatures for hosted accounts</li>
+          <li>A setup wizard and welcome for new accounts</li>
+          <li>Search matches every word, in any order</li>
+          <li>Apply one payment across many invoices</li>
+          <li>Share client and vendor portal links</li>
+          <li>Links to our WordPress plugin</li>
+        </ul>
+      </description>
+    </release>
     <release version="5.1.23" date="2026-11-08">
       <description>
         <ul>

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -161,8 +162,30 @@ void main() {
 
     await openMore(tester);
     // Named for the portal: the record's own menu has a "Copy Link" too.
-    expect(find.text('Client Portal: Copy Link'), findsOneWidget);
+    expect(find.text('Share Client Portal Link'), findsOneWidget);
     expect(find.text('View Portal'), findsOneWidget);
+  });
+
+  testWidgets('the shared portal link is the contact\'s own — never the '
+      'admin\'s silent form, whose client_hash signs its holder in', (
+    tester,
+  ) async {
+    const shareChannel = MethodChannel('dev.fluttercommunity.plus/share');
+    String? shared;
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(shareChannel, (call) async {
+      shared = (call.arguments as Map)['uri'] as String?;
+      return 'com.example.someapp';
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(shareChannel, null));
+    await services.phoneActions.setTapToCall(false);
+    await pump(tester, [contact(link: 'https://portal.example.com/abc')]);
+
+    await tester.tap(find.byTooltip('Share Client Portal Link'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(shared, 'https://portal.example.com/abc');
   });
 
   testWidgets('with calling off, a desktop gets Email and the portal copy', (
@@ -176,7 +199,7 @@ void main() {
 
     expect(callButton, findsNothing);
     expect(emailButton, findsOneWidget);
-    expect(find.byTooltip('Client Portal: Copy Link'), findsOneWidget);
+    expect(find.byTooltip('Share Client Portal Link'), findsOneWidget);
     await openMore(tester);
     expect(find.text('View Portal'), findsOneWidget);
     expect(find.text('Send SMS'), findsNothing);
@@ -405,7 +428,7 @@ void main() {
     await pump(tester, [blank(link: 'https://portal.example.com/abc')]);
 
     expect(find.byType(DashboardCardShell), findsNothing);
-    expect(find.byTooltip('Client Portal: Copy Link'), findsNothing);
+    expect(find.byTooltip('Share Client Portal Link'), findsNothing);
   });
 
   testWidgets('a custom value with no label for it does not keep a blank '

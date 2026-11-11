@@ -548,12 +548,14 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
           'clone_to_template',
           confirm: true,
         ),
-      // The app's Share / Copy Link (every record has one): opens this
+      // The app's Share / Copy Internal Link (every record has one): opens this
       // document in the app, on its company (`buildDocuNinjaDeepLink`).
       EntityActionItem<_Action>(
         kind: _Action.copyLink,
         icon: Icons.link,
-        label: context.tr(Env.isTouchPrimary ? 'share_link' : 'copy_link'),
+        label: context.tr(
+          Env.isTouchPrimary ? 'share_internal_link' : 'copy_internal_link',
+        ),
         enabled: true,
         onTap: () => _onAction(context, vm, doc, _Action.copyLink),
       ),
@@ -687,7 +689,11 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
           Notify.error(context, context.tr('an_error_occurred'));
           return;
         }
-        await shareOrCopyLink(context, link);
+        await shareOrCopyLink(
+          context,
+          link,
+          label: context.tr('internal_link'),
+        );
       case _Action.voidIt:
         final ok = await vm.voidDocument();
         if (!context.mounted) return;

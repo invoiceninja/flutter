@@ -23,7 +23,9 @@ import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/utils/save_bytes.dart';
+import 'package:admin/ui/features/billing_shared/billing_doc_portal_link.dart';
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.dart';
+import 'package:admin/ui/core/detail/portal_link_action.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
@@ -59,6 +61,10 @@ enum CreditAction {
   addComment,
   logCall,
   viewClient,
+
+  /// The page the client opens with no login — beside [copyLink], the Internal
+  /// Link, which needs a sign-in (`portal_link_action.dart`).
+  portalLink,
   copyLink,
   archive,
   restore,
@@ -323,6 +329,14 @@ class CreditActions {
           isNavigationOnly: true,
           onTap: () => onTap(CreditAction.viewClient),
         ),
+      ?portalLinkActionItem(
+        context: context,
+        kind: CreditAction.portalLink,
+        vendor: false,
+        // A deleted document's page is gone from the portal.
+        hasLink: !credit.isDeleted && billingDocHasPortalLink(credit),
+        onTap: () => onTap(CreditAction.portalLink),
+      ),
       ?copyLinkActionItem(
         context: context,
         kind: CreditAction.copyLink,
@@ -574,6 +588,14 @@ class CreditActions {
       case CreditAction.viewClient:
         if (credit.clientId.isEmpty) return;
         goEntityFullDetail(context, '/clients', credit.clientId);
+      case CreditAction.portalLink:
+        await shareBillingDocPortalLink(
+          context,
+          services,
+          companyId,
+          credit,
+          vendor: false,
+        );
       case CreditAction.copyLink:
         await copyEntityLink(context, EntityType.credit, credit.id);
       case CreditAction.archive:

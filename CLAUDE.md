@@ -666,7 +666,7 @@ Debug-only capture of uncaught errors and every `WARNING`+ `Logger` record to `g
 
 ## Deep links
 
-A record's actions menu offers **Share Link** (touch) / **Copy Link** (elsewhere): a link that opens the app on that record, switching company first (invoiceninja/flutter#96). The same `app_links` subscription carries the calendar OAuth return.
+A record's actions menu offers **Share Internal Link** (touch) / **Copy Internal Link** (elsewhere): a link that opens the app on that record, switching company first (invoiceninja/flutter#96). The same `app_links` subscription carries the calendar OAuth return.
 
 ```
 https://<instance>/app/<in-app route>?company=<companyId>   <- what ships
@@ -675,6 +675,7 @@ invoiceninja://app/clients/Wpmbk5ezJn?company=Xrtq1oa8Aq     <- fallback, still 
 ```
 
 - **The link is https because a custom scheme is not a link.** → `docs/deep-links.md`
+- **The two links are named for who can open them — the Internal Link (sign-in) and the Client / Vendor Portal Link (no login, `portalLinkActionItem` directly above it) — and no surface offers a bare "Link".** → `docs/deep-links.md`
 - **Only `kHostedAppLinkHost` can ever be OS-verified, and the `/app/` prefix is what keeps that claim narrow.** → `docs/deep-links.md`
 - **Flutter's own deep linking must stay off, and on iOS the `app_links` plugin's own scene delegate (7.x) is what still delivers the cold start.** → `docs/deep-links.md`
 - **A link that names another instance is refused, not followed.** → `docs/deep-links.md`

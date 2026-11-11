@@ -8,10 +8,10 @@ import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/portal_link_action.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
-import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/core/widgets/party_contact_row.dart';
 import 'package:admin/ui/core/widgets/party_contacts_builder.dart';
@@ -334,9 +334,7 @@ class _RecipientRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final link = recipient.invitation.link;
     final hasLink = link.isNotEmpty;
-    final portalKey = type.party == BillingDocParty.vendor
-        ? 'vendor_portal'
-        : 'client_portal';
+    final vendor = type.party == BillingDocParty.vendor;
     final pill = _statePill(context, recipient.invitation);
     return PartyContactRow(
       name: recipient.name,
@@ -345,11 +343,17 @@ class _RecipientRow extends StatelessWidget {
       pills: [?pill],
       actions: [
         PartyContactAction(
-          icon: Icons.content_copy,
-          // Named for the portal: the record's own menu has a "Copy Link"
-          // too, and that one copies a link to this screen.
-          label: '${context.tr(portalKey)}: ${context.tr('copy_link')}',
-          onTap: hasLink ? () => copyToClipboard(context, link) : null,
+          // The record menu's portal-link item, for this contact: the same
+          // words, and the share sheet on touch (`portal_link_action.dart`).
+          icon: portalLinkButtonIcon(),
+          label: portalLinkActionLabel(context, vendor: vendor),
+          onTap: hasLink
+              ? () => sharePortalLink(
+                  context,
+                  vendor: vendor,
+                  targets: [PortalLinkTarget(link: link)],
+                )
+              : null,
         ),
         PartyContactAction(
           icon: Icons.open_in_new,

@@ -691,7 +691,7 @@ void main() {
       await pump(tester, _doc(status: 6));
       final strip = find.byWidgetPredicate((w) => w is EntityQuickActions);
       expect(strip, findsOneWidget);
-      for (final label in ['View PDF', 'Share Link', 'Download']) {
+      for (final label in ['View PDF', 'Share Internal Link', 'Download']) {
         expect(
           find.descendant(of: strip, matching: find.text(label)),
           findsOneWidget,

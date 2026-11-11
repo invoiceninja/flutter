@@ -199,7 +199,9 @@ class PaymentLinkActions {
       EntityQuickAction(
         item: EntityActionItem(
           kind: PaymentLinkAction.copyPurchasePage,
-          icon: Icons.link,
+          // The globe of a link anyone can open; the chain is the record's
+          // own Internal Link.
+          icon: Icons.public,
           // Named for what it copies: the record's own menu has a different
           // "Copy Link", which is the link to this screen.
           label: '$page: ${context.tr('copy_link')}',

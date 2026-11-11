@@ -110,8 +110,8 @@ void main() {
       // …and the vendor's contact, with the vendor portal's link.
       expect(find.byType(PartyContactRow), findsOneWidget);
       expect(find.text('Olga Nordin'), findsOneWidget);
-      expect(find.byTooltip('Vendor Portal: Copy Link'), findsOneWidget);
-      expect(find.byTooltip('Client Portal: Copy Link'), findsNothing);
+      expect(find.byTooltip('Share Vendor Portal Link'), findsOneWidget);
+      expect(find.byTooltip('Share Client Portal Link'), findsNothing);
 
       // One figure. Its balance is its amount until something is recorded
       // against it, and the same number twice would be noise.

@@ -271,7 +271,7 @@ void main() {
     expect(find.byTooltip('Email'), findsOneWidget);
     // Not a bare "Copy Link": the record's own menu has one of those, and it
     // copies a link to this screen.
-    expect(find.byTooltip('Vendor Portal: Copy Link'), findsOneWidget);
+    expect(find.byTooltip('Share Vendor Portal Link'), findsOneWidget);
     // View Portal is the third, behind the row's `⋮`.
     expect(find.text('View Portal'), findsNothing);
     await tester.tap(find.byIcon(Icons.more_vert));
@@ -285,7 +285,7 @@ void main() {
     await pump(tester, [contact(firstName: 'Ada', email: 'ada@acme.test')]);
 
     expect(find.byTooltip('Email'), findsOneWidget);
-    expect(find.byTooltip('Vendor Portal: Copy Link'), findsNothing);
+    expect(find.byTooltip('Share Vendor Portal Link'), findsNothing);
     expect(find.byIcon(Icons.more_vert), findsNothing);
   });
 

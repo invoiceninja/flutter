@@ -298,28 +298,28 @@ void main() {
   );
 
   _screenTest(
-    'a contact\'s copy button copies the link they were sent',
+    'a contact\'s link button shares the link they were sent',
     docJson(),
     (tester, screen) async {
-      String? copied;
+      // `flutter test` is a touch platform, so the button raises the share
+      // sheet; a pointer device copies (`portal_link_action_test.dart`).
+      const shareChannel = MethodChannel('dev.fluttercommunity.plus/share');
+      String? shared;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
+        shareChannel,
         (call) async {
-          if (call.method == 'Clipboard.setData') {
-            copied = (call.arguments as Map)['text'] as String?;
-          }
-          return null;
+          shared = (call.arguments as Map)['uri'] as String?;
+          return 'com.example.someapp';
         },
       );
       try {
-        await tester.tap(find.byTooltip('Client Portal: Copy Link').first);
-        await screen.until(() => copied != null, 'the copy');
-        expect(copied, kPortalLink);
-        // Let the "copied" toast run out its clock before the tree goes.
-        await tester.pump(const Duration(seconds: 10));
+        await tester.tap(find.byTooltip('Share Client Portal Link').first);
+        await screen.until(() => shared != null, 'the share');
+        // The contact's own link: never the sender's `silent=true` form.
+        expect(shared, kPortalLink);
       } finally {
         tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-          SystemChannels.platform,
+          shareChannel,
           null,
         );
       }

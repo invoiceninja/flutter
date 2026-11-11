@@ -23,7 +23,9 @@ import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/utils/save_bytes.dart';
+import 'package:admin/ui/features/billing_shared/billing_doc_portal_link.dart';
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.dart';
+import 'package:admin/ui/core/detail/portal_link_action.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
@@ -60,6 +62,10 @@ enum QuoteAction {
   addComment,
   logCall,
   viewClient,
+
+  /// The page the client opens with no login — beside [copyLink], the Internal
+  /// Link, which needs a sign-in (`portal_link_action.dart`).
+  portalLink,
   copyLink,
   archive,
   restore,
@@ -404,6 +410,14 @@ class QuoteActions {
           isNavigationOnly: true,
           onTap: () => onTap(QuoteAction.viewClient),
         ),
+      ?portalLinkActionItem(
+        context: context,
+        kind: QuoteAction.portalLink,
+        vendor: false,
+        // A deleted document's page is gone from the portal.
+        hasLink: !quote.isDeleted && billingDocHasPortalLink(quote),
+        onTap: () => onTap(QuoteAction.portalLink),
+      ),
       ?copyLinkActionItem(
         context: context,
         kind: QuoteAction.copyLink,
@@ -691,6 +705,14 @@ class QuoteActions {
       case QuoteAction.viewClient:
         if (quote.clientId.isEmpty) return;
         goEntityFullDetail(context, '/clients', quote.clientId);
+      case QuoteAction.portalLink:
+        await shareBillingDocPortalLink(
+          context,
+          services,
+          companyId,
+          quote,
+          vendor: false,
+        );
       case QuoteAction.copyLink:
         await copyEntityLink(context, EntityType.quote, quote.id);
       case QuoteAction.archive:

@@ -22,7 +22,9 @@ import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/utils/save_bytes.dart';
+import 'package:admin/ui/features/billing_shared/billing_doc_portal_link.dart';
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.dart';
+import 'package:admin/ui/core/detail/portal_link_action.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
@@ -62,6 +64,10 @@ enum PurchaseOrderAction {
   addComment,
   logCall,
   viewVendor,
+
+  /// The page the vendor opens with no login — beside [copyLink], the Internal
+  /// Link, which needs a sign-in (`portal_link_action.dart`).
+  portalLink,
   copyLink,
   archive,
   restore,
@@ -360,6 +366,14 @@ class PurchaseOrderActions {
           isNavigationOnly: true,
           onTap: () => onTap(PurchaseOrderAction.viewVendor),
         ),
+      ?portalLinkActionItem(
+        context: context,
+        kind: PurchaseOrderAction.portalLink,
+        vendor: true,
+        // A deleted document's page is gone from the portal.
+        hasLink: !po.isDeleted && billingDocHasPortalLink(po),
+        onTap: () => onTap(PurchaseOrderAction.portalLink),
+      ),
       ?copyLinkActionItem(
         context: context,
         kind: PurchaseOrderAction.copyLink,
@@ -650,6 +664,14 @@ class PurchaseOrderActions {
       case PurchaseOrderAction.viewVendor:
         if (po.vendorId.isEmpty) return;
         goEntityFullDetail(context, '/vendors', po.vendorId);
+      case PurchaseOrderAction.portalLink:
+        await shareBillingDocPortalLink(
+          context,
+          services,
+          companyId,
+          po,
+          vendor: true,
+        );
       case PurchaseOrderAction.copyLink:
         await copyEntityLink(context, EntityType.purchaseOrder, po.id);
       case PurchaseOrderAction.archive:

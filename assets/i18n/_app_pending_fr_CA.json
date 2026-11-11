@@ -1716,5 +1716,14 @@
   "sign_here_hint": "Signez ici",
   "docuninja_seats_used": ":count sièges utilisés sur :total",
   "docuninja_company_setup_help_touch": "Votre compte existe, mais cette entreprise n'est pas encore configurée. Touchez le bouton ci-dessous pour la configurer.",
-  "sign_in_browser": "Signer dans le navigateur"
+  "sign_in_browser": "Signer dans le navigateur",
+  "internal_link": "Lien interne",
+  "share_internal_link": "Partager le lien interne",
+  "copy_internal_link": "Copier le lien interne",
+  "client_portal_link": "Lien du portail client",
+  "share_client_portal_link": "Partager le lien du portail client",
+  "copy_client_portal_link": "Copier le lien du portail client",
+  "vendor_portal_link": "Lien du portail du fournisseur",
+  "share_vendor_portal_link": "Partager le lien du portail du fournisseur",
+  "copy_vendor_portal_link": "Copier le lien du portail du fournisseur"
 }

@@ -10,7 +10,8 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 
-/// Share a link to one record. The dispatch half of [copyLinkActionItem] —
+/// Share the Internal Link to one record — the link that opens it in this app, for
+/// someone who signs in. The dispatch half of [copyLinkActionItem] —
 /// every entity's `<Entity>Actions.dispatch` routes its `copyLink` case here.
 ///
 /// On touch the platform's own answer is the **share sheet**: "copy, leave the
@@ -50,19 +51,26 @@ Future<void> copyEntityLink(
     return;
   }
 
-  await shareOrCopyLink(context, link);
+  await shareOrCopyLink(context, link, label: context.tr('internal_link'));
 }
 
 /// The share sheet on touch, the clipboard elsewhere: the second half of
 /// [copyEntityLink], for a link built another way (a DocuNinja document's,
-/// `buildDocuNinjaDeepLink`).
-Future<void> shareOrCopyLink(BuildContext context, String link) async {
-  if (Env.isTouchPrimary && await _shareLink(context, link)) return;
+/// `buildDocuNinjaDeepLink`; a portal link, `sharePortalLink`).
+///
+/// [label] names which link it is — `tr('internal_link')`, or the portal's noun —
+/// and the caller reads it before any await.
+Future<void> shareOrCopyLink(
+  BuildContext context,
+  String link, {
+  required String label,
+}) async {
+  if (Env.isTouchPrimary && await _shareLink(context, link, label)) return;
   if (!context.mounted) return;
-  // The toast is labelled `link` rather than the URL itself, so it reads
-  // "Copied Link to the clipboard" instead of a URL chopped at 40 characters by
-  // `ellipsizeForToast`.
-  await copyToClipboard(context, link, label: context.tr('link'));
+  // The toast names the kind of link rather than the URL itself, so it reads
+  // "Copied Internal Link to the clipboard" — which link went out, and not a URL
+  // chopped at 40 characters by `ellipsizeForToast`.
+  await copyToClipboard(context, link, label: label);
 }
 
 /// The system share sheet, or false when it couldn't be raised — in which case
@@ -89,11 +97,14 @@ Future<void> shareOrCopyLink(BuildContext context, String link) async {
 /// `try`, inside a fire-and-forget `onTap` — so Share Link from a list row's
 /// `⋮` did nothing at all on a phone while the detail screen's worked
 /// ([anchorRectFor]).
-Future<bool> _shareLink(BuildContext context, String link) async {
+Future<bool> _shareLink(BuildContext context, String link, String label) async {
   try {
     await SharePlus.instance.share(
       ShareParams(
         uri: Uri.parse(link),
+        // The sheet's own heading, where the platform shows one (Android):
+        // which of the two links is about to go out.
+        title: label,
         sharePositionOrigin: anchorRectFor(context),
       ),
     );

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/contact.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/domain/email_candidates.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -17,6 +18,7 @@ import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_quick_actions.dart';
+import 'package:admin/ui/core/detail/portal_link_action.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
@@ -67,6 +69,10 @@ enum ClientAction {
   newProject,
   newExpense,
   merge,
+
+  /// A contact's portal link, to send them — beside [copyLink], the Internal
+  /// Link, which needs a sign-in (`portal_link_action.dart`).
+  portalLink,
   copyLink,
   archive,
   restore,
@@ -321,6 +327,16 @@ class ClientActions {
           enabled: client.archivedAt == null && !client.id.startsWith('tmp_'),
           onTap: () => onTap(ClientAction.merge),
         ),
+      ?portalLinkActionItem(
+        context: context,
+        kind: ClientAction.portalLink,
+        vendor: false,
+        hasLink:
+            !client.isDeleted &&
+            !client.id.startsWith('tmp_') &&
+            client.contacts.any((c) => c.link.isNotEmpty),
+        onTap: () => onTap(ClientAction.portalLink),
+      ),
       ?copyLinkActionItem(
         context: context,
         kind: ClientAction.copyLink,
@@ -490,6 +506,25 @@ class ClientActions {
               );
         if (portalUrl.isEmpty) return;
         await launchClientPortal(context, portalUrl);
+      case ClientAction.portalLink:
+        // The contact's own link, bare: `silent=true` and `client_hash` are
+        // the admin's View Portal form, and the hash signs its holder in past
+        // the portal password (`docs/deep-links.md`). The
+        // server's seeded blank contact has a link too; it is offered only
+        // when it is the only one.
+        final named = client.contacts.where((c) => !c.isBlank).toList();
+        await sharePortalLink(
+          context,
+          vendor: false,
+          targets: [
+            for (final c in named.isEmpty ? client.contacts : named)
+              PortalLinkTarget(
+                link: c.link,
+                name: '${c.firstName} ${c.lastName}'.trim(),
+                email: c.email.trim(),
+              ),
+          ],
+        );
       case ClientAction.copyLink:
         await copyEntityLink(context, EntityType.client, client.id);
       case ClientAction.archive:

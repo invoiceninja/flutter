@@ -7,11 +7,11 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/contact.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/portal_link_action.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
 import 'package:admin/ui/core/utils/mail_actions.dart';
 import 'package:admin/ui/core/utils/phone_actions.dart';
-import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/core/widgets/party_contact_row.dart';
 import 'package:admin/ui/core/widgets/phone_number_value.dart';
@@ -381,11 +381,18 @@ class ClientContactRow extends StatelessWidget {
           onTap: hasEmail ? () => composeEmail(context, contact.email) : null,
         ),
         PartyContactAction(
-          icon: Icons.content_copy,
-          // Named for the portal: the record's own menu has a "Copy Link" too,
-          // and that one copies a link to this screen.
-          label: '${context.tr('client_portal')}: ${context.tr('copy_link')}',
-          onTap: hasPortal ? () => copyToClipboard(context, portalUrl) : null,
+          // The record menu's portal-link item, for this contact: the same
+          // words, and the share sheet on touch (`portal_link_action.dart`).
+          icon: portalLinkButtonIcon(),
+          label: portalLinkActionLabel(context, vendor: false),
+          onTap: hasPortal
+              ? () => sharePortalLink(
+                  context,
+                  vendor: false,
+                  // Bare: `portalUrl` is the admin's own silent form.
+                  targets: [PortalLinkTarget(link: contact.link)],
+                )
+              : null,
         ),
         PartyContactAction(
           icon: Icons.sms_outlined,

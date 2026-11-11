@@ -282,3 +282,28 @@ controls open these (docs/home-screen-widgets.md).
   one-shot `ListFilterIntent` (`goWithExtra`) built by `invoiceLinkFilterIntent`, the dashboard's
   own definition, which `nav_state` doesn't persist.
 
+## The two links are named for who can open them
+
+**The two links are named for who can open them — the Internal Link (sign-in) and the Client / Vendor Portal Link (no login, `portalLinkActionItem` directly above it) — and no surface offers a bare "Link".**
+
+A beta user (Android, November 2026) tapped **Share Link** in an invoice's `⋮` menu, sent the result to a customer, and reported that the customer met a sign-in page. The action worked as built: it shared the record's deep link, which is for a colleague. The failure was the name. On a billing document "the link" means the one the customer opens, both older apps used "Copy Link" for exactly that, and the menu offered nothing else; the portal link existed only as an unlabelled copy icon on the Contacts card, and that one only wrote the clipboard.
+
+So there are two nouns, used the same way on every surface:
+
+- **Internal Link** (`internal_link`, `share_internal_link` / `copy_internal_link`): `copyLinkActionItem` on every record and the DocuNinja document. Opens the record in this app; needs a sign-in.
+- **Client Portal Link** / **Vendor Portal Link** (`client_portal_link`, `vendor_portal_link` and their `share_` / `copy_` forms): `portalLinkActionItem` + `sharePortalLink` (`lib/ui/core/detail/portal_link_action.dart`). The page the customer or vendor opens with no account.
+
+What holds it together:
+
+- **The portal item sits directly above the Internal Link** in the five billing-document menus and the client and vendor menus, so the two are read as a pair. It does not exist while no contact has a link (a record created offline, not yet synced) or on a deleted record.
+- **Both follow the input device the same way**: the share sheet and a "Share …" label on touch, the clipboard and "Copy …" elsewhere, through one `shareOrCopyLink`, whose copy toast names which link went out.
+- **A contact row's button is the same action for that contact** (`BillingDocContactsCard`, the client and vendor Contacts cards): same label, `portalLinkButtonIcon()`. It used to copy on touch too.
+- **Several contacts means a picker, never the first.** Each link is one contact's own and the portal records the view against it. The server's seeded blank contact is offered only when it is the only one (`shareBillingDocPortalLink`).
+- **Every shared portal link is the bare one.** A billing document shares `invitation.link`; a client or vendor shares `contact.link`. `silent=true` (and, for a client, `client_hash`) are the sender's own View Portal form (`clientPortalUrl` / `vendorPortalUrl`): `silent` stops the visit being recorded, and the server signs the holder of a matching `client_hash` in past **Password Protect Invoices** (`ClientPortal/InvitationController`) and, on `ContactKeyLogin`, as the primary contact from the hash alone. The Contacts cards used to copy that form, as React does; a link labelled as the one to send must not carry it.
+- **The portal item is `isNavigationOnly`**, so the edit screen does not offer it: there a tap would save the form first.
+- **Two links stay "Copy Link" on purpose**: a payment link's page (prefixed with the page's name, drawn with the same globe) and a DocuNinja signer's (`docs/docuninja.md`).
+- **The share sheet is told which link it holds** (`ShareParams.title`), for the platforms that show a heading.
+
+Not handled: with **Password Protect Invoices** on the customer is still asked for a password, and whether a single-document link opens with the client portal switched off was not traced.
+
+Pinned by `test/ui/core/detail/portal_link_action_test.dart`, the contact-card tests and `invoice_detail_screen_test.dart`.

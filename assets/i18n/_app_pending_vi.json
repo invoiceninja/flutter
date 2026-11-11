@@ -1714,5 +1714,14 @@
   "sign_here_hint": "Ký tại đây",
   "docuninja_seats_used": "Đã dùng :count / :total chỗ",
   "docuninja_company_setup_help_touch": "Tài khoản của bạn đã tồn tại nhưng công ty này chưa được thiết lập. Vui lòng chạm vào nút bên dưới để thiết lập.",
-  "sign_in_browser": "Ký trong trình duyệt"
+  "sign_in_browser": "Ký trong trình duyệt",
+  "internal_link": "Liên kết nội bộ",
+  "share_internal_link": "Chia sẻ liên kết nội bộ",
+  "copy_internal_link": "Sao chép liên kết nội bộ",
+  "client_portal_link": "Liên kết cổng thông tin khách hàng",
+  "share_client_portal_link": "Chia sẻ liên kết cổng thông tin khách hàng",
+  "copy_client_portal_link": "Sao chép liên kết cổng thông tin khách hàng",
+  "vendor_portal_link": "Liên kết cổng thông tin nhà cung cấp",
+  "share_vendor_portal_link": "Chia sẻ liên kết cổng thông tin nhà cung cấp",
+  "copy_vendor_portal_link": "Sao chép liên kết cổng thông tin nhà cung cấp"
 }

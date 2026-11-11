@@ -180,9 +180,13 @@ EntityActionItem<A> pdfGroupActionItem<A>({
   children: children,
 );
 
-/// "Share Link" on touch, "Copy Link" everywhere else — hands a colleague a
-/// link that opens straight on the record instead of an id to search for
-/// (invoiceninja/flutter#96).
+/// "Share Internal Link" on touch, "Copy Internal Link" everywhere else — hands a
+/// colleague a link that opens straight on the record instead of an id to
+/// search for (invoiceninja/flutter#96).
+///
+/// "App", never a bare "Link": on an invoice a bare one reads as the link to
+/// send the customer, who then meets a sign-in page. That link is the portal's
+/// (`portalLinkActionItem`), and the two sit together wherever both exist.
 ///
 /// The label follows what the tap actually does: `copyEntityLink` raises the
 /// system share sheet on touch and writes the clipboard on pointer devices
@@ -207,7 +211,9 @@ EntityActionItem<A>? copyLinkActionItem<A>({
     kind: kind,
     // `Icons.link`, not `Icons.copy_outlined` — that one is Clone's.
     icon: Icons.link,
-    label: context.tr(Env.isTouchPrimary ? 'share_link' : 'copy_link'),
+    label: context.tr(
+      Env.isTouchPrimary ? 'share_internal_link' : 'copy_internal_link',
+    ),
     enabled: true,
     onTap: onTap,
   );

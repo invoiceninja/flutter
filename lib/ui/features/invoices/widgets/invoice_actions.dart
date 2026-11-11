@@ -29,7 +29,9 @@ import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_quick_actions.dart';
 import 'package:admin/ui/core/utils/save_bytes.dart';
+import 'package:admin/ui/features/billing_shared/billing_doc_portal_link.dart';
 import 'package:admin/ui/features/billing_shared/detail/billing_doc_record_body.dart';
+import 'package:admin/ui/core/detail/portal_link_action.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
@@ -107,6 +109,9 @@ enum InvoiceAction {
   logCall,
   viewClient,
 
+  /// The page the client opens with no login — beside [copyLink], the Internal
+  /// Link, which needs a sign-in (`portal_link_action.dart`).
+  portalLink,
   copyLink,
   archive,
   restore,
@@ -532,6 +537,14 @@ class InvoiceActions {
           isNavigationOnly: true,
           onTap: () => onTap(InvoiceAction.viewClient),
         ),
+      ?portalLinkActionItem(
+        context: context,
+        kind: InvoiceAction.portalLink,
+        vendor: false,
+        // A deleted document's page is gone from the portal.
+        hasLink: !invoice.isDeleted && billingDocHasPortalLink(invoice),
+        onTap: () => onTap(InvoiceAction.portalLink),
+      ),
       ?copyLinkActionItem(
         context: context,
         kind: InvoiceAction.copyLink,
@@ -1058,6 +1071,14 @@ class InvoiceActions {
       case InvoiceAction.viewClient:
         if (invoice.clientId.isEmpty) return;
         goEntityFullDetail(context, '/clients', invoice.clientId);
+      case InvoiceAction.portalLink:
+        await shareBillingDocPortalLink(
+          context,
+          services,
+          companyId,
+          invoice,
+          vendor: false,
+        );
       case InvoiceAction.copyLink:
         await copyEntityLink(context, EntityType.invoice, invoice.id);
       case InvoiceAction.archive:

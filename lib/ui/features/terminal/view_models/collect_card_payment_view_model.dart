@@ -811,7 +811,11 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     _notify();
     final TerminalFinalize finalized;
     try {
-      finalized = await _repo.finalize(companyId, intent.paymentIntentId);
+      finalized = await _repo.finalize(
+        companyId,
+        intent.paymentIntentId,
+        invoiceId: _invoice.id,
+      );
     } catch (e) {
       // Never confirm on a guess.
       _problem = _problemOf(e);
@@ -1103,7 +1107,7 @@ class CollectCardPaymentViewModel extends ChangeNotifier {
     _problem = null;
     _notify();
     try {
-      await _repo.receipt(companyId, pi, email: email);
+      await _repo.receipt(companyId, pi, invoiceId: _invoice.id, email: email);
       _receiptSent = true;
       return true;
     } catch (e) {

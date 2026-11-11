@@ -330,10 +330,10 @@ void main() {
         'surcharge': 3,
       }),
     );
-    final f = await r.finalize('co_a', 'pi_1');
+    final f = await r.finalize('co_a', 'pi_1', invoiceId: 'inv_1');
     expect(
       requests.single.url.path,
-      '/api/v1/terminal/payment_intents/pi_1/finalize',
+      '/api/v1/invoices/inv_1/terminal/payment_intents/pi_1/finalize',
     );
     expect(f.recollect, isTrue);
     expect(f.amountMinor, 10300);
@@ -365,7 +365,7 @@ void main() {
     final pending = await r.cancel('co_a', 'pi_1', invoiceId: 'inv_1');
     expect(
       requests.last.url.path,
-      '/api/v1/terminal/payment_intents/pi_1/cancel',
+      '/api/v1/invoices/inv_1/terminal/payment_intents/pi_1/cancel',
     );
     expect(pending.status, 'processing');
     expect(pending.isRecorded, isFalse);

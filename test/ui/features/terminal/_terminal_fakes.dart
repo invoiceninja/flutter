@@ -174,7 +174,11 @@ class FakeTerminalRepo implements TerminalRepository {
   }
 
   @override
-  Future<TerminalFinalize> finalize(String companyId, String paymentIntentId) {
+  Future<TerminalFinalize> finalize(
+    String companyId,
+    String paymentIntentId, {
+    required String invoiceId,
+  }) {
     calls.add('finalize');
     return finalizes.next('finalize');
   }

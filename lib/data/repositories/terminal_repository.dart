@@ -156,13 +156,14 @@ class TerminalRepository {
 
   Future<TerminalFinalize> finalize(
     String companyId,
-    String paymentIntentId,
-  ) async => TerminalFinalize.fromJson(
+    String paymentIntentId, {
+    required String invoiceId,
+  }) async => TerminalFinalize.fromJson(
     _body(
       await _run(
         companyId,
         () => _api.postJson(
-          '/api/v1/terminal/payment_intents/$paymentIntentId/finalize',
+          _collectionPath(invoiceId, paymentIntentId, 'finalize'),
           timeout: finalizeTimeout,
         ),
       ),
@@ -188,14 +189,25 @@ class TerminalRepository {
   Future<void> receipt(
     String companyId,
     String paymentIntentId, {
+    required String invoiceId,
     required String email,
   }) => _run(
     companyId,
     () => _api.postJson(
-      '/api/v1/terminal/payment_intents/$paymentIntentId/receipt',
+      _collectionPath(invoiceId, paymentIntentId, 'receipt'),
       body: {'email': email},
     ),
   );
+
+  /// A collection's actions live under the invoice it was taken for: the
+  /// server finds it by the invoice, which is indexed, and its PaymentIntent.
+  static String _collectionPath(
+    String invoiceId,
+    String paymentIntentId,
+    String action,
+  ) =>
+      '/api/v1/invoices/$invoiceId/terminal/payment_intents/'
+      '$paymentIntentId/$action';
 
   Future<TerminalCompletion> _settle(
     String companyId,
@@ -208,7 +220,7 @@ class TerminalRepository {
         await _run(
           companyId,
           () => _api.postJson(
-            '/api/v1/terminal/payment_intents/$paymentIntentId/$action',
+            _collectionPath(invoiceId, paymentIntentId, action),
           ),
         ),
       ),

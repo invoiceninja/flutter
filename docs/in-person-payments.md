@@ -82,7 +82,9 @@ static on `StripeTerminal`; each payment is a `TerminalPayment` from `beginPayme
   about 24 s; what keeps a charge inside Stripe's 30 s between reading a card and charging it is the
   25 s staleness check below, not this timeout. A refused connection token (a gateway an admin just
   switched off, say) reaches the SDK as its own generic error, so the controller keeps the server's
-  reason for the screen (`takeTokenError`) and re-reads the config. The invoice is re-read after a create (a draft was marked
+  reason for the screen (`takeTokenError`) and re-reads the config. A collection's finalize, complete,
+  cancel and receipt are addressed under its invoice (`invoices/{invoice}/terminal/payment_intents/
+  {pi}/…`): the server keeps a collection on the invoice's payment hash and finds it by the invoice. The invoice is re-read after a create (a draft was marked
   sent) and after every `complete` / `cancel`; a recorded payment also re-reads its client and the
   payment.
 
@@ -163,19 +165,27 @@ recorded" screens show the PaymentIntent as a copyable reference.
 
 - **Find it.** The screen's reference is the Stripe PaymentIntent id. Without it: Stripe's payments
   search by the invoice number (the PaymentIntent's description is "Invoice N · client", its metadata
-  holds `invoice_number`, `collection_id` and `payment_hash`), or the server's
-  `terminal_payment_intents` table by `invoice_id`.
-- **Read the row.** `status_id`: 1 creating (Stripe hadn't answered the create), 2 open, 3 recording
-  (claimed by a recorder; re-claimable after 5 minutes), 4 recorded, 5 cancelled, 6 failed (never got
-  a PaymentIntent, or it no longer exists at Stripe), 7 orphaned, 8 rejected. `surcharge_path`,
-  `surcharge_refunded` (minor units) and `receipts_sent` explain the money around it.
+  holds `invoice_number`, `collection_id` and `payment_hash`). On the server a collection is that
+  `payment_hashes` row (`hash` = the metadata's `payment_hash`; `fee_invoice_id` = the invoice).
+- **Read the row.** The collection's own state is in `data->terminal`; the invoice, fee and payment
+  are where every payment hash keeps them (`data->invoices`, `fee_total`, `payment_id`).
+  `terminal.status_id`: 1 creating (Stripe hadn't answered the create), 2 open, 3 recorded,
+  4 cancelled, 5 failed (never got a PaymentIntent, or it no longer exists at Stripe), 6 orphaned,
+  7 rejected. `surcharge_path`, `surcharge_refunded` (minor units) and `receipts_sent` explain the
+  money around it.
 - **Checking / Recording.** Nothing to do by hand: the server records every charge from Stripe's
-  webhook, `complete`, and reconciliation (every 5 minutes; a collection untouched for 20 minutes is
-  cancelled; rows up to 30 days old). `php artisan ninja:terminal-reconcile --pi=pi_…` records one now
-  and prints its status; for an uncharged PaymentIntent it prints e.g. `requires_confirmation` and
-  leaves the cancel to the next run. **Never Enter Payment for a card payment the server is still
+  webhook, `complete`, and its reconciliation job (one per collection, queued when its PaymentIntent
+  opens and again on a resumed create, except on the `sync` queue driver, where a delayed job would
+  run at once and never again; it first looks after 5 minutes, then every 10 while the
+  collection is open, records a charge nobody recorded, and cancels one untouched for 20 minutes, for
+  up to 30 days). Auto-bill settles an invoice's open collections the same way before it charges
+  anything. Recorders take turns on a lock of the payment hash, so each charge is recorded once; one
+  that waits too long for its turn answers `recording`.
+  `php artisan ninja:terminal-reconcile <payment_hash>` (the hash is in the PaymentIntent's metadata)
+  records one now and prints its status; for an uncharged PaymentIntent it prints e.g.
+  `requires_confirmation` and leaves the cancel to the job. **Never Enter Payment for a card payment the server is still
   recording** — it would count it twice.
-- **Rejected (8) / orphaned (7) — "charged, but couldn't be recorded".** The money is at Stripe and
+- **Rejected (7) / orphaned (6) — "charged, but couldn't be recorded".** The money is at Stripe and
   the server won't record it on its own: a rejected PaymentIntent didn't match its collection
   (account, mode, currency); an orphaned one lost its invoice and client. Either refund it in Stripe,
   or record it by hand with Enter Payment using the Stripe charge id as the transaction reference. The
@@ -185,16 +195,17 @@ recorded" screens show the PaymentIntent as a copyable reference.
   refuses that refund the payment is recorded anyway, with the surcharge as the client's unapplied
   money. Refund the surcharge in Stripe: the refund comes out of that unapplied money.
 - **Alert "reconciliation could not record a charge".** A charged collection that fails to record
-  for a reason other than Stripe (a data problem on the invoice or client) stays open and is retried
-  every 5 minutes for 30 days. Fix the cause and it records itself; if you enter the payment by
-  hand instead, use the Stripe charge id as the transaction reference, so the retry finds it.
+  for a reason other than Stripe (a data problem on the invoice or client) stays open; its job keeps
+  trying every 10 minutes and alerts once. Fix the cause and it records itself; if you enter the
+  payment by hand instead, use the Stripe charge id as the transaction reference.
 - **"Still being set up" on a new collection.** Stripe never answered a create; after 2 minutes the
   next attempt marks it failed and goes on.
 
 ## Self-hosted and rollout
 
-- **What a self-hosted server needs:** the scheduler (`schedule:run` every minute) and a queue worker
-  for reconciliation, and Stripe webhooks reaching it for the fast path. Without either, a charge the
+- **What a self-hosted server needs:** a queue worker for reconciliation (with the `sync` driver the
+  job never runs later, though auto-bill and the next collection on the invoice still settle it),
+  and Stripe webhooks reaching it for the fast path. Without either, a charge the
   app couldn't report waits until someone collects or checks on that invoice again, or support runs
   the command.
 - **Switches.** `NINJA_TERMINAL_ENABLED` (default on) refuses new collections and finalize — a
@@ -202,9 +213,9 @@ recorded" screens show the PaymentIntent as a copyable reference.
   working. With `config:cache` an env change needs a re-cache and a php-fpm / worker restart. The app's
   `terminal/config` answer stands for up to 5 minutes. Build-time `IN_CARD_PRESENT*` pull the app side.
 - **Order:** migrate the server, deploy it, then ship the app (older servers answer 404 and the
-  feature stays hidden). **Rollback:** switch it off, wait until no `terminal_payment_intents` row has
-  `status_id` 1-3 (about 25 minutes), then roll back; an older server ignores card-present webhooks,
-  and its cron is gone.
+  feature stays hidden). **Rollback:** switch it off, wait until no payment hash has
+  `data->terminal->status_id` 1 or 2 (about 25 minutes), then roll back; an older server ignores
+  card-present webhooks, and queued reconciliation jobs then fail harmlessly.
 
 ## The device check and permissions are ours, not the SDK's
 

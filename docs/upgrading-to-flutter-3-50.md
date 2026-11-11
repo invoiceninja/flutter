@@ -1,0 +1,53 @@
+# Upgrading to Flutter 3.50
+
+Companion to CLAUDE.md § Strict rules (the pinned toolchain) and `docs/setup.md` § Dependency updates. What was done on 3.47.7 so the move to Flutter 3.50 is a pin change, what 3.50 still needs on the day, and what was measured against 3.50.0 before any pin moved.
+
+## The app was prepared on 3.47.7 and checked against 3.50.0 before any pin moved
+
+Prepared 2026-11-12, against the `3.50.0` tag (Dart 3.14.0). Every change below builds and passes on 3.47.7, the pinned SDK, and was then run on 3.50.0 in a detached worktree of this repo with a separate 3.50.0 SDK, so the shared checkout and CI never saw 3.50.
+
+**Already on main:**
+
+- **Android toolchain** (`bd44f623`): AGP 8.11.1 → 9.1.1, Gradle 8.14 → 9.3.1, Kotlin Gradle plugin 2.2.20 → 2.4.10, the lowest versions 3.50 accepts (it refuses AGP below 9.1.1, Gradle below 9.3.1, KGP below 2.4.10) and within what 3.47.7 knows. `android.builtInKotlin=false` and `android.newDsl=false` (added by Flutter's migrator) keep the plugins building. AGP 9 checks each library's compileSdk against its dependencies' AAR metadata, and super_keyboard still compiles against 34, so the root build raises plugin modules below 36 to 36 (`docs/upstream-workarounds.md` § 20). On 3.47.7: debug APK, release bundle, per-ABI release APKs (version codes 271/272/273), and CI's store and FOSS Android builds all pass.
+- **`strict-raw-types` → the `no_raw_types` lint** (`bd44f623`), its replacement ([flutter#187692](https://github.com/flutter/flutter/pull/187692), dart-lang/sdk#63517). `strict-casts` and `strict-inference` are not deprecated and stay.
+- **Five widget tests** that failed only on 3.50 (`700b7a58`): work on the real event loop (a Drift query before a cold-miss fetch; google_fonts loading the designer's bundled Roboto) landed after the test body on 3.50. They now let it settle (`test/_support/google_fonts_settle.dart`).
+
+**Measured on 3.50.0:**
+
+| Check | Result |
+|---|---|
+| `flutter pub get` | resolves; only the SDK-pinned `test` / `test_api` / `test_core` move, and `listen` is added |
+| `flutter analyze` | 1,512 infos, all `deprecated_member_use`: 1,499 `package:flutter/material.dart` imports, 9 `GlobalMaterialLocalizations`, 4 `GlobalCupertinoLocalizations`. No errors or warnings. |
+| Tests | every chunk passes except `store_sdk_boundary_test`'s FOSS-lock check, because the lock moved (step 3 below) |
+| `flutter build web --wasm` | builds; notes that `--pwa-strategy` is deprecated |
+| `flutter build apk --debug` | builds; warns that Gradle 9.3.1, AGP 9.1.1 and KGP 2.4.10 "will soon be dropped" (step 5) and that five plugins apply the Kotlin Gradle plugin (§ Left for later) |
+| `flutter build macos --debug` | builds; not launched (the debug app asks for keychain access) |
+
+## Material moves to material_ui, and the app can't follow until its dependencies do
+
+Flutter 3.50 deprecates `package:flutter/material.dart` and `cupertino.dart` in favour of the standalone `material_ui` / `cupertino_ui` packages (`dart fix --apply --code=migrate_design_widgets`). It is a deprecation, not a removal: the framework's own Material still ships and works.
+
+`material_ui` is a **separate copy** of the Material library, not a re-export: its `ThemeData`, `MaterialApp` and the rest are different types from the framework's. Most of our dependencies that touch Material (super_editor, printing, flutter_localizations, go_router 17's `MaterialPage`) still use the framework's, so moving our imports alone would split the app across two incompatible sets of types. `docs/setup.md` already holds go_router 18 and google_fonts 9 back for the same reason. Migrate when those dependencies have moved, as one project, with `dart fix` and the `MaterialUiCompatibilityBridge` the guide offers for the stragglers.
+
+Until then 3.50's analyzer reports every Material import as deprecated, and `flutter analyze` fails on infos. Upgrade day has to choose one of:
+
+1. **`deprecated_member_use: ignore` under `analyzer: errors:`**, with a comment pointing here. Simple, but it also hides every *other* deprecation until it is removed again.
+2. **Do the material_ui migration first**, if the dependencies are ready by then.
+
+## Upgrade day, in order
+
+1. Change `flutter-version: 3.47.7` to `3.50.0` in every workflow (`_test.yaml`, `appimage.yml` (F-Droid and Flathub read their Flutter from it), `appstore-ios.yml`, `appstore-macos.yml`, `ci.yaml` ×8 and its comment, `microsoft-store.yml`, `perf.yaml`, `playstore.yml`, `snapcraft.yml`, `web.yml`), plus the 3.47.7 mentions in `pubspec.yaml`'s version comment and `docs/setup.md`.
+2. `flutter pub get` and commit `pubspec.lock`.
+3. `tools/prepare_foss.sh --update-lock` and commit `tools/foss/pubspec.lock` (`store_sdk_boundary_test` checks it).
+4. The analyzer decision above.
+5. Raise Android to what 3.50 recommends, to silence its warnings: AGP 9.3.1, KGP 2.4.20, Gradle 9.5.0 (`android/settings.gradle.kts`, the wrapper).
+6. macOS: 3.50 carries the fix for Impeller's garbled text on Intel Macs ([flutter#191538](https://github.com/flutter/flutter/issues/191538), on main since 2026-08-25, inside the 3.50.0 tag). Remove `FLTEnableImpeller` from `macos/Runner/Info.plist` **only after** running the 3.50 build on an Intel Mac with an AMD GPU (`docs/upstream-workarounds.md` § 16).
+7. Recheck `docs/upstream-workarounds.md` § 4 (desktop integration tests one file per run): [flutter#189192](https://github.com/flutter/flutter/pull/189192), the fix it waited on, is in 3.50.
+8. Android: release builds now ignore engine flags and `route` / `dart_entrypoint` / cached-engine extras on untrusted intents. `MainActivity` already strips every extra, so nothing should change, but check a share and a deep link on a release build on Android 13 and on 14 or newer.
+9. Run the whole test suite, a Deploy to Web test run and CI, then release.
+
+## Left for later
+
+- **Built-in Kotlin.** 3.50 warns that five plugins still apply the Kotlin Gradle plugin, and a future Flutter will refuse them: desktop_drop, in_app_review, sentry_flutter, super_keyboard and our own `packages/store_services`. Ours can move to built-in Kotlin on its own (Flutter's "migrate to built-in Kotlin for plugin authors" guide); the others wait on their maintainers, and `android.builtInKotlin=false` stays until they do.
+- **`--pwa-strategy`** is deprecated in 3.50. When it goes, Deploy to Web switches to a custom `web/flutter_bootstrap.js` (`docs/web-deploy.md`).
+- **Not in 3.50:** the RenderEditable and Scribble null-check PRs from the Sentry sweep (#196219, #196220), RawAutocomplete reopen (#140662), and the SwiftPM deployment target (#162196). Their workarounds stay.

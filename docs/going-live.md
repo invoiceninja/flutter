@@ -46,9 +46,9 @@ Each store needs its console step after the launch release is uploaded. Only the
 
 ### Microsoft Store
 
-`microsoft-store.yml` already publishes each build once Microsoft certifies it, to the restricted `InvoiceNinja.AdminPortal` listing (v1 is `InvoiceNinja.InvoiceNinja`).
+`microsoft-store.yml` already publishes each build once Microsoft certifies it, to the restricted `InvoiceNinja.AdminPortal` listing (v1 is `InvoiceNinja.InvoiceNinja`). What restricts it is the **Audience**: Pricing and availability → Visibility → **Private audience**, the "Beta Testers" group. The submission API can't see the audience (its `visibility` is the Discoverability option and reads `Public` under a Private audience), so `tools/msstore_release_notes.py` can't check it; each CI submission copies the last, so the audience carries forward until someone changes it here.
 
-- [ ] Partner Center → the app → Pricing and availability → Visibility: make the listing public.
+- [ ] Partner Center → the app → Pricing and availability → Visibility → Audience: switch **Private audience** to **Public audience**. This is the Microsoft Store's go-live switch; nothing in CI makes it.
 - [ ] Remove "Beta" from the Store listing name.
 
 ### Snap
@@ -90,7 +90,7 @@ Today one **Deploy to all** dispatch ships every store to its testing channel wi
 - [ ] **Play:** grant the service account "Release to production" (Play Console → Users and permissions), add `production` to `playstore.yml`'s `track` options and to Deploy to all's `play_track`, and make it the default. The `play_rollout` input already stages it.
 - [ ] **App Store (iOS and macOS):** after the first version has been submitted and approved by hand (Apple needs its screenshots, description, privacy answers and age rating once), extend `tools/testflight_release.py` or add a sibling to: create the App Store version for the release, attach the build, set "What's New in This Version" from the same digest, and submit it for review with release-after-approval — plus a dispatch input choosing phased release (iOS, 7 days) or everyone at once.
 - [ ] **GitHub Release:** drop `--prerelease` in `appimage.yml` so the Release is marked Latest.
-- [ ] **Microsoft Store:** set the listing's visibility to Public in Partner Center and remove the beta guard in `tools/msstore_release_notes.py` (`ALLOWED_VISIBILITY`), which refuses to commit a Public submission; drop " - Beta" from the listing name with the app rename above.
+- [ ] **Microsoft Store:** switch the listing's Audience to Public in Partner Center (§ Microsoft Store); CI needs no change, since `tools/msstore_release_notes.py` already commits a `Public` submission (`ALLOWED_VISIBILITY`). Drop " - Beta" from the listing name with the app rename above.
 - [ ] **Snap:** stays on `edge` until § Snap's blocker is fixed; `stable` replaces v1 for every Snap user.
 - [ ] Flip each workflow's header comment and `docs/store-deployment-setup.md` from "testers" to "production".
 

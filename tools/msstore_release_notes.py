@@ -37,12 +37,17 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 PUBSPEC = ROOT / "pubspec.yaml"
 CHANGELOGS = ROOT / "fastlane/metadata/android/en-US/changelogs"
 MAX_RELEASE_NOTES = 1500  # the Store's limit for releaseNotes
-# The app is in beta (docs/going-live.md): its listing is restricted, and a
-# commit publishes with the submission's own visibility. Only Private (no one
-# outside the listing's audience can get it) is committed; Public, and Hidden
-# (anyone with the link can install it), are refused rather than released.
-# Going live is a deliberate change here.
-ALLOWED_VISIBILITY = {"Private"}
+# The app is in beta (docs/going-live.md), and what keeps it there is the
+# listing's AUDIENCE: Partner Center → Pricing and availability → Visibility →
+# Private audience, limited to the "Beta Testers" group. The submission API
+# does not expose the audience. Its `visibility` is the Discoverability option
+# inside it, so "available and discoverable" reads Public even under a Private
+# audience (it did for 5.1.24's submission 12). Each submission copies the last,
+# so the audience carries forward, and going public is a deliberate Audience
+# change in Partner Center that this script never makes. Public and Private are
+# committed; Hidden and StopSold (a direct-link-only or withdrawn listing) are
+# still refused, as a change nobody made here on purpose.
+ALLOWED_VISIBILITY = {"Private", "Public"}
 RETRIES = 4  # a read, or any 5xx / network error, is tried this many times
 
 
@@ -157,7 +162,7 @@ def main():
         print(f"{which} submission {sub_id}: visibility {sub.get('visibility')!r}, "
               f"targetPublishMode {sub.get('targetPublishMode')!r}"
               + ("" if sub.get("visibility") in ALLOWED_VISIBILITY
-                 else " — a run would REFUSE to commit this (not a restricted listing)"))
+                 else " — a run would REFUSE to commit this (a direct-link-only or withdrawn listing)"))
         for lang, listing in sorted((sub.get("listings") or {}).items()):
             current = (listing.get("baseListing") or {}).get("releaseNotes")
             print(f"{which} submission {sub_id}, listing {lang}: releaseNotes now {current!r}")
@@ -169,9 +174,9 @@ def main():
     path = f"/applications/{app_id}/submissions/{pending}"
     sub = call(token, "GET", path)
     if sub.get("visibility") not in ALLOWED_VISIBILITY:
-        fail(f"submission {pending} has visibility {sub.get('visibility')!r}, not a restricted "
-             "listing; refusing to commit while the app is in beta. The draft is left in Partner "
-             "Center (docs/going-live.md § One-click production releases).")
+        fail(f"submission {pending} has visibility {sub.get('visibility')!r} (direct link only, or "
+             "acquisition stopped); refusing to commit a change nobody made here on purpose. The "
+             "draft is left in Partner Center (docs/going-live.md § Microsoft Store).")
     listings = sub.get("listings") or {}
     if not listings:
         fail(f"submission {pending} has no listings to put release notes on")

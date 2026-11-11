@@ -72,22 +72,46 @@ jobs:
       - name: Generate code
         run: dart run build_runner build --delete-conflicting-outputs
 
-      # Import BOTH Mac App Store distribution identities from a SINGLE combined
-      # .p12 in ONE step: the APP-signing cert ("Apple Distribution" / "3rd Party
-      # Mac Developer Application") signs the .app, and the INSTALLER-signing cert
-      # ("Mac Installer Distribution" / "3rd Party Mac Developer Installer") signs
-      # the .pkg wrapper (the app cert cannot — a MAS package needs both).
-      # WHY one step: two separate imports into the default `signing_temp`
-      # keychain break — each auto-generates its own random keychain password, so
-      # the 2nd step's `security set-key-partition-list` fails against the 1st
-      # step's keychain (apple-actions/import-codesign-certs#14). The action's
-      # README recommends a single combined .p12 (both identities selected in
-      # Keychain Access → exported together) for exactly this case.
-      - name: Import Mac distribution certificates
+      # A Mac App Store package needs TWO identities: "Apple Distribution" signs
+      # the .app and "Mac Installer Distribution" ("3rd Party Mac Developer
+      # Installer") signs the .pkg wrapper. Ours share ONE private key (both
+      # certificates were issued from one CSR), so they can't travel in one
+      # .p12: both bags carry the same localKeyID and `security import` keeps
+      # only one certificate for it — the installer one, which is how the
+      # 5.1.24 archive found no "Apple Distribution" identity at all.
+      # So: the iOS job's Apple Distribution .p12 (that certificate + the
+      # shared key) through the action, then the installer CERTIFICATE alone,
+      # which pairs with the key already in the keychain. A .cer import makes
+      # no second keychain and needs no second set-key-partition-list, so
+      # apple-actions/import-codesign-certs#14 doesn't arise.
+      - name: Import the Apple Distribution certificate and key
         uses: apple-actions/import-codesign-certs@v7
         with:
-          p12-file-base64: ${{ secrets.MAC_DISTRIBUTION_CERTS_P12_BASE64 }}
-          p12-password: ${{ secrets.MAC_DISTRIBUTION_CERTS_PASSWORD }}
+          p12-file-base64: ${{ secrets.APPLE_DISTRIBUTION_CERT_P12_BASE64 }}
+          p12-password: ${{ secrets.APPLE_DISTRIBUTION_CERT_PASSWORD }}
+
+      - name: Import the Mac Installer Distribution certificate
+        env:
+          INSTALLER_CERT_BASE64: ${{ secrets.MAC_INSTALLER_CERT_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${INSTALLER_CERT_BASE64:-}" ]; then
+            echo "::error::MAC_INSTALLER_CERT_BASE64 is empty — the .pkg cannot be signed (docs/store-deployment-setup.md §3E)." >&2
+            exit 1
+          fi
+          echo "$INSTALLER_CERT_BASE64" | base64 --decode > "$RUNNER_TEMP/mac_installer.cer"
+          security import "$RUNNER_TEMP/mac_installer.cer" -k signing_temp.keychain \
+            -T /usr/bin/pkgbuild -T /usr/bin/productbuild -T /usr/bin/productsign
+          rm -f "$RUNNER_TEMP/mac_installer.cer"
+          # Fail here, by name, rather than as thirty identical Xcode errors.
+          identities=$(security find-identity -v signing_temp.keychain)
+          for name in "Apple Distribution" "3rd Party Mac Developer Installer"; do
+            if ! grep -qF "\"$name: " <<< "$identities"; then
+              echo "::error::No valid \"$name\" identity in the signing keychain." >&2
+              exit 1
+            fi
+          done
+          echo "Both Mac App Store identities are in the signing keychain."
 
       # The Mac App Store provisioning profile for com.invoiceninja.admin
       # (DISTINCT from the iOS App Store profile). Modern Xcode reads macOS

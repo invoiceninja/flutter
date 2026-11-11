@@ -182,8 +182,7 @@ Environment secrets, not repository secrets: only the `fdroid-sign` job can read
 
 | Secret | What it is | How to produce it |
 |---|---|---|
-| `MAC_DISTRIBUTION_CERTS_P12_BASE64` | **One combined `.p12`** with **both** Mac distribution identities | `base64 -i certs.p12` — see §3E for why it must be combined |
-| `MAC_DISTRIBUTION_CERTS_PASSWORD` | That `.p12`'s export password | Whatever you set on export |
+| `MAC_INSTALLER_CERT_BASE64` | The **Mac Installer Distribution** certificate alone (`.cer`, no key) — the app itself signs with the iOS job's `APPLE_DISTRIBUTION_CERT_P12_BASE64` | `base64 -i mac_installer.cer` — see §3E for why it isn't in a `.p12` |
 | `MACOS_APPSTORE_PROVISIONING_PROFILE_BASE64` | Mac App Store profile (distinct from the iOS one) | `base64 -i profile.provisionprofile` |
 | `MACOS_HOME_WIDGETS_APPSTORE_PROVISIONING_PROFILE_BASE64` | Mac App Store profile for the macOS home-screen widgets (`com.invoiceninja.admin.HomeWidgets`) | `base64 -i home-widgets.provisionprofile` |
 
@@ -343,8 +342,8 @@ For the Share Extension (invoiceninja/flutter#173): first register the App Group
 
 | Certificate | Signs | Goes into |
 |---|---|---|
-| **Apple Distribution** | the iOS app, and the macOS `.app` | `APPLE_DISTRIBUTION_CERT_P12_BASE64` (iOS) and the combined macOS `.p12` |
-| **Mac Installer Distribution** | the macOS `.pkg` wrapper | the combined macOS `.p12` only |
+| **Apple Distribution** | the iOS app, and the macOS `.app` | `APPLE_DISTRIBUTION_CERT_P12_BASE64` (both jobs import it) |
+| **Mac Installer Distribution** | the macOS `.pkg` wrapper | `MAC_INSTALLER_CERT_BASE64`, the certificate only |
 
 **iOS** — export the Apple Distribution identity (cert + private key) from Keychain Access as its own password-protected `.p12`:
 
@@ -352,13 +351,22 @@ For the Share Extension (invoiceninja/flutter#173): first register the App Group
 base64 -i dist.p12 | gh secret set APPLE_DISTRIBUTION_CERT_P12_BASE64
 ```
 
-**macOS — export both identities into ONE `.p12`.** In Keychain Access select *both* the Apple Distribution and Mac Installer Distribution identities, then **Export 2 items…** into a single file:
+**macOS — the installer certificate on its own.** The `.app` signs with the same Apple Distribution `.p12` as iOS. Add the Mac Installer Distribution certificate (the `.cer` the portal downloads, no key):
 
 ```sh
-base64 -i certs.p12 | gh secret set MAC_DISTRIBUTION_CERTS_P12_BASE64
+base64 -i mac_installer.cer | gh secret set MAC_INSTALLER_CERT_BASE64
 ```
 
-> **Why combined, not two secrets.** A Mac App Store `.pkg` is signed twice — the app cert signs the `.app` inside, the installer cert signs the `.pkg` around it. But two separate `import-codesign-certs` steps break: each generates its own random password for the shared `signing_temp` keychain, so the second step's `security set-key-partition-list` fails against the first step's keychain ([`import-codesign-certs#14`](https://github.com/Apple-Actions/import-codesign-certs/issues/14)). One combined `.p12` is the action's own recommended workaround. Omitting the installer cert produces a package App Store Connect rejects.
+> **Why not one combined `.p12`.** A Mac App Store `.pkg` is signed twice: the app cert signs the `.app` inside, the installer cert signs the `.pkg` around it. When both certificates come from **one CSR** they share one private key, and a `.p12` holding both gives both bags the same `localKeyID`; `security import` then keeps only **one** of the certificates. Ours kept the installer one, so the 5.1.24 archive failed with `No signing certificate "Mac App Distribution" found` on every target. Importing the `.cer` after the `.p12` pairs it with the key already in the keychain, and needs neither a second keychain nor a second `set-key-partition-list` (the trap in [`import-codesign-certs#14`](https://github.com/Apple-Actions/import-codesign-certs/issues/14)). The workflow's import step checks both identities are present before archiving. If the installer certificate is ever re-issued from its **own** CSR, it has its own key, and then it needs a `.p12` of its own, not a `.cer`.
+
+**Check an export before uploading it** — import it into a scratch keychain and list what came across:
+
+```sh
+security create-keychain -p x /tmp/check.keychain && security unlock-keychain -p x /tmp/check.keychain
+security import dist.p12 -k /tmp/check.keychain -P '<password>' && security import mac_installer.cer -k /tmp/check.keychain
+security find-identity -v /tmp/check.keychain   # both identities, or the archive fails
+security delete-keychain /tmp/check.keychain
+```
 
 #### Step 3 — Provisioning profiles
 
@@ -494,7 +502,8 @@ Two exceptions:
 | Play: *"Changes cannot be sent for review automatically. Please set … changesNotSentForReview to true"* | Account/app-state dependent. Add `changesNotSentForReview: true` under the publish step in `playstore.yml`. Leave it unset by default — some accounts get the inverse error when it *is* set. |
 | ASC: *"the bundle version must be higher than the previously uploaded version"* | You didn't bump. iOS and macOS share the pubspec version. |
 | Archive fails on an entitlement mismatch | The App ID is missing a capability the entitlements declare — Sign in with Apple (both), Associated Domains + App Groups (iOS), App Sandbox + Keychain Sharing (macOS). See §3E step 1. |
-| macOS: package rejected by App Store Connect | The combined `.p12` is missing the **Mac Installer Distribution** identity. Re-export both identities together. |
+| macOS: `No signing certificate "Mac App Distribution" found` on every target | The keychain has no Apple Distribution identity. A combined `.p12` whose two certificates share one key imports as one of them (§3E step 2). Use `APPLE_DISTRIBUTION_CERT_P12_BASE64` plus `MAC_INSTALLER_CERT_BASE64`. |
+| macOS: `No valid "3rd Party Mac Developer Installer" identity` | `MAC_INSTALLER_CERT_BASE64` is not the installer certificate issued from the same CSR as the Apple Distribution one (§3E step 2). |
 | Apple upload auth fails | `APP_STORE_CONNECT_PRIVATE_KEY` was base64-encoded. It must be the **raw** `.p8` text. |
 | Store: upload validation rejects the package | `msix_config` `identity_name` / `publisher` / `publisher_display_name` in `pubspec.yaml` don't exactly match Partner Center → Product identity. |
 | `msstore publish` fails on `--appId` | You used the `9N…` Store ID. Use the ~12-char **Product ID** (`msstore apps list`). |

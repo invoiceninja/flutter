@@ -60,9 +60,11 @@ jobs:
       BACKEND_REPO: https://github.com/invoiceninja/invoiceninja.git
       BACKEND_BRANCH: v5-develop
     steps:
+      # Default credentials: the token is read-only (contents: read) and no step
+      # pushes. `persist-credentials: false` would make checkout walk the
+      # submodules to strip them, and the repo's two stray .dart_skills gitlinks
+      # (no .gitmodules entry) fail that walk.
       - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
 
       - name: Refuse anything but test mode
         run: |

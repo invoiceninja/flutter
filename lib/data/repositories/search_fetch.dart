@@ -32,13 +32,12 @@ typedef SearchPageFetch = Future<bool> Function(String term, {bool phrase});
 ///
 /// The phrase and the first word go out together, the first word as the
 /// whole text without [SearchPageFetch]'s `phrase` (the repository sends that
-/// same word, but checks its memo against every word of the search). The
-/// second word goes only when the first reported more pages: when it did not,
-/// every row the search can match is already in Drift. The server's search
-/// costs seconds on a large account (invoiceninja/invoiceninja#13433), so a
-/// selective first word (`s22`) saves a third of a picker's requests, and a
-/// search an earlier one already covered (`samsung s22` after a complete
-/// `sams`) makes none.
+/// same word, and keys its memo on it). The second word goes only when the
+/// first reported more pages: when it did not, every row the search can
+/// match is already in Drift. The server's search costs seconds on a large
+/// account (invoiceninja/invoiceninja#13433), so a selective first word
+/// (`s22`) saves a third of a picker's requests, and a search an earlier one
+/// already covered (`samsung galaxy` after a complete `sams`) makes none.
 ///
 /// [fetchPage1] is the repository's `ensurePageLoaded(page: 1, search: term,
 /// phraseOnWire: phrase)`. A search-scoped fetch never reads or advances the

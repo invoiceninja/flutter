@@ -397,50 +397,45 @@ void main() {
     // invoiceninja/invoiceninja#13433 (every-word server search) was declined
     // for its cost, so the client skips a search whose answer is local.
     group('a search the cache already holds in full makes no request', () {
-      test(
-        'a term paged to the end covers every search containing it',
-        () async {
-          final api = _SearchVendorsApi(rowsPerPage: 3);
-          final repo = VendorRepository(db: db, api: api);
+      test('a term paged to the end covers every search whose wire word '
+          'contains it', () async {
+        final api = _SearchVendorsApi(rowsPerPage: 3);
+        final repo = VendorRepository(db: db, api: api);
+        expect(
+          await repo.ensurePageLoaded(companyId: 'co', page: 1, search: 'sams'),
+          isFalse,
+        );
+        // Both send `samsung` (the longest letters-only word).
+        for (final search in ['samsung', 'Samsung Galaxy']) {
           expect(
             await repo.ensurePageLoaded(
               companyId: 'co',
               page: 1,
-              search: 'sams',
+              search: search,
             ),
             isFalse,
+            reason: search,
           );
-          for (final search in [
-            'samsung',
-            'Samsung S22',
-            's22 120hz samsung',
-          ]) {
-            expect(
-              await repo.ensurePageLoaded(
-                companyId: 'co',
-                page: 1,
-                search: search,
-              ),
-              isFalse,
-              reason: search,
-            );
-          }
-          // A picker's phrase fetch is covered too.
-          await repo.ensurePageLoaded(
-            companyId: 'co',
-            page: 1,
-            search: 'samsung galaxy',
-            phraseOnWire: true,
-          );
-          // Not covered: no word holds `sams`.
-          await repo.ensurePageLoaded(
-            companyId: 'co',
-            page: 1,
-            search: 'galaxy',
-          );
-          expect(api.searches, ['sams', 'galaxy']);
-        },
-      );
+        }
+        // A picker's phrase fetch is covered too.
+        await repo.ensurePageLoaded(
+          companyId: 'co',
+          page: 1,
+          search: 'samsung galaxy',
+          phraseOnWire: true,
+        );
+        // Not covered: `S22` goes on the wire, and a row matched by
+        // `samsung` only locally (a field the server does not search) can
+        // still be one `S22` fetches.
+        await repo.ensurePageLoaded(
+          companyId: 'co',
+          page: 1,
+          search: 'Samsung S22',
+        );
+        // Not covered: no word holds `sams`.
+        await repo.ensurePageLoaded(companyId: 'co', page: 1, search: 'galaxy');
+        expect(api.searches, ['sams', 'S22', 'galaxy']);
+      });
 
       test('a page of the same wire term is answered from the memo', () async {
         final api = _SearchVendorsApi(rowsPerPage: 50);

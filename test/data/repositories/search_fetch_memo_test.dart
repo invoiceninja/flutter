@@ -76,9 +76,20 @@ void main() {
       'in order', () {
     record('acme', hasMore: true);
     record('acme', page: 3, hasMore: false);
-    expect(answer('acme corp', wireTerm: 'corp'), isNull);
+    expect(answer('acme corp', wireTerm: 'acme', page: 4), isNull);
     record('acme', page: 2, hasMore: false);
-    expect(answer('acme corp', wireTerm: 'corp'), isFalse);
+    expect(answer('acme corp', wireTerm: 'acme', page: 4), isFalse);
+  });
+
+  test('only a word that goes on the wire carries a cover', () {
+    // The local search matches more fields than the server (an invoice's
+    // notes), so an invoice with `March` only in its notes was never in the
+    // server's `march` answer, yet `hosting` on the wire would fetch it.
+    record('march', hasMore: false);
+    expect(answer('march hosting', wireTerm: 'hosting'), isNull);
+    expect(answer('hosting march', wireTerm: 'march'), isFalse);
+    // A phrase on the wire holds every one of its words in one column.
+    expect(answer('march hosting', wireTerm: 'march hosting'), isFalse);
   });
 
   test('a fetched page answers its own hasMore; an unfetched one asks', () {

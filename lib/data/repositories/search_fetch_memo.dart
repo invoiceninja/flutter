@@ -24,10 +24,11 @@ const int kSearchFetchMemoMaxTerms = 128;
 ///
 /// - **A term paged to the end** (`complete`): every server row matching it is
 ///   in Drift. Any later search each of whose terms' words sits inside one of
-///   the search's own words can only match a subset of those rows, so the
-///   local every-word search over Drift is already the whole answer — no
-///   request, `hasMore` false. Typing `sams` (12 rows) makes `samsung`,
-///   `samsung s22` and `samsung s22 120hz` free.
+///   the words it would put on the wire can only match a subset of those
+///   rows, so the local every-word search over Drift is already the whole
+///   answer — no request, `hasMore` false. Typing `sams` (12 rows) makes
+///   `samsung` and `samsung galaxy` free (both send `samsung`), but not
+///   `samsung s22`, which sends `s22`.
 /// - **A page already fetched**: adding a word that leaves the wire term
 ///   unchanged (`samsung` → `samsung galaxy`, both send `samsung`) would ask
 ///   for the same pages again; the remembered `hasMore` answers instead.
@@ -57,7 +58,8 @@ class SearchFetchMemo {
   /// The `hasMore` to return for [page] of [search] without a request, or
   /// null when the server has to be asked.
   ///
-  /// [wireTerm] is what would be sent (`wireSearchTerm`).
+  /// [wireTerm] is what would be sent (`wireSearchTerm`); a complete term
+  /// covers the search only when it sits inside one of [wireTerm]'s words.
   bool? answer({
     required String scope,
     required int generation,
@@ -69,7 +71,14 @@ class SearchFetchMemo {
     final terms = _byScope[scope];
     if (terms == null || terms.isEmpty) return null;
     final now = _now();
-    final words = [for (final w in searchWords(search)) w.toLowerCase()];
+    // Only the words that go on the wire can carry a cover. A word matched
+    // only locally is matched across more fields than the server searches
+    // (notes, a wider fold), so a row can hold a complete term's text in a
+    // field the server never LIKEd for it — `march` in an invoice's notes —
+    // and still be one the wire word (`hosting`) would have fetched. A row
+    // the server matched for the wire word holds it in a server column, so
+    // a term inside the wire word was matched there too.
+    final words = [for (final w in searchWords(wireTerm)) w.toLowerCase()];
     for (final entry in terms.values) {
       if (!entry.complete || _expired(entry, now)) continue;
       if (_covers(entry.requiredWords, words)) return false;

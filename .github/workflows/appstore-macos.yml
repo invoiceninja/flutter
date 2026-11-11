@@ -325,4 +325,6 @@ jobs:
         run: |
           rm -f "$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
           rm -rf "$HOME/Library/MobileDevice/Provisioning Profiles"
-          security delete-keychain signing_temp.keychain-db 2>/dev/null || true
+          # No `security delete-keychain` here: import-codesign-certs's own post
+          # step deletes signing_temp, and fails the job (exit 50) when this
+          # step got there first — the 5.1.24 run uploaded and still went red.

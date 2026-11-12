@@ -30,6 +30,35 @@ Prepared 2026-11-12, against the `3.50.0` tag (Dart 3.14.0). Every change below 
 
 `ci.yaml` takes a `flutter_version` input: `gh workflow run ci.yaml --ref main -f flutter_version=3.50.0`. Blank, every job runs on the pin. Given a version, every job runs on it as upgrade day would: `_test.yaml` and the FOSS Android job resolve the FOSS lock anew (step 3 below), and both analyze steps pass `--no-fatal-infos`, so the Material deprecations show without failing the run. The release workflows call `_test.yaml` without the input, so they always build on the pin. This is how the platforms this Mac can't build (Windows, the Linux desktop, the CI Xcode's iOS) were checked before the pin moved.
 
+## What the 3.50 release notes change for this app
+
+Read 2026-11-12 against the 3.50 blog post, its release notes, the breaking-changes index and the Dart 3.14 announcement, each checked against this repo.
+
+**Covered already, or not reached by our code:**
+
+- **Android:** AGP 9.1.1 is the minimum (done, `bd44f623`). The SDK defaults are unchanged: `FlutterExtension.kt` sets compileSdk 36 and minSdk 24 in both 3.47.7 and 3.50.0, and our minSdk floor is 26. Release builds now ignore route, entrypoint and engine-flag Intent extras: step 8.
+- **Web `viewport-fit=cover`:** neither `web/index.html` nor the Deploy to Web boot page declares a viewport tag, so the new safe-area insets don't apply.
+- **Soft hyphens now draw at a line break:** no `assets/i18n` bundle contains U+00AD. Server text that does now shows a hyphen where it wraps, which is the intent.
+- **`WidgetSpan` in right-to-left text** now follows bidi order. Nothing here compensated for the old order, but look at the template-variable chips in Arabic (Debug Panel → Force right-to-left).
+- **Removed or changed APIs** (`ignoringSemantics`, `@nonVirtual RenderObject.attached`, `computeDryBaseline` returning null, `HSVColor.lerp` taking the short arc): none is used in `lib/`; the accent picker uses `HSVColor` but never lerps it.
+- **CocoaPods trunk goes read-only in December 2026:** Swift Package Manager is on, and the only plugin still on CocoaPods is super_keyboard on iOS, as a local path pod (macOS has none), so builds don't depend on trunk. Drop CocoaPods when super_keyboard ships a `Package.swift`.
+- **`dart:html`, `dart:js`, `dart:js_util` and `package:js` are deprecated:** `lib/` uses only `dart:js_interop`. The only dependency importing one is `file_selector_platform_interface` 2.7.0, from `src/web_helpers/web_helpers.dart`, which none of its libraries import. So `--no-deprecated-js-interop` should build; confirm it on upgrade day.
+
+**Check by hand on upgrade day** (step 10):
+
+- **`WidgetsApp.router` now wraps routing in a `FocusScope`** ([flutter#192601](https://github.com/flutter/flutter/pull/192601)). The keyboard layer hangs off one focus node, with keepers that reclaim it (`docs/keyboard.md`). The tests pass on 3.50, but on desktop try shortcuts right after launch, after closing a dialog and a menu, after navigating, and the `G` leader.
+- **Web history URLs are no longer percent-decoded** ([flutter#189835](https://github.com/flutter/flutter/pull/189835)): reload a list searched with a space or an accented letter, and a deep link carrying `?company=`.
+- **Windows asks for OpenGL ES 3 and changes text gamma:** look at text and the PDF preview on a Windows machine.
+- **Intel Macs are no longer tested** and the CLI warns when it builds on one. Never turn on `flutter config --enable-macos-arm64-only`: the Mac app is universal and has Intel users (§ 16 of `docs/upstream-workarounds.md`).
+
+**Worth adopting once the pin has moved:**
+
+- **`flutter build web --web-content-hash`** puts content hashes in the JS, Wasm and asset names, rewrites `flutter_bootstrap.js` and writes `precache_manifest.json`. That could replace `tools/stamp_web_cache_bust.sh`'s `?v=` rewrite in Deploy to Web, with hashed files served `immutable` and only the boot page and `flutter_bootstrap.js` uncached (`docs/web-deploy.md`).
+- **`--no-deprecated-js-interop`** on every web build, so no dependency can bring the deprecated libraries back.
+- **Wasm on Safari 26.2+ and Firefox 147+** (about twice the frame rate on heavy pages, per the blog) is opt-in through `wasmAllowList` in a custom `web/flutter_bootstrap.js`, the same file `--pwa-strategy`'s removal will need. Measure with `tools/web_bench` first.
+- **`MediaQueryData.reduceMotion`** is new. `InMotion` keys on `disableAnimations` alone, so iOS's Reduce Motion should switch decorative motion off too.
+- **Dart 3.14:** `dart migrate` raises the SDK lower bound (now `^3.11.5`) one minor at a time, with its fixes. Nothing needs the new language features.
+
 ## Material moves to material_ui, and the app can't follow until its dependencies do
 
 Flutter 3.50 deprecates `package:flutter/material.dart` and `cupertino.dart` in favour of the standalone `material_ui` / `cupertino_ui` packages (`dart fix --apply --code=migrate_design_widgets`). It is a deprecation, not a removal: the framework's own Material still ships and works.
@@ -50,7 +79,8 @@ flutter pub add material_ui cupertino_ui
 dart fix --apply --code=deprecated_member_use        # 1,512 fixes: the imports and the localizations
 # 19 ambiguous_import errors remain, in the 8 files that import both material_ui and
 # flutter_localizations: add `hide GlobalCupertinoLocalizations, GlobalMaterialLocalizations`
-# to their flutter_localizations import
+# to their flutter_localizations import. (The official guide instead replaces the three
+# delegates with material_ui's `GlobalMaterialLocalizations.delegates`; try that first.)
 dart fix --apply --code=duplicate_import --code=unused_import --code=unnecessary_import
 ```
 
@@ -73,7 +103,8 @@ The whole test suite then ran on it: 14,275 passed and 4 failed. One is the FOSS
 7. Recheck `docs/upstream-workarounds.md` § 4 (desktop integration tests one file per run): [flutter#189192](https://github.com/flutter/flutter/pull/189192), the fix it waited on, is in 3.50.
 8. Android: release builds now ignore engine flags and `route` / `dart_entrypoint` / cached-engine extras on untrusted intents. `MainActivity` already strips every extra, so nothing should change, but check a share and a deep link on a release build on Android 13 and on 14 or newer.
 9. **Flatpak.** Flathub builds the release itself: its **Update app** workflow regenerates the offline sources from the tag with a pinned `theappgineer/flatpak-flutter` image (0.15.0, June 2026, the newest when this was written). 0.15.0 built 5.1.24 on 3.47.7, and nothing in its releases or issues mentions 3.50. Read against 3.50.0 (2026-11-12), it should still work: its generator reads `bin/internal/engine.version`, `gradle_wrapper.version` and `material_fonts.version`, all still there; the `shared.sh` it patches is byte-identical to 3.47.7's; the one bootstrap script 3.50 changed, `update_dart_sdk.sh`, only runs when the Dart SDK stamp is stale, and flatpak-flutter writes that stamp; and 3.50's cache code adds no Linux engine artifact. That is a reading, not a build, so the first 3.50 release's update PR is still where an incompatibility would show up: a failed `flathub/build`, which turns Deploy to all's `flathub` leg red. Before the release, look for a newer flatpak-flutter that names 3.50 or Dart 3.14 (github.com/TheAppgineer/flatpak-flutter/releases). Moving its pin, or any other change on the Flathub side, is Hillel's by hand (`docs/flatpak.md`, Flathub's AI policy). A failed update build breaks nothing for users: Flathub keeps serving the previous version until a build passes.
-10. Run the whole test suite, a Deploy to Web test run and CI, then release.
+10. The hand checks in § What the 3.50 release notes change for this app (focus after navigation, web history URLs, Windows text, the RTL chips), and one web build with `--no-deprecated-js-interop`.
+11. Run the whole test suite, a Deploy to Web test run and CI, then release.
 
 ## Left for later
 

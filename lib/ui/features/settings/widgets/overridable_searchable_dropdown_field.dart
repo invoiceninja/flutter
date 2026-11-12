@@ -30,6 +30,10 @@ class OverridableSearchableDropdownField<T extends Object>
     required this.idOf,
     required this.onChanged,
     this.emptyHintKey,
+    this.searchTextOf,
+    this.idleExcludes,
+    this.idleResults = 20,
+    this.optionTrailingBuilder,
   });
 
   final String label;
@@ -53,6 +57,18 @@ class OverridableSearchableDropdownField<T extends Object>
   /// Localization key for the placeholder while [items] is empty (statics
   /// still loading). Forwarded to [SearchableDropdownField.emptyHintKey].
   final String? emptyHintKey;
+
+  /// Forwarded to [SearchableDropdownField.searchTextOf].
+  final String Function(T)? searchTextOf;
+
+  /// Forwarded to [SearchableDropdownField.idleExcludes].
+  final bool Function(T)? idleExcludes;
+
+  /// Forwarded to [SearchableDropdownField.idleResults] (same default).
+  final int idleResults;
+
+  /// Forwarded to [SearchableDropdownField.optionTrailingBuilder].
+  final Widget Function(BuildContext, T)? optionTrailingBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -88,6 +104,10 @@ class OverridableSearchableDropdownField<T extends Object>
       ),
       emptyHintKey: emptyHintKey,
       errorText: errorText,
+      searchTextOf: searchTextOf,
+      idleExcludes: idleExcludes,
+      idleResults: idleResults,
+      optionTrailingBuilder: optionTrailingBuilder,
     );
 
     return OverridableField.bind(

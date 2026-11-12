@@ -9,6 +9,7 @@ import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/payments_table.dart';
+import 'package:admin/data/models/value/payment_type.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/payment_status.dart';
 
@@ -356,6 +357,43 @@ class PaymentDao extends BaseEntityDao<$PaymentsTable, PaymentRow>
       (p) => OrderingTerm(expression: p.date, mode: OrderingMode.desc),
     ]);
     return q.watch().distinctRows();
+  }
+
+  /// The type of [clientId]'s most recent manual payment, or null when the
+  /// client has none on this device (invoiceninja/flutter#191 — a new payment
+  /// for the client defaults to it; docs/payment-types.md).
+  ///
+  /// Manual only: an online charge (`is_manual = false`) says nothing about
+  /// how this client pays when the user records a payment by hand. Payment
+  /// type 32 (Credit) is skipped too — the server marks an applied credit
+  /// (`CreditService`) and a subscription change as manual, and neither is a
+  /// payment method. Archived payments count; deleted ones don't.
+  ///
+  /// Order: the payment date, then an unsynced row first (an offline create
+  /// has `created_at` 0, so on the same day it would otherwise lose to any
+  /// synced payment), then `created_at`. Ids are hashed, so they can't break
+  /// a tie.
+  Future<String?> latestManualTypeForClient({
+    required String companyId,
+    required String clientId,
+  }) async {
+    final q = select(payments)
+      ..where(
+        (p) =>
+            p.companyId.equals(companyId) &
+            p.clientId.equals(clientId) &
+            p.isDeleted.equals(false) &
+            p.isManual.equals(true) &
+            p.typeId.isNotIn(const ['', '0', kCreditPaymentTypeId]),
+      )
+      ..orderBy([
+        (p) => OrderingTerm(expression: p.date, mode: OrderingMode.desc),
+        (p) => OrderingTerm(expression: p.isDirty, mode: OrderingMode.desc),
+        (p) => OrderingTerm(expression: p.createdAt, mode: OrderingMode.desc),
+      ])
+      ..limit(1);
+    final row = await q.getSingleOrNull();
+    return row?.typeId;
   }
 
   /// Watch payments that reference a given invoice in their `paymentables`

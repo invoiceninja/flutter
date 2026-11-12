@@ -11,6 +11,7 @@ import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/utils/notes_html.dart';
 import 'package:admin/ui/core/widgets/ltr_value.dart';
+import 'package:admin/domain/payment_types.dart';
 
 /// Shared rendering helpers for `ColumnDefinition<T>.cellBuilder`.
 ///
@@ -71,8 +72,12 @@ Widget cellCurrency(BuildContext context, String currencyId) {
 /// the static catalog; falls back to the raw id.
 Widget cellPaymentType(BuildContext context, String typeId) {
   if (typeId.isEmpty) return cellEmpty();
-  final name = context.read<Services>().statics.paymentTypes[typeId]?.name;
-  return cellText(name == null || name.isEmpty ? typeId : name);
+  final name = paymentTypeLabel(
+    Localization.of(context),
+    typeId,
+    context.read<Services>().statics.paymentTypes[typeId]?.name ?? '',
+  );
+  return cellText(name.isEmpty ? typeId : name);
 }
 
 /// Linked text cell. Renders the value with the same typographic weight as

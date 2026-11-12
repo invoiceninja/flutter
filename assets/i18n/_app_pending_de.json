@@ -1837,5 +1837,21 @@
   "sign_here_hint": "Hier unterschreiben",
   "docuninja_seats_used": ":count von :total Plätzen belegt",
   "docuninja_company_setup_help_touch": "Ihr Konto existiert, aber diese Firma ist noch nicht eingerichtet. Bitte tippen Sie auf die Schaltfläche unten, um sie einzurichten.",
-  "sign_in_browser": "Im Browser unterschreiben"
+  "sign_in_browser": "Im Browser unterschreiben",
+  "last_used_for_this_client": "Zuletzt bei diesem Kunden verwendet",
+  "payment_types": "Zahlungsarten",
+  "payment_types_help": "Blenden Sie Zahlungsarten, die Sie nie verwenden, in den Typ-Listen von Zahlungen und Ausgaben aus. Neue Arten können Sie nicht anlegen, aber eine ungenutzte umbenennen.",
+  "search_payment_types": "Zahlungsarten suchen",
+  "hide_all": "Alle ausblenden",
+  "show_all": "Alle einblenden",
+  "shown": "Angezeigt",
+  "payment_types_shown_count": ":count von :total angezeigt",
+  "renamed_from": "Umbenannt von :name",
+  "payment_type_hidden_default": "Ausgeblendet, aber weiterhin Standard für neue Zahlungen",
+  "rename_payment_type": "Zahlungsart umbenennen",
+  "payment_type_name_in_use": "Eine andere Zahlungsart hat bereits diesen Namen.",
+  "payment_type_rename_help": "Ändert diesen Namen überall: bei bisherigen und Online-Zahlungen, in PDFs, im Kundenportal und in E-Mails.",
+  "reset_to_name": "Zurücksetzen auf \":name\"",
+  "manage_payment_types": "Zahlungsarten verwalten",
+  "hidden_count": ":count ausgeblendet"
 }

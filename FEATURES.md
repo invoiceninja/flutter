@@ -393,6 +393,8 @@ the honest default.
 | Payment — refund (partial / full) | ✅ | ✅ | ✅ | ✅ | |
 | Payment — email receipt | ✅ | ✅ | ✅ | ✅ | |
 | Email — no address on file: inline Add email (writes the invited contact), bulk sends skip those documents; recurring Send Now offers Send anyway (the invoice is still created) | ✅ | — | ✅ | | |
+| Payment — new payment for a client defaults its Type to that client's last manual payment type (a type set on the client wins; then the group / company default), with a "Last used for this client" hint | ❌ | ❌ | ✅ | | flutter#191 — `docs/payment-types.md` |
+| Payment — Type picker shows every type without typing, under the company's own names, with hidden types left out (still searchable) and a Manage payment types link | 🟡 | ❌ | ✅ | | React's create dropdown shows renamed types; neither hides types |
 | Payment — view payment method / gateway used | ✅ | ✅ | ✅ | ✅ | |
 | Payment — activities / audit trail | ✅ | ✅ | ✅ | ✅ | |
 | Payment — documents / attachments | ✅ | ✅ | ✅ | ✅ | |
@@ -1007,6 +1009,13 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Invoice Payment Terms | ✅ | ✅ | ✅ | ✅ | |
 | Quote Valid Until | ✅ | ✅ | ✅ | ✅ | |
 | Configure Payment Terms (link) | ✅ | ✅ | ✅ | ✅ | |
+
+#### Payment Types
+
+| Feature | React | Flutter v1 | Flutter v2 | AI review | Live E2E |
+|---|---|---|---|---|---|
+| Hide payment types the company never uses from the payment and expense Type pickers (`settings.hidden_payment_types`) | ❌ | ❌ | ✅ | | flutter#191; the selected value always shows |
+| Rename a payment type (`settings.translations`, which the server prints on PDFs, the portal and emails) | 🟡 | ❌ | ✅ | | React shows a company translation in its create dropdown but has no screen to set one; FPX and Stripe Bank Transfer can't be renamed |
 
 #### Online Payments — Emails tab
 

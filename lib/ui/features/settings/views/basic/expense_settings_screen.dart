@@ -8,6 +8,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/value/payment_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
+import 'package:admin/ui/features/payments/widgets/payment_type_picker_field.dart';
 import 'package:admin/ui/features/settings/view_models/expense_settings_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/plain_radio_field.dart';
@@ -273,30 +274,32 @@ class _DefaultPaymentTypePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final paymentTypes = services.statics.paymentTypes.values.toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
     final currentId = vm.settings.defaultExpensePaymentTypeId;
-    PaymentType? selected;
-    for (final p in paymentTypes) {
-      if (p.id == currentId) {
-        selected = p;
-        break;
-      }
-    }
     final errs = vm.fieldErrors['default_expense_payment_type_id'];
     final errorText = (errs != null && errs.isNotEmpty) ? errs.first : null;
-    return SearchableDropdownField<PaymentType>(
-      // `default_expense_payment_type`, not `default_payment_type` — the latter
-      // is the *invoice* default that Online Payments → Defaults edits.
-      label: context.tr('default_expense_payment_type'),
-      items: paymentTypes,
-      initialValue: selected,
-      displayString: (p) => p.name,
-      idOf: (p) => p.id,
-      errorText: errorText,
-      onChanged: (item) => vm.updateSettings(
-        (s) => s.copyWith(defaultExpensePaymentTypeId: item?.id),
-      ),
+    return HiddenPaymentTypesBuilder(
+      companyId: vm.companyId,
+      builder: (context, hidden) {
+        final types = PaymentTypeOptions.of(context, hidden: hidden);
+        return SearchableDropdownField<PaymentType>(
+          // `default_expense_payment_type`, not `default_payment_type` — the
+          // latter is the *invoice* default that Online Payments → Defaults
+          // edits.
+          label: context.tr('default_expense_payment_type'),
+          items: types.items,
+          initialValue: types.byId(currentId),
+          displayString: types.displayString,
+          idOf: (p) => p.id,
+          searchTextOf: types.searchTextOf,
+          idleExcludes: types.idleExcludes,
+          idleResults: types.items.length,
+          optionTrailingBuilder: types.trailingFor(currentId),
+          errorText: errorText,
+          onChanged: (item) => vm.updateSettings(
+            (s) => s.copyWith(defaultExpensePaymentTypeId: item?.id),
+          ),
+        );
+      },
     );
   }
 }

@@ -11,3 +11,9 @@ class PaymentType {
     name: json['name']?.toString() ?? '',
   );
 }
+
+/// Payment type 32, "Credit": the server records an applied credit (and a
+/// subscription change) as a manual payment of this type. Not a way a client
+/// pays, so it never stands as a client's last payment method
+/// (docs/payment-types.md).
+const String kCreditPaymentTypeId = '32';

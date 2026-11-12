@@ -68,11 +68,30 @@ class PaymentEditScreen extends StatelessWidget {
           sync: services.sync,
           connectivity: services.connectivity,
         );
-        // The company's (or the client's) Default Payment Type.
+        // The client's own Default Payment Type, else its last payment's
+        // type, else the group's / company's (docs/payment-types.md).
         seedPaymentCreateDefaults(
           settings: services.settings,
           companyId: companyId,
           vm: vm,
+          client: PaymentClientLookups(
+            clientOverride: (clientId) async => defaultPaymentTypeId(
+              (await services.clients
+                      .watch(companyId: companyId, id: clientId)
+                      .first)
+                  ?.settings,
+            ),
+            lastPaymentType: (clientId) =>
+                services.payments.lastManualTypeForClient(
+                  companyId: companyId,
+                  clientId: clientId,
+                ),
+            refreshLastPayment: (clientId) =>
+                services.payments.refreshLatestForClient(
+                  companyId: companyId,
+                  clientId: clientId,
+                ),
+          ),
         );
         return vm;
       },

@@ -47,6 +47,7 @@ import 'package:admin/ui/features/settings/views/advanced/schedules_screen.dart'
 import 'package:admin/ui/features/settings/views/basic/company_details/defaults_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/company_details/documents_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/expense_settings_screen.dart';
+import 'package:admin/ui/features/settings/views/basic/payment_types_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/company_details/logo_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/import_export_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/keyboard_shortcuts_screen.dart';
@@ -204,6 +205,19 @@ const kSettingsSections = <SettingsSectionDef>[
     route: '/settings/online_payments',
     isBasic: true,
     docsPath: 'user-guide/gateways',
+  ),
+  // Hide unused payment types from the Type pickers and rename one
+  // (invoiceninja/flutter#191, docs/payment-types.md). Company-wide
+  // `settings.*` keys with no per-client meaning, so company scope only.
+  SettingsSectionDef(
+    slug: 'payment_types',
+    titleKey: 'payment_types',
+    icon: Icons.credit_card_outlined,
+    route: '/settings/payment_types',
+    isBasic: true,
+    // Payments ride the invoices bit; the expense picker uses the list too.
+    enabledBy: [EnabledModule.invoices, EnabledModule.expenses],
+    clientEditable: false,
   ),
   SettingsSectionDef(
     slug: 'tax_settings',
@@ -677,6 +691,7 @@ const kSettingsSearchCatalog = <String, List<SettingsSearchTab>>{
   ],
   'tags': [SettingsSearchTab('', kTagsSearchKeys)],
   'expense_settings': [SettingsSearchTab('', kExpenseSettingsSearchKeys)],
+  'payment_types': [SettingsSearchTab('', kPaymentTypesSearchKeys)],
   // With only Quotes on, the shell renders the Quotes body at the bare path
   // and `/quotes` resolves to that same single page.
   'workflow_settings': [
@@ -1161,6 +1176,8 @@ const kSettingsSearchKeywords = <String, String>{
   'online_payments':
       'gateway stripe paypal gocardless mollie checkout braintree authorize '
       'razorpay payment methods',
+  'payment_types':
+      'payment methods hide rename cash check cheque bank transfer card',
   'tax_settings': 'vat gst sales tax rates inclusive percentage',
   'product_settings': 'items inventory stock',
   'task_settings': 'time tracking timer kanban statuses',

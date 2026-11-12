@@ -12,6 +12,7 @@ import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/features/payments/widgets/payment_status_pill.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/domain/payment_types.dart';
 
 /// Per-entity wrapper over [EntityDetailHeaderHost]: the payment's number as
 /// its name, and under it who paid, when, and how.
@@ -86,9 +87,14 @@ class PaymentDetailHeader extends StatelessWidget {
   List<Widget> _segments(BuildContext context, Payment p) {
     final date = p.date;
     final f = formatter;
+    final statics = context.read<Services>().statics;
     final type = p.typeId.isEmpty
         ? ''
-        : (context.read<Services>().statics.paymentType(p.typeId)?.name ?? '');
+        : paymentTypeLabel(
+            Localization.of(context),
+            p.typeId,
+            statics.paymentType(p.typeId)?.name ?? '',
+          );
     return [
       if (p.clientId.isNotEmpty)
         ClientNameLabel(

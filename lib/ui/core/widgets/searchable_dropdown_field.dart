@@ -66,6 +66,7 @@ class SearchableDropdownField<T extends Object> extends StatefulWidget {
     this.optionLeadingBuilder,
     this.optionTrailingBuilder,
     this.searchTextOf,
+    this.idleExcludes,
     this.onCreateRequested,
     this.createLabelKey,
   });
@@ -130,6 +131,14 @@ class SearchableDropdownField<T extends Object> extends StatefulWidget {
   /// it being searchable. Partial matches only: an exact match (which hides
   /// the create row) is still against the label alone.
   final String Function(T)? searchTextOf;
+
+  /// Items left out of the list the field opens on (an empty query) but
+  /// still offered when a typed query matches them — the payment types a
+  /// company hides (docs/payment-types.md). Hiding tidies the list without
+  /// locking a value out: a query that matched nothing would close the
+  /// popover, footer and all, with no word on where the item went. The
+  /// committed item is offered either way.
+  final bool Function(T)? idleExcludes;
 
   /// Opt-in inline create. When set, the popover carries a pinned "New …" /
   /// `Create "«query»"` row that calls this with the typed query (empty for an
@@ -477,9 +486,13 @@ class _SearchableDropdownFieldState<T extends Object>
   /// CURRENT value — Enter, or Android's soft-keyboard "Done", then lands on
   /// what is already selected instead of whatever sorts first.
   List<T> _idleOptions() {
+    final excludes = widget.idleExcludes;
+    final shown = excludes == null
+        ? widget.items
+        : widget.items.where((it) => !excludes(it));
     final committed = _committed;
     if (committed == null) {
-      return widget.items.take(widget.idleResults).toList(growable: false);
+      return shown.take(widget.idleResults).toList(growable: false);
     }
     final id = widget.idOf(committed);
     final present = widget.items.any((it) => widget.idOf(it) == id);
@@ -488,11 +501,11 @@ class _SearchableDropdownFieldState<T extends Object>
     // legacy rate. See [_parentOwnsCommitted] for the adder case this excludes.
     final parentAgrees = _parentOwnsCommitted;
     if (!present && !parentAgrees) {
-      return widget.items.take(widget.idleResults).toList(growable: false);
+      return shown.take(widget.idleResults).toList(growable: false);
     }
     return <T>[
       committed,
-      ...widget.items.where((it) => widget.idOf(it) != id),
+      ...shown.where((it) => widget.idOf(it) != id),
     ].take(widget.idleResults).toList(growable: false);
   }
 

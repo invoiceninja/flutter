@@ -242,33 +242,59 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
       updateDraft(draft.copyWith(exchangeCurrencyId: v));
   void setTypeId(String v) {
     _userTouchedType = true;
+    _typeSeedSource = PaymentTypeSeedSource.none;
     updateDraft(draft.copyWith(typeId: v));
   }
 
   bool _userTouchedType = false;
 
-  /// Whether the payment type may still follow the settings cascade's
-  /// `payment_type_id` (Settings → Online Payments → Default Payment Type):
-  /// a create form whose Type the user never picked. A form that opened on a
-  /// staged draft already carrying a type (a clone) never seeds — see
-  /// `seedPaymentCreateDefaults`.
+  /// Where the type a create form holds came from, while the user has not
+  /// picked one — drives the "Last used for this client" hint under the Type
+  /// field (docs/payment-types.md).
+  PaymentTypeSeedSource get typeSeedSource => _typeSeedSource;
+  PaymentTypeSeedSource _typeSeedSource = PaymentTypeSeedSource.none;
+
+  /// Whether the payment type may still be seeded — from the client's last
+  /// payment or the settings cascade's `payment_type_id` (Settings → Online
+  /// Payments → Default Payment Type): a create form whose Type the user
+  /// never picked. A form that opened on a staged draft already carrying a
+  /// type (a clone) never seeds — see `seedPaymentCreateDefaults`.
   bool get canSeedTypeId => isCreate && !_userTouchedType;
 
-  /// Seed the payment type from the settings cascade under [canSeedTypeId],
-  /// without making an untouched form dirty. [companyLevel]: the value came
-  /// from the company layer alone (no client chosen), so a Discard — which
-  /// clears the client — re-applies it.
-  void seedTypeId(String typeId, {required bool companyLevel}) {
-    if (!canSeedTypeId || draft.typeId == typeId) return;
-    seedCreateDefault(
+  /// Seed the payment type under [canSeedTypeId], without making an untouched
+  /// form dirty. [source] says where it came from (the hint reads it).
+  /// [companyLevel]: the value came from the company layer alone (no client
+  /// chosen), so a Discard — which clears the client — re-applies it.
+  void seedTypeId(
+    String typeId, {
+    required bool companyLevel,
+    PaymentTypeSeedSource source = PaymentTypeSeedSource.settings,
+  }) {
+    if (!canSeedTypeId) return;
+    if (draft.typeId == typeId) {
+      // Same value, maybe a different reason for it — the hint follows the
+      // reason.
+      if (_typeSeedSource != source && !isDisposed) {
+        _typeSeedSource = source;
+        notifyListeners();
+      }
+      return;
+    }
+    // Set before the seed, whose notify is the one the hint rebuilds on.
+    final previous = _typeSeedSource;
+    _typeSeedSource = source;
+    if (!seedCreateDefault(
       (d) => d.copyWith(typeId: typeId),
       rememberForReset: companyLevel,
-    );
+    )) {
+      _typeSeedSource = previous;
+    }
   }
 
   @override
   void reset({required Payment emptyDraft}) {
     _userTouchedType = false;
+    _typeSeedSource = PaymentTypeSeedSource.none;
     super.reset(emptyDraft: emptyDraft);
   }
 
@@ -491,6 +517,21 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
 }
 
 String _identity(String key) => key;
+
+/// Why a new payment's Type holds the value it does — see
+/// [PaymentEditViewModel.typeSeedSource].
+enum PaymentTypeSeedSource {
+  /// Nothing seeded it, or the user picked it.
+  none,
+
+  /// The settings cascade's Default Payment Type (client → group → company),
+  /// or the client's last payment type where it is the same value.
+  settings,
+
+  /// The client's last manual payment, where it differs from the settings
+  /// default — the case the hint explains.
+  lastPayment,
+}
 
 /// Empty draft for new payments. Defaults: `exchange_rate = 1`, `date = today`,
 /// `is_manual = true` (gateway-paid payments come back from server-side

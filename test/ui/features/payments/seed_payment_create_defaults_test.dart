@@ -4,6 +4,8 @@
 // picked "Check" on every payment though Check was their default
 // (beta-user report).
 
+import 'dart:async';
+
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -45,6 +47,34 @@ class _Settings extends SettingsRepository {
   }) => null;
 }
 
+/// The client lookups, programmable per client.
+class _Lookups {
+  final overrides = <String, String>{};
+  final local = <String, String>{};
+
+  /// What the server refresh adds to [local] when it lands.
+  final remote = <String, String>{};
+  final hidden = <String>{};
+
+  /// When set, each refresh waits for the test to complete it.
+  Completer<void>? holdRefresh;
+  var refreshes = 0;
+
+  PaymentClientLookups get lookups => PaymentClientLookups(
+    clientOverride: (id) async => overrides[id] ?? '',
+    lastPaymentType: (id) async => local[id],
+    refreshLastPayment: (id) async {
+      refreshes++;
+      await holdRefresh?.future;
+      final r = remote[id];
+      if (r == null) return false;
+      local[id] = r;
+      return true;
+    },
+    hiddenTypeIds: () => hidden,
+  );
+}
+
 void main() {
   late AppDatabase db;
   late PaymentRepository repo;
@@ -58,14 +88,23 @@ void main() {
   });
   tearDown(() => db.close());
 
-  PaymentEditViewModel seeded({Payment? existing, Payment? staged}) {
+  PaymentEditViewModel seeded({
+    Payment? existing,
+    Payment? staged,
+    _Lookups? client,
+  }) {
     final vm = PaymentEditViewModel(
       repo: repo,
       companyId: companyId,
       existing: existing,
       cloneFrom: staged,
     );
-    seedPaymentCreateDefaults(settings: settings, companyId: companyId, vm: vm);
+    seedPaymentCreateDefaults(
+      settings: settings,
+      companyId: companyId,
+      vm: vm,
+      client: client?.lookups,
+    );
     return vm;
   }
 
@@ -138,5 +177,94 @@ void main() {
     vm.setTypeId('2');
     vm.resetToEmpty();
     expect(vm.draft.typeId, '6');
+  });
+
+  // invoiceninja/flutter#191: remember each client's payment type.
+  group('the client\'s last payment', () {
+    late _Lookups client;
+    setUp(() {
+      settings.types[null] = '6';
+      client = _Lookups();
+    });
+
+    Payment forClient(String id) => emptyPayment().copyWith(clientId: id);
+
+    test('beats the group / company default, with the hint', () async {
+      client.local['c1'] = '1';
+      final vm = seeded(staged: forClient('c1'), client: client);
+      await settle();
+      expect(vm.draft.typeId, '1');
+      expect(vm.typeSeedSource, PaymentTypeSeedSource.lastPayment);
+      expect(vm.isDirty, isTrue, reason: 'a staged client is unsaved work');
+    });
+
+    test('the same value as the default shows no hint', () async {
+      client.local['c1'] = '6';
+      final vm = seeded(staged: forClient('c1'), client: client);
+      await settle();
+      expect(vm.draft.typeId, '6');
+      expect(vm.typeSeedSource, PaymentTypeSeedSource.settings);
+    });
+
+    test('loses to a Default Payment Type set on the client itself', () async {
+      settings.types['c1'] = '2';
+      client.overrides['c1'] = '2';
+      client.local['c1'] = '1';
+      final vm = seeded(staged: forClient('c1'), client: client);
+      await settle();
+      expect(vm.draft.typeId, '2');
+    });
+
+    test('a hidden last type falls through to the default', () async {
+      client.local['c1'] = '1';
+      client.hidden.add('1');
+      final vm = seeded(staged: forClient('c1'), client: client);
+      await settle();
+      expect(vm.draft.typeId, '6');
+    });
+
+    test('seeds from Drift first, then from the server refresh', () async {
+      client.local['c1'] = '1';
+      client.remote['c1'] = '3';
+      client.holdRefresh = Completer<void>();
+      final vm = seeded(staged: forClient('c1'), client: client);
+      await settle();
+      expect(vm.draft.typeId, '1', reason: 'offline answer first');
+      client.holdRefresh!.complete();
+      await settle();
+      expect(vm.draft.typeId, '3');
+    });
+
+    test('a late answer for a client the user left is dropped', () async {
+      client.remote['c1'] = '3';
+      client.local['c2'] = '4';
+      client.holdRefresh = Completer<void>();
+      final vm = seeded(client: client);
+      vm.setClientId('c1');
+      await settle();
+      vm.setClientId('c2');
+      client.holdRefresh!.complete();
+      await settle();
+      expect(vm.draft.typeId, '4');
+    });
+
+    test('never overwrites a type the user picked', () async {
+      client.remote['c1'] = '3';
+      client.holdRefresh = Completer<void>();
+      final vm = seeded(staged: forClient('c1'), client: client);
+      await settle();
+      vm.setTypeId('2');
+      expect(vm.typeSeedSource, PaymentTypeSeedSource.none);
+      client.holdRefresh!.complete();
+      await settle();
+      expect(vm.draft.typeId, '2');
+    });
+
+    test('without a client only the company default applies', () async {
+      final vm = seeded(client: client);
+      await settle();
+      expect(vm.draft.typeId, '6');
+      expect(client.refreshes, 0);
+    });
   });
 }

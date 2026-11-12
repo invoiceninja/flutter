@@ -164,6 +164,54 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
         .map((rows) => rows.map(_fromRow).toList(growable: false));
   }
 
+  /// The type of [clientId]'s most recent manual payment on this device, or
+  /// null (`PaymentDao.latestManualTypeForClient`). Pair with
+  /// [refreshLatestForClient] to include payments not paged in yet.
+  Future<String?> lastManualTypeForClient({
+    required String companyId,
+    required String clientId,
+  }) {
+    if (clientId.isEmpty) return Future.value(null);
+    return db.paymentDao.latestManualTypeForClient(
+      companyId: companyId,
+      clientId: clientId,
+    );
+  }
+
+  /// `(companyId, clientId)` pairs [refreshLatestForClient] already fetched
+  /// this session.
+  final Set<String> _latestFetched = {};
+
+  /// Fetch [clientId]'s newest page of payments (archived included) into
+  /// Drift, at most once per client per session, so
+  /// [lastManualTypeForClient] sees a payment this device never paged in.
+  /// A narrowed fetch — it neither reads nor advances the sync cursor.
+  /// Returns whether a fetch ran and succeeded; a failure (offline, say) is
+  /// swallowed and may be retried on the next call.
+  Future<bool> refreshLatestForClient({
+    required String companyId,
+    required String clientId,
+  }) async {
+    if (clientId.isEmpty || clientId.startsWith('tmp_')) return false;
+    final key = '$companyId|$clientId';
+    if (!_latestFetched.add(key)) return false;
+    try {
+      await ensurePageLoaded(
+        companyId: companyId,
+        page: 1,
+        states: const {EntityState.active, EntityState.archived},
+        extraFilters: {
+          'client_id': {clientId},
+          'sort': {'date|desc'},
+        },
+      );
+      return true;
+    } catch (_) {
+      _latestFetched.remove(key);
+      return false;
+    }
+  }
+
   Stream<List<Payment>> watchForInvoice({
     required String companyId,
     required String invoiceId,

@@ -18,6 +18,7 @@ import 'package:admin/ui/core/widgets/detail_row_columns.dart';
 import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/domain/payment_types.dart';
 
 // The cards and rows an expense and a recurring expense share. The two are
 // separate types with the same fields and no common supertype, so everything
@@ -272,9 +273,12 @@ List<Widget> expensePaymentRows(
         label: context.tr('payment_type'),
         // The id resolved to its name ("Credit Card") — the lookup the edit
         // form uses.
-        value:
-            context.read<Services>().statics.paymentType(paymentTypeId)?.name ??
-            paymentTypeId,
+        value: paymentTypeLabel(
+          Localization.of(context),
+          paymentTypeId,
+          context.read<Services>().statics.paymentType(paymentTypeId)?.name ??
+              paymentTypeId,
+        ),
         copyable: false,
       ),
     if (transactionReference.isNotEmpty)

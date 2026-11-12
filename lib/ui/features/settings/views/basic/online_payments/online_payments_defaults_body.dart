@@ -7,6 +7,7 @@ import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/models/domain/payment_term.dart';
 import 'package:admin/data/models/value/payment_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/features/payments/widgets/payment_type_picker_field.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/overridable_searchable_dropdown_field.dart';
@@ -28,7 +29,6 @@ class OnlinePaymentsDefaultsBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId ?? '';
-    final statics = services.statics;
     final host = context.watch<SettingsDraftHost>();
     // Mirror the legacy admin-portal: the term pickers are module-gated so a
     // company with invoices/quotes switched off doesn't see an irrelevant
@@ -38,9 +38,6 @@ class OnlinePaymentsDefaultsBody extends StatelessWidget {
         services.auth.session.value?.currentCompany?.enabledModules ?? 0;
     final invoicesOn = isModuleEnabled(modules, EnabledModule.invoices);
     final quotesOn = isModuleEnabled(modules, EnabledModule.quotes);
-
-    final paymentTypes = statics.paymentTypes.values.toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
 
     return StreamBuilder<List<PaymentTerm>>(
       stream: services.paymentTerms.watchAll(companyId: companyId),
@@ -58,26 +55,54 @@ class OnlinePaymentsDefaultsBody extends StatelessWidget {
         return FormSection(
           title: context.tr('defaults'),
           children: [
-            OverridableSearchableDropdownField<PaymentType>(
-              label: context.tr('default_payment_type'),
-              apiKey: 'payment_type_id',
-              value: host.settings.paymentTypeId,
-              items: paymentTypes,
-              displayString: (p) => p.name,
-              idOf: (p) => p.id,
-              onChanged: (v) =>
-                  host.updateSettings((s) => s.copyWith(paymentTypeId: v)),
-            ),
-            OverridableSearchableDropdownField<PaymentType>(
-              label: context.tr('default_expense_payment_type'),
-              apiKey: 'default_expense_payment_type_id',
-              value: host.settings.defaultExpensePaymentTypeId,
-              items: paymentTypes,
-              displayString: (p) => p.name,
-              idOf: (p) => p.id,
-              onChanged: (v) => host.updateSettings(
-                (s) => s.copyWith(defaultExpensePaymentTypeId: v),
-              ),
+            // The company's hidden types read from its own row, so a client-
+            // or group-scope picker hides the same ones; the value (set or
+            // inherited) always shows (docs/payment-types.md).
+            HiddenPaymentTypesBuilder(
+              companyId: companyId,
+              builder: (context, hidden) {
+                final types = PaymentTypeOptions.of(context, hidden: hidden);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    OverridableSearchableDropdownField<PaymentType>(
+                      label: context.tr('default_payment_type'),
+                      apiKey: 'payment_type_id',
+                      value: host.settings.paymentTypeId,
+                      items: types.items,
+                      displayString: types.displayString,
+                      idOf: (p) => p.id,
+                      searchTextOf: types.searchTextOf,
+                      idleExcludes: types.idleExcludes,
+                      idleResults: types.items.length,
+                      optionTrailingBuilder: types.trailingFor(
+                        host.settings.paymentTypeId,
+                      ),
+                      onChanged: (v) => host.updateSettings(
+                        (s) => s.copyWith(paymentTypeId: v),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    OverridableSearchableDropdownField<PaymentType>(
+                      label: context.tr('default_expense_payment_type'),
+                      apiKey: 'default_expense_payment_type_id',
+                      value: host.settings.defaultExpensePaymentTypeId,
+                      items: types.items,
+                      displayString: types.displayString,
+                      idOf: (p) => p.id,
+                      searchTextOf: types.searchTextOf,
+                      idleExcludes: types.idleExcludes,
+                      idleResults: types.items.length,
+                      optionTrailingBuilder: types.trailingFor(
+                        host.settings.defaultExpensePaymentTypeId,
+                      ),
+                      onChanged: (v) => host.updateSettings(
+                        (s) => s.copyWith(defaultExpensePaymentTypeId: v),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
             // Stored as the term's `num_days` (a numeric string like "30"),
             // matching the legacy admin-portal. The same per-company list

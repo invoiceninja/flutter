@@ -20,6 +20,7 @@ import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/utils/notes_html.dart';
+import 'package:admin/domain/payment_types.dart';
 
 /// A payment's reference fields — how and when it was paid, where it came
 /// from, the user's own note. Always shown, between the comments card and the
@@ -171,7 +172,11 @@ class PaymentDetailDetailsCard extends StatelessWidget {
     final statics = context.read<Services>().statics;
     final type = p.typeId.isEmpty
         ? ''
-        : (statics.paymentType(p.typeId)?.name ?? '');
+        : paymentTypeLabel(
+            Localization.of(context),
+            p.typeId,
+            statics.paymentType(p.typeId)?.name ?? '',
+          );
     final date = p.date;
     // A conversion is worth a row only when there is one: a foreign currency
     // named, and a rate that is not the identity (0 is the legacy "none").

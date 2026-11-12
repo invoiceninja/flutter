@@ -7,12 +7,11 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/expense.dart';
 import 'package:admin/data/models/value/date.dart';
-import 'package:admin/data/models/value/payment_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_edit_field.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
-import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
+import 'package:admin/ui/features/payments/widgets/payment_type_picker_field.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
 import 'package:admin/utils/formatting.dart';
@@ -135,23 +134,11 @@ class _PaymentTypePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    final types = services.statics.paymentTypes.values.toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
-    PaymentType? selected;
-    for (final t in types) {
-      if (t.id == vm.draft.paymentTypeId) {
-        selected = t;
-        break;
-      }
-    }
-    return SearchableDropdownField<PaymentType>(
+    return PaymentTypePickerField(
+      companyId: vm.companyId,
       label: context.tr('payment_type'),
-      items: types,
-      initialValue: selected,
-      displayString: (t) => t.name,
-      idOf: (t) => t.id,
-      onChanged: (t) => vm.setPaymentTypeId(t?.id ?? ''),
+      selectedId: vm.draft.paymentTypeId,
+      onChanged: vm.setPaymentTypeId,
       errorText: vm.fieldErrorFor('payment_type_id'),
     );
   }

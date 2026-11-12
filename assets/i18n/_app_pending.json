@@ -1987,5 +1987,22 @@
   "wordpress_setup_body": "Create a token above, then paste it and this server URL into the plugin's settings in WordPress.",
   "get_the_plugin": "Get the plugin",
   "chrome_extension_tasks_body": "Track time from any browser tab. It syncs straight to your tasks.",
-  "get_the_extension": "Get the extension"
+  "get_the_extension": "Get the extension",
+  "last_used_for_this_client": "Last used for this client",
+  "payment_types": "Payment Types",
+  "payment_types_help": "Hide the types you never use from the payment and expense Type lists. You can't add a new type, but you can rename one you don't use.",
+  "search_payment_types": "Search payment types",
+  "hide_all": "Hide all",
+  "show_all": "Show all",
+  "shown": "Shown",
+  "payment_types_shown_count": ":count of :total shown",
+  "renamed_from": "Renamed from :name",
+  "payment_type_hidden_default": "Hidden, but still the default for new payments",
+  "rename_payment_type": "Rename payment type",
+  "payment_type_name_in_use": "Another payment type already has this name.",
+  "payment_type_rename_help": "Changes this name everywhere: past and online payments, PDFs, the client portal and emails.",
+  "reset_to_name": "Reset to \":name\"",
+  "manage_payment_types": "Manage payment types",
+  "hidden_count": ":count hidden",
+  "payment_type_Mobile Payment": "Mobile Payment"
 }

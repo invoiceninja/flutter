@@ -11,7 +11,6 @@ import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/data/repositories/client_settings_cascade.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/data/models/value/date.dart';
-import 'package:admin/data/models/value/payment_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
@@ -28,6 +27,7 @@ import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/payments/widgets/edit/payment_allocations_footer.dart';
 import 'package:admin/ui/features/payments/widgets/edit/payment_allocations_section.dart';
 import 'package:admin/ui/features/payments/widgets/edit/payment_invoice_picker.dart';
+import 'package:admin/ui/features/payments/widgets/payment_type_picker_field.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/core/edit/create_form_documents.dart';
 
@@ -517,24 +517,41 @@ class _PaymentTypePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    final types = services.statics.paymentTypes.values.toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
-    PaymentType? selected;
-    for (final t in types) {
-      if (t.id == vm.draft.typeId) {
-        selected = t;
-        break;
-      }
-    }
-    return SearchableDropdownField<PaymentType>(
+    return PaymentTypePickerField(
+      companyId: vm.companyId,
       label: context.tr('type'),
-      items: types,
-      initialValue: selected,
-      displayString: (t) => t.name.isEmpty ? t.id : t.name,
-      idOf: (t) => t.id,
-      onChanged: (t) => vm.setTypeId(t?.id ?? ''),
+      selectedId: vm.draft.typeId,
+      onChanged: vm.setTypeId,
       errorText: vm.fieldErrorFor('type_id'),
+      helper: vm.typeSeedSource == PaymentTypeSeedSource.lastPayment
+          ? const LastPaymentTypeMarker()
+          : null,
+    );
+  }
+}
+
+/// "Last used for this client", under a new payment's Type when it was taken
+/// from the client's last payment rather than the Default Payment Type — the
+/// one case where the value would otherwise be a surprise
+/// (docs/payment-types.md). Styled like the receipt-scan field marker.
+class LastPaymentTypeMarker extends StatelessWidget {
+  const LastPaymentTypeMarker({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = context.inTheme.ink3;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.history, size: 13, color: color),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            context.tr('last_used_for_this_client'),
+            style: TextStyle(color: color, fontSize: 12),
+          ),
+        ),
+      ],
     );
   }
 }

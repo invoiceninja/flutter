@@ -10,6 +10,7 @@ import 'package:admin/ui/features/settings/views/basic/account_management/quickb
 import 'package:admin/ui/features/settings/views/basic/backup_restore/backup_restore_shell.dart';
 import 'package:admin/ui/features/settings/views/basic/company_details/company_details_shell.dart';
 import 'package:admin/ui/features/settings/views/basic/expense_settings_screen.dart';
+import 'package:admin/ui/features/settings/views/basic/payment_types_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/device_settings_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/keyboard_shortcuts_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/import_export_screen.dart';
@@ -334,6 +335,7 @@ final List<RouteBase> settingsRoutes = [
   _leaf('product_settings', () => const ProductSettingsScreen()),
   _leaf('task_settings', () => const TaskSettingsScreen()),
   _leaf('expense_settings', () => const ExpenseSettingsScreen()),
+  _leaf('payment_types', () => const PaymentTypesScreen()),
   // Workflow Settings is one shell with two tabs (Invoices / Quotes), shared
   // page key so the bare URL and `/quotes` resolve to the same Navigator Page
   // — keeps the cascade VM + TabController alive across the two paths.

@@ -279,6 +279,7 @@ _CompanySettingsApi _$CompanySettingsApiFromJson(
   paymentTypeId: json['payment_type_id'] as String?,
   defaultExpensePaymentTypeId:
       json['default_expense_payment_type_id'] as String?,
+  hiddenPaymentTypes: json['hidden_payment_types'] as String?,
   companyGatewayIds: json['company_gateway_ids'] as String?,
   paymentFlow: json['payment_flow'] as String?,
   unlockInvoiceDocumentsAfterPayment:
@@ -559,6 +560,7 @@ Map<String, dynamic> _$CompanySettingsApiToJson(
   'valid_until': ?instance.validUntil,
   'payment_type_id': ?instance.paymentTypeId,
   'default_expense_payment_type_id': ?instance.defaultExpensePaymentTypeId,
+  'hidden_payment_types': ?instance.hiddenPaymentTypes,
   'company_gateway_ids': ?instance.companyGatewayIds,
   'payment_flow': ?instance.paymentFlow,
   'unlock_invoice_documents_after_payment':

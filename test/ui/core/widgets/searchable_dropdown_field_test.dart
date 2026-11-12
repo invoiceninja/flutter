@@ -1546,4 +1546,51 @@ void main() {
       expect(createRow('ap'), findsNothing);
     });
   });
+
+  // A company's hidden payment types (docs/payment-types.md): out of the list
+  // the field opens on, still found by a typed query, and never the value.
+  group('idleExcludes', () {
+    Finder inOptions(String text) =>
+        find.descendant(of: find.byType(ListView), matching: find.text(text));
+
+    Widget field({_Option? initial}) => _host(
+      SearchableDropdownField<_Option>(
+        label: 'Fruit',
+        items: _items,
+        initialValue: initial,
+        displayString: (o) => o.name,
+        idOf: (o) => o.id,
+        idleExcludes: (o) => o.id == '2' || o.id == '3',
+        onChanged: (_) {},
+      ),
+    );
+
+    testWidgets('leaves them out of the opening list', (tester) async {
+      await tester.pumpWidget(field());
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(inOptions('Apple'), findsOneWidget);
+      expect(inOptions('Cherry'), findsOneWidget);
+      expect(inOptions('Apricot'), findsNothing);
+      expect(inOptions('Banana'), findsNothing);
+    });
+
+    testWidgets('a typed query still finds them', (tester) async {
+      await tester.pumpWidget(field());
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'apr');
+      await tester.pumpAndSettle();
+      expect(inOptions('Apricot'), findsOneWidget);
+    });
+
+    testWidgets('the committed value is offered even when hidden', (
+      tester,
+    ) async {
+      await tester.pumpWidget(field(initial: _items[2])); // Banana
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(inOptions('Banana'), findsOneWidget);
+      expect(inOptions('Apricot'), findsNothing);
+    });
+  });
 }

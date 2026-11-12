@@ -15,6 +15,8 @@ import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
 import 'package:admin/ui/features/reports/widgets/report_cell_text.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/domain/payment_types.dart';
+import 'package:admin/data/models/value/payment_type.dart';
 
 /// Owns what every Reports route shares: the [ReportsViewModel] and the
 /// company's [Formatter].
@@ -116,7 +118,14 @@ class _ReportsHostState extends State<ReportsHost> {
         users: s.user,
         idRemap: s.db.idRemapDao,
         currencies: () => s.statics.currencies,
-        paymentTypes: () => s.statics.paymentTypes,
+        // Under the company's own names (docs/payment-types.md).
+        paymentTypes: () {
+          final l10n = mounted ? Localization.of(context) : null;
+          return {
+            for (final t in s.statics.paymentTypes.values)
+              t.id: PaymentType(id: t.id, name: paymentTypeName(l10n, t)),
+          };
+        },
         companyCurrencyId: companyCurrency,
       ),
       'transaction' => transactionsReportSource(

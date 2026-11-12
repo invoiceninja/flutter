@@ -7,8 +7,11 @@ import 'package:flutter/material.dart';
 /// and localization aren't available this early, so the copy is plain English.
 ///
 /// The fix depends on the package the app runs from ([detectLinuxPackage]):
-/// - a Snap whose `password-manager-service` plug isn't connected gets the
-///   `snap connect` command;
+/// - a Snap also goes through the Secret portal while its
+///   `password-manager-service` plug is unconnected (`snap/local/keyring-backend`),
+///   so it lands here like a Flatpak: a dismissed unlock prompt, or a desktop
+///   with no portal backend, where connecting the plug (the `snap connect`
+///   command) switches it to the host keyring;
 /// - a Flatpak reaches the keyring only through the Secret portal: Flathub
 ///   refused the host Secret Service permission, so on a desktop with no
 ///   portal backend the user grants it with the `flatpak override` command
@@ -31,7 +34,10 @@ class SecureStorageUnavailableApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final (hint, command) = switch (package) {
       LinuxPackage.snap => (
-        'Connect the snap\'s keyring permission, then relaunch:',
+        'If you were asked to unlock your keyring, relaunch and accept. '
+            'Otherwise make sure GNOME Keyring or KWallet is running. If it '
+            'is, your desktop may not offer keyring access to snaps: connect '
+            'the snap\'s keyring permission, then relaunch:',
         'snap connect invoiceninja:password-manager-service',
       ),
       LinuxPackage.flatpak => (

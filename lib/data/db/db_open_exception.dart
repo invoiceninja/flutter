@@ -1,7 +1,7 @@
 /// Thrown by the native DB opener when the OS secret store (keychain /
 /// keyring) is unreachable, so the per-install SQLCipher key can be neither
-/// read nor written — e.g. a Linux snap whose `password-manager-service` plug
-/// hasn't been connected (the keyring is locked / libsecret is unavailable).
+/// read nor written — e.g. a Linux Snap or Flatpak on a desktop with no Secret
+/// portal, or a locked keyring whose unlock prompt was dismissed.
 ///
 /// Distinct from a corrupt or schema-drifted database: the open orchestrator
 /// must NOT reset-and-reopen on this (resetting renames the user's DB file and

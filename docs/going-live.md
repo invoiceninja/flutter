@@ -2,6 +2,21 @@
 
 Companion to CLAUDE.md § Release Notes. The checklist for taking the app out of beta on every store: the app changes that ship in the one launch release, the console step each store needs, and the decisions that sit outside the code. Tick items off here as they land. The deploy mechanics are in `docs/store-deployment-setup.md`, and its § 7 (Beta → GA flips) lists the beta-posture settings this checklist changes.
 
+## Where each store stands
+
+Updated 2026-11-12, after 5.1.25. Update this table whenever a store moves; the sections below hold the steps. The other goal running alongside is the Flutter 3.50 upgrade (`docs/upgrading-to-flutter-3-50.md` § Upgrade day, in order).
+
+| Store | Production? | Ships to today | Next step |
+|---|---|---|---|
+| Flathub | ✅ since 5.1.23 (2026-11-10) | stable, as an update to v1's listing | the follow-ups in § Flathub |
+| F-Droid | ✅ | f-droid.org | nothing until the app rename |
+| Snap | ❌ `stable` is still v1 (5.0.204) | `edge` (5.1.25) | **next:** keyring fix done, not yet released; release to edge, run the Snap smoke test, promote (§ Snap) |
+| Android (Play) | ❌ | Open testing | § Google Play |
+| iOS | ❌ | TestFlight, external beta | § App Store (iOS and macOS) |
+| macOS | ❌ | TestFlight | § App Store (iOS and macOS) |
+| Windows | ❌ | Microsoft Store, Private audience | § Microsoft Store |
+| Web | ❌ | staged by Deploy to Web, never committed | `docs/web-deploy.md` § Going live |
+
 Going live is one app release with the beta flag off, plus a store-console step on each store. Today every pipeline ships to testers: Play Open testing, TestFlight (iOS and macOS), Snap `edge`, a restricted Microsoft Store listing and a GitHub pre-release. F-Droid is already public.
 
 On Play, the App Store and Microsoft the new app (`com.invoiceninja.admin`) has its own listing, so going live there leaves the v1 app (`com.invoiceninja.app`) untouched. **The Snap is the exception:** both apps are the `invoiceninja` snap, so releasing to `stable` replaces v1 for every snap user.
@@ -20,7 +35,7 @@ These ship together in one version to every store, so each store's first public 
     - `CFBundleDisplayName` in `ios/Runner/Info.plist` and `android:label` in `android/app/src/main/AndroidManifest.xml`;
     - drop " - Beta" from `msix_config` `display_name` in `pubspec.yaml` and from the `README.md` title;
     - update the v1 app's beta invitation (`kBetaAppNameMobile` in admin-portal) at the same time, since it names "Ninja Beta".
-- [ ] Snap: change `grade: devel` to `grade: stable` in `snap/snapcraft.yaml` (see § Snap for what blocks it).
+- [x] Snap: change `grade: devel` to `grade: stable` in `snap/snapcraft.yaml` (done 2026-11-12, ahead of the launch release, § Snap).
 - [ ] Write the release notes, bump the version and run **Deploy to all** (`docs/release-notes.md`).
 
 ## Per-store steps
@@ -55,9 +70,14 @@ Each store needs its console step after the launch release is uploaded. Only the
 
 Both apps are the `invoiceninja` snap, so this replaces v1 for every snap user.
 
-- [ ] Get the Snap Store to auto-connect `password-manager-service`. Without it the app can't save or open its database until the user connects it by hand.
-- [ ] Ship the launch release with `grade: stable` (§ App changes in the launch release).
-- [ ] Change `release: edge` to `release: stable` in `snapcraft.yml`, or promote the revision with `snapcraft release invoiceninja <rev> stable`.
+v1's snap (admin-portal's `snap/snapcraft.yaml`, 5.0.204 on `stable`) plugs only `network`, `home` and `desktop`; it never used the keyring. A refresh to this app adds `password-manager-service`, which snapd doesn't auto-connect, so a build that needed that plug would have put every v1 user on the "Secure storage unavailable" screen. The database key now goes through the desktop's Secret portal instead, through the launcher `snap/local/keyring-backend` (`docs/setup.md` § Linux desktop / Snap). Docker has no AppArmor, so that was tested on the plugin's own code with a faked snap identity; the real snap is checked by the smoke test below.
+
+- [x] Route the key through the Secret portal while the plug is unconnected (2026-11-12, in Docker on Ubuntu 22.04). An auto-connect request to the store is no longer needed.
+- [x] Set `grade: stable`, so a tested `edge` revision can be promoted as it is.
+- [ ] Release it to `edge` (the next Deploy to all).
+- [ ] Run **Snap smoke test** (`snap-smoke.yml`) on `edge`: on GitHub's Ubuntu 22.04 and 24.04 runners (real snapd and AppArmor) it checks a fresh install and a refresh from v1's `stable`, with no plug connected by hand. All four jobs pass, and the screenshots in their artifacts show the sign-in screen, not the keyring screen.
+- [ ] Promote that revision: `snapcraft release invoiceninja <rev> stable`.
+- [ ] Make Deploy to all publish to `stable`: `release: stable` in `snapcraft.yml`, its step name and header comment, and the Snap rows in `docs/store-deployment-setup.md`.
 
 ### Flathub
 
@@ -91,7 +111,7 @@ Today one **Deploy to all** dispatch ships every store to its testing channel wi
 - [ ] **App Store (iOS and macOS):** after the first version has been submitted and approved by hand (Apple needs its screenshots, description, privacy answers and age rating once), extend `tools/testflight_release.py` or add a sibling to: create the App Store version for the release, attach the build, set "What's New in This Version" from the same digest, and submit it for review with release-after-approval — plus a dispatch input choosing phased release (iOS, 7 days) or everyone at once.
 - [ ] **GitHub Release:** drop `--prerelease` in `appimage.yml` so the Release is marked Latest.
 - [ ] **Microsoft Store:** switch the listing's Audience to Public in Partner Center (§ Microsoft Store); CI needs no change, since `tools/msstore_release_notes.py` already commits a `Public` submission (`ALLOWED_VISIBILITY`). Drop " - Beta" from the listing name with the app rename above.
-- [ ] **Snap:** stays on `edge` until § Snap's blocker is fixed; `stable` replaces v1 for every Snap user.
+- [ ] **Snap:** `release: stable` in `snapcraft.yml` once § Snap's smoke test passes; `stable` replaces v1 for every Snap user.
 - [ ] Flip each workflow's header comment and `docs/store-deployment-setup.md` from "testers" to "production".
 
 ## Decisions outside the code

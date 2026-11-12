@@ -226,9 +226,10 @@ Future<void> _bootstrap() async {
     opened = await openAppDatabase();
   } on KeyringUnavailableException catch (e, st) {
     // The OS secret store (keychain / keyring) is unreachable, so the
-    // encrypted DB can't be opened — e.g. a Linux snap whose
-    // `password-manager-service` plug isn't connected. Render an actionable
-    // screen instead of leaving a blank window that re-loops every launch.
+    // encrypted DB can't be opened — e.g. a Linux Snap or Flatpak on a
+    // desktop with no Secret portal, or a dismissed unlock prompt. Render an
+    // actionable screen instead of leaving a blank window that re-loops every
+    // launch.
     diag?.recordError(e, st, context: 'openAppDatabase: keyring unavailable');
     runApp(SecureStorageUnavailableApp(package: detectLinuxPackage()));
     return;

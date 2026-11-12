@@ -2,7 +2,8 @@ name: Deploy to Snapcraft
 
 # Manual only — building + uploading a snap is a deliberate release action, not a
 # per-push gate. Publishes to the `edge` channel of the existing `invoiceninja`
-# snap; `grade: devel` in snap/snapcraft.yaml prevents an accidental stable push.
+# snap. `stable` is v1's channel until launch: promoting there is a deliberate
+# `snapcraft release` after snap-smoke.yml passes on edge (docs/going-live.md § Snap).
 on:
   workflow_dispatch:
   # Also called by deploy-all.yml, whose release job has already run the

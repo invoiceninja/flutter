@@ -256,9 +256,9 @@ Paste the **entire** contents of `exported.txt` into `SNAPCRAFT_STORE_CREDENTIAL
 
 > **Record the expiry date somewhere you'll see it.** Expired credentials break publishing, and the failure is not obviously about expiry.
 
-**Verify** — dispatch `Deploy to Snapcraft`. Success puts a new revision on the `edge` channel; check with `snap info invoiceninja`. `grade: devel` in `snap/snapcraft.yaml` structurally prevents a push to `stable`/`candidate`.
+**Verify** — dispatch `Deploy to Snapcraft`. Success puts a new revision on the `edge` channel; check with `snap info invoiceninja`. The workflow never releases to `stable`, where v1's users are; promoting a revision there is a deliberate `snapcraft release` (`docs/going-live.md` § Snap).
 
-> Testers installing from edge must run `snap connect invoiceninja:password-manager-service` once, or the app can't open its encrypted database. This is a known strict-confinement limitation, not a setup error — see `docs/setup.md` § Linux desktop / Snap.
+> The database key goes through the desktop's Secret portal, so a fresh install needs no manual step. Only a desktop with no Secret portal needs `snap connect invoiceninja:password-manager-service`, and the app's keyring screen says so: `docs/setup.md` § Linux desktop / Snap.
 
 ### C. Android / Google Play — 5 secrets
 
@@ -440,7 +440,7 @@ Once each target is green on its own, ship whole releases with **Deploy to all**
 | Target | Where the build lands | How to promote |
 |---|---|---|
 | AppImage | GitHub Release `v<version>`, marked prerelease | Uncheck "pre-release" on the Release |
-| Snap | `edge` channel | `snapcraft release invoiceninja <rev> <channel>` — blocked for stable while `grade: devel` |
+| Snap | `edge` channel | `snapcraft release invoiceninja <rev> <channel>`; `stable` replaces v1 for every snap user |
 | Play | Open testing track (or the dispatched testing track) | Play Console: promote to production |
 | iOS / macOS | TestFlight | App Store Connect: submit for review |
 | Microsoft | Certification, then the live listing | Automatic — no promotion step |
@@ -509,7 +509,7 @@ Two exceptions:
 | Store: upload validation rejects the package | `msix_config` `identity_name` / `publisher` / `publisher_display_name` in `pubspec.yaml` don't exactly match Partner Center → Product identity. |
 | `msstore publish` fails on `--appId` | You used the `9N…` Store ID. Use the ~12-char **Product ID** (`msstore apps list`). |
 | Snap publish fails after months of working | `SNAPCRAFT_STORE_CREDENTIALS` expired. Re-run `snapcraft export-login`. |
-| Snap installs but can't save / can't open its database | Not a CI problem — the user must run `snap connect invoiceninja:password-manager-service`. |
+| Snap opens on the "Secure storage unavailable" screen | Not a CI problem. The desktop has no Secret portal, or the unlock prompt was dismissed: the user runs `snap connect invoiceninja:password-manager-service` (`docs/setup.md` § Linux desktop / Snap). |
 | Deploy to all: *"No release notes for X.Y.Z"* / *"Missing or empty F-Droid changelog(s)"* / *"changelogs … differ"* | The notes come before the bump: the `kReleaseNotes` entry and the three identical changelogs (`docs/release-notes.md` step 5). Commit them and re-dispatch. |
 | Deploy to all: *"kClientVersion …"* / *"snap/snapcraft.yaml's version …"* / *"tools/foss/… names …"* / *"Build number N is not above …"* | A version was edited by hand. Reset it and run `tools/bump_client_version.sh`, which writes every one of them. |
 | Deploy to all: *"vX.Y.Z is already released"* | That version shipped. To cut a new release, bump. To retry a store that failed in that release, open the original run and **Re-run failed jobs** (fix a secret or console setting first). A fix that needs a commit ships through that store's own workflow. |
@@ -527,7 +527,7 @@ These are deliberate beta-posture settings, listed so they aren't mistaken for s
 
 | Where | Current | At GA |
 |---|---|---|
-| `snap/snapcraft.yaml` | `grade: devel` | `grade: stable` — a `devel` snap *cannot* be released to stable/candidate. Blocked until the `password-manager-service` auto-connect issue is resolved. |
+| `snapcraft.yml` | `release: edge` | `release: stable`, after an `edge` revision has passed `snap-smoke.yml` (`docs/going-live.md` § Snap). `grade: stable` is already set, so that revision can be promoted as it is. |
 | `pubspec.yaml` `msix_config` | `display_name: Invoice Ninja - Beta` | Drop the ` - Beta` |
 | `appimage.yml` | `prerelease: true` | Decide per release |
 | `ios/Runner/Info.plist` | `CFBundleDisplayName = Ninja Beta`, `CFBundleName = admin` | `Invoice Ninja`. The beta installs beside the v1 app, whose home-screen label is "Invoice Ninja", and iOS truncates a label at about 12 characters — "Invoice Ninja Beta" would read "Invoice Ninj…" and look like the old app. The exported `.ipa` filename derives from this value, so `appstore-ios.yml` renames it before the upload. The v1 app's beta invitation names this label (`kBetaAppNameMobile` in admin-portal), so change the two together. |

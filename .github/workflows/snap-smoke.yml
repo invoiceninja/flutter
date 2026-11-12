@@ -1,0 +1,136 @@
+name: Snap smoke test
+
+# Manual only. Installs the published snap on a real Ubuntu runner (snapd and
+# AppArmor, which Docker lacks) with no plug connected by hand, starts it in a
+# GNOME-like session (gnome-keyring, the Secret portal, Xvfb) and checks that
+# the database key went through the portal: the keyring file exists, the
+# portal holds a secret for snap.invoiceninja, AppArmor denied nothing on the
+# Secret Service, and the app was still running after two launches.
+# `from-v1` first installs v1 from `stable` and refreshes it, the path every
+# v1 user takes when `stable` moves. Screenshots and logs are uploaded.
+# docs/going-live.md § Snap, docs/setup.md § Linux desktop / Snap.
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Channel to test
+        type: choice
+        options: [edge, beta, candidate, stable]
+        default: edge
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: ${{ matrix.os }} / ${{ matrix.path }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+        path: [fresh, from-v1]
+    env:
+      CHANNEL: ${{ inputs.channel }}
+      OUT: ${{ github.workspace }}/smoke
+    steps:
+      - name: Desktop session packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            dbus-user-session gnome-keyring libsecret-tools \
+            xdg-desktop-portal xvfb imagemagick
+          mkdir -p "$OUT"
+
+      # A snap reaches the session bus only at $XDG_RUNTIME_DIR/bus (AppArmor),
+      # and `snap run` puts the app in its own snap.* scope through the systemd
+      # user manager, which is how the portal recognises it. Lingering starts
+      # both for the runner user.
+      - name: User session (systemd --user, session bus, Xvfb, keyring)
+        run: |
+          sudo loginctl enable-linger "$USER"
+          uid=$(id -u)
+          rt=/run/user/$uid
+          for i in $(seq 30); do [ -S "$rt/bus" ] && break; sleep 1; done
+          [ -S "$rt/bus" ] || { echo "no session bus at $rt/bus"; exit 1; }
+          {
+            echo "XDG_RUNTIME_DIR=$rt"
+            echo "DBUS_SESSION_BUS_ADDRESS=unix:path=$rt/bus"
+            echo "DISPLAY=:99"
+            echo "XDG_CURRENT_DESKTOP=GNOME"
+          } >> "$GITHUB_ENV"
+          export XDG_RUNTIME_DIR=$rt DBUS_SESSION_BUS_ADDRESS=unix:path=$rt/bus DISPLAY=:99 XDG_CURRENT_DESKTOP=GNOME
+          nohup Xvfb :99 -screen 0 1280x800x24 >"$OUT/xvfb.log" 2>&1 &
+          dbus-update-activation-environment --systemd DISPLAY XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR
+          printf 'smoke' | gnome-keyring-daemon --unlock --components=secrets >/dev/null
+          gnome-keyring-daemon --start --components=secrets >/dev/null
+          sleep 2
+          # Activates xdg-desktop-portal and fails here, not later, if this
+          # session offers no Secret portal.
+          gdbus call --session -d org.freedesktop.portal.Desktop -o /org/freedesktop/portal/desktop \
+            -m org.freedesktop.DBus.Properties.Get org.freedesktop.portal.Secret version \
+            | tee "$OUT/portal-secret-version.txt"
+
+      - name: Install v1 from stable and run it once
+        if: matrix.path == 'from-v1'
+        run: |
+          sudo snap install invoiceninja --channel=stable
+          snap list invoiceninja | tee "$OUT/v1.txt"
+          timeout 20 snap run invoiceninja >"$OUT/v1-run.log" 2>&1 || true
+          import -window root "$OUT/0-v1.png" || true
+
+      - name: Install or refresh to ${{ inputs.channel }}
+        run: |
+          if [ "${{ matrix.path }}" = from-v1 ]; then
+            sudo snap refresh invoiceninja --channel="$CHANNEL"
+          else
+            sudo snap install invoiceninja --channel="$CHANNEL"
+          fi
+          snap list invoiceninja | tee "$OUT/installed.txt"
+          snap connections invoiceninja | tee "$OUT/connections.txt"
+          # The point of the test: nobody ran `snap connect`.
+          if grep -E '^password-manager-service +invoiceninja:password-manager-service +:' "$OUT/connections.txt"; then
+            echo "password-manager-service is connected; the test needs it unconnected"; exit 1
+          fi
+
+      - name: Launch twice, screenshot each
+        run: |
+          start=$(date '+%Y-%m-%d %H:%M:%S')
+          echo "$start" > "$OUT/start.txt"
+          for n in 1 2; do
+            snap run invoiceninja >"$OUT/run-$n.log" 2>&1 &
+            sleep 30
+            pid=$(pgrep -f '/snap/invoiceninja/[0-9x]+/admin' | head -1 || true)
+            echo "launch $n pid=${pid:-none}" | tee -a "$OUT/launches.txt"
+            [ -n "$pid" ] && cat "/proc/$pid/cgroup" | tee "$OUT/cgroup-$n.txt"
+            import -window root "$OUT/$n-launch.png"
+            [ -n "$pid" ] || { echo "the app was not running 30s after launch $n"; exit 1; }
+            kill "$pid"; sleep 3
+          done
+
+      - name: Check the key went through the portal
+        run: |
+          keyring="$HOME/snap/invoiceninja/current/.local/share/keyrings/default.keyring"
+          ls -l "$keyring" | tee "$OUT/keyring.txt"
+          gdbus call --session -d org.freedesktop.secrets -o /org/freedesktop/secrets \
+            -m org.freedesktop.Secret.Service.SearchItems "{'app_id': 'snap.invoiceninja'}" \
+            | tee "$OUT/portal-secret.txt"
+          grep -q "/org/freedesktop/secrets/collection/" "$OUT/portal-secret.txt" \
+            || { echo "the portal holds no secret for snap.invoiceninja"; exit 1; }
+
+      - name: AppArmor denials
+        if: always()
+        run: |
+          sudo journalctl -k --since "$(cat "$OUT/start.txt" 2>/dev/null || echo '-15min')" --no-pager \
+            | grep 'apparmor="DENIED"' | grep invoiceninja | tee "$OUT/apparmor-denied.txt" || true
+          if grep -q 'org.freedesktop.secrets\|org/freedesktop/secrets' "$OUT/apparmor-denied.txt"; then
+            echo "AppArmor blocked a Secret Service call"; exit 1
+          fi
+
+      - name: Upload screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snap-smoke-${{ matrix.os }}-${{ matrix.path }}
+          path: smoke/

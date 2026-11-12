@@ -43,12 +43,12 @@ Future<({String key, bool minted})> _getOrCreateDbKey() async {
   try {
     existing = await secure.read(key: _kDbEncryptionKeyName);
   } on PlatformException catch (e, st) {
-    // The OS secret store is unreachable (e.g. a Linux snap whose
-    // `password-manager-service` plug isn't connected → libsecret/keyring
-    // locked). We can't derive the DB key. Surface a distinct, actionable
-    // failure instead of letting the raw exception propagate into the
-    // open orchestrator's reset path, which would destroy the DB file and
-    // re-throw here every launch (the Linux crash-loop). A genuine
+    // The OS secret store is unreachable (e.g. a Linux Snap or Flatpak on a
+    // desktop with no Secret portal, or a locked keyring). We can't derive the
+    // DB key. Surface a distinct, actionable failure instead of letting the
+    // raw exception propagate into the open orchestrator's reset path, which
+    // would destroy the DB file and re-throw here every launch (the Linux
+    // crash-loop). A genuine
     // first-launch returns null here (not a throw), so key generation below
     // still runs normally.
     throw KeyringUnavailableException(e.message ?? e.code, st);

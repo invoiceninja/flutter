@@ -25,10 +25,11 @@ description: |
   All of these features combine to help you receive the money you deserve and reduce the amount of time you spend on repetitive invoicing tasks. Spend less time on paperwork and more time at your craft.
 confinement: strict
 base: core22
-# devel grade is a deliberate guardrail: a `devel` snap CANNOT be released to the
-# stable or candidate channels, so the pre-launch rebuild can never accidentally
-# replace the live app on stable. Flip to `stable` at launch.
-grade: devel
+# stable grade lets a tested `edge` revision be promoted to `stable` as it is
+# (`snapcraft release invoiceninja <rev> stable`). The workflow itself still
+# releases only to edge (snapcraft.yml); `stable` is where v1's users are, so
+# promoting replaces v1 for all of them (docs/going-live.md § Snap).
+grade: stable
 
 apps:
   invoiceninja:
@@ -36,15 +37,20 @@ apps:
     # after the pubspec `name: admin`). snapd's command wrapper is still
     # `invoiceninja` (the apps key), which is what the .desktop Exec points at.
     command: admin
+    # Sets SECRET_BACKEND=file while password-manager-service is unconnected, so
+    # the database key goes through the desktop's Secret portal instead of the
+    # host keyring AppArmor blocks (the script says why). docs/setup.md.
+    command-chain: [bin/keyring-backend]
     # Provides desktop/desktop-legacy/wayland/x11/gsettings/opengl + the GTK runtime.
     extensions: [gnome]
     plugs:
       - network
       - home
-      # libsecret/gnome-keyring access for flutter_secure_storage (the SQLCipher
-      # DB key). REQUIRED and NOT auto-connected: after install users must run
-      # `snap connect invoiceninja:password-manager-service` or the app can't open
-      # its encrypted database. See docs/setup.md.
+      # The host Secret Service (gnome-keyring / KWallet), for the SQLCipher
+      # DB key. OPTIONAL and NOT auto-connected: the key normally goes through
+      # the Secret portal (bin/keyring-backend). Only a desktop with no Secret
+      # portal needs `snap connect invoiceninja:password-manager-service`,
+      # which is what the app's keyring screen asks for. See docs/setup.md.
       - password-manager-service
       # NetworkManager (system D-Bus) access for connectivity_plus's online/
       # offline detection. OPTIONAL, NOT auto-connected, and NOT load-bearing:
@@ -63,4 +69,11 @@ parts:
     plugin: dump
     stage-packages:
       # Runtime for flutter_secure_storage_linux (the plugin docs prescribe staging it).
+      # core22's 0.20.5 is the first libsecret that uses the portal in a snap.
       - libsecret-1-0
+  launcher:
+    # The command-chain script above; snap/local is snapcraft's place for it.
+    source: snap/local
+    plugin: dump
+    organize:
+      keyring-backend: bin/keyring-backend

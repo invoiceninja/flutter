@@ -1,0 +1,22 @@
+#!/bin/sh
+# Command-chain launcher: picks how the app reaches a keyring for its database
+# key (docs/setup.md § Linux desktop / Snap).
+#
+# password-manager-service is not auto-connected, and AppArmor blocks the host
+# Secret Service without it. flutter_secure_storage_linux still calls that
+# service directly before every read unless SECRET_BACKEND=file (in a snap it
+# can't tell a blocked service from an absent one), so without this every
+# fresh install, and every v1 user refreshed onto this app, opened on the
+# keyring screen. With SECRET_BACKEND=file, libsecret keeps the key in its file
+# backend ($XDG_DATA_HOME/keyrings), sealed by a per-app secret from the
+# desktop's Secret portal; libsecret 0.20.5+ already does that in a snap
+# whenever the portal answers, plug or no plug.
+#
+# With the plug connected nothing is forced, so a desktop with no Secret
+# portal still works through the host keyring once the user connects it,
+# which is what the keyring screen tells them to do. Any snapctl failure
+# reads as not connected: the portal path works either way.
+if ! snapctl is-connected password-manager-service >/dev/null 2>&1; then
+  export SECRET_BACKEND=file
+fi
+exec "$@"

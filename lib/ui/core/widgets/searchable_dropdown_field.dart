@@ -816,8 +816,12 @@ class _SearchableDropdownFieldState<T extends Object>
             // setState so the field rebuilds: `_select` doesn't rebuild us, and
             // the leading glyph is read from `_committed` during the field
             // build — without this it lags a parent rebuild behind the text.
+            //
+            // Each case does its own work. Assigning a `final T item;` inside
+            // the switch, with the other case returning, crashes Dart 3.14's
+            // AOT compiler (Flutter 3.50) in its register allocator, and with
+            // it every release build (docs/upstream-workarounds.md § 21).
             onSelected: (opt) {
-              final T item;
               switch (opt) {
                 case _CreateOpt<T>(:final query):
                   // Backstop only — the tap and Enter paths call
@@ -825,15 +829,13 @@ class _SearchableDropdownFieldState<T extends Object>
                   // row's label into the field; a cancel puts the committed
                   // value's name back over it.
                   unawaited(_handleCreate(query));
-                  return;
-                case _ItemOpt<T>(item: final picked):
-                  item = picked;
+                case _ItemOpt<T>(:final item):
+                  setState(() {
+                    _committed = item;
+                    _optionsVisible = false;
+                  });
+                  widget.onChanged(item);
               }
-              setState(() {
-                _committed = item;
-                _optionsVisible = false;
-              });
-              widget.onChanged(item);
             },
             fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted) {
               final committed = _committed;

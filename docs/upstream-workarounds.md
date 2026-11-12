@@ -274,11 +274,22 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Issue / waiting on: no upstream issue filed yet; super_keyboard 0.4.2 (latest, pulled in by super_editor) still sets `compileSdk = 34`. • Found: 2026-11-12 • Flutter: 3.47.7, AGP 9.1.1
 - Symptom: `flutter build apk` fails at `:super_keyboard:checkDebugAarMetadata`: "Dependency ':flutter_plugin_android_lifecycle' requires libraries and applications that depend on it to compile against version 36 or later of the Android APIs. :super_keyboard is currently compiled against android-34."
 - Root cause: AGP 9 checks every library module's compileSdk against its dependencies' AAR metadata; AGP 8.11 didn't, so a plugin pinned to 34 built until the AGP 9.1.1 bump that Flutter 3.50 requires.
-- Commit ref: not yet committed
+- Commit ref: bd44f623
 - Change(s):
   - `android/build.gradle.kts` — **MUST-REVERT**: a `subprojects { afterEvaluate { … } }` block raises any Android library module whose compileSdk is below 36 to 36. compileSdk only chooses the API stubs compiled against; minSdk and targetSdk, which set runtime behaviour, are untouched.
 - Revert: delete that block once super_keyboard (and any other plugin it caught) compiles against 36 or later, and confirm `flutter build apk --debug` still passes.
 - Recheck trigger: any super_editor / super_keyboard bump; grep the resolved `super_keyboard-*/android/build.gradle` for `compileSdk`.
+
+## 21. Dart 3.14's AOT compiler crashes on a `final` local assigned inside a pattern switch
+
+- Issue / waiting on: no upstream issue filed yet. • Found: 2026-11-12 • Flutter: 3.50.0 (Dart 3.14.0); 3.47.7 compiles the same code.
+- Symptom: every release build on 3.50 (Android arm / arm64 / x64, Linux, Windows, macOS) fails with `linearscan.cc: 3013: error: unreachable code` and "AOT snapshotter exited with code -6". Debug builds and tests don't compile ahead of time, so only a release build shows it; the CI trial (`gh workflow run ci.yaml -f flutter_version=3.50.0`, `docs/upgrading-to-flutter-3-50.md`) found it.
+- Root cause: in the register allocator (`runtime/vm/compiler/backend/linearscan.cc`). `gen_snapshot --trace_compiler` on the app's kernel named the last function it started: `SearchableDropdownField`'s `onSelected` closure, which declared `final T item;`, assigned it in one case of a `switch` over the sealed `_Opt<T>`, returned from the other case, then captured `item` in a `setState` closure. A standalone copy of that shape compiles, so it needs the surrounding inlining; the reproduction is building this repo at a commit before the change with 3.50.0.
+- Commit ref: not yet committed
+- Change(s):
+  - `lib/ui/core/widgets/searchable_dropdown_field.dart` — **KEEP**: each case of `onSelected` does its own work, so nothing is assigned across the switch. Same behaviour, and clearer code, so there is nothing to revert.
+- Revert: nothing to revert. Until a Dart release fixes it, don't reintroduce the shape: a `final` local left unassigned, then assigned inside a pattern `switch` that returns from another case.
+- Recheck trigger: any Flutter / Dart bump. Run the CI trial or `flutter build apk --release` on it; the crash names no file, so find the function with `gen_snapshot --trace_compiler` on the build's `app.dill` (the last "Precompiling optimized function" line before the error).
 
 ## Considered but NOT tracked (permanent adaptations — do not revert)
 

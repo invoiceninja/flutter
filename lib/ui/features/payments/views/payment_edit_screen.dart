@@ -9,6 +9,7 @@ import 'package:admin/ui/core/edit/after_save_create_action.dart';
 import 'package:admin/ui/core/edit/edit_action_filter.dart';
 import 'package:admin/ui/core/edit/entity_edit_screen_scaffold.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
+import 'package:admin/ui/features/payments/seed_payment_create_defaults.dart';
 import 'package:admin/ui/features/payments/view_models/payment_edit_view_model.dart';
 import 'package:admin/ui/features/payments/widgets/edit/payment_edit_layout.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_actions.dart';
@@ -52,7 +53,7 @@ class PaymentEditScreen extends StatelessWidget {
             (existing == null
                 ? services.takeCreateDraft<Payment>('/payments')
                 : null);
-        return PaymentEditViewModel(
+        final vm = PaymentEditViewModel(
           repo: services.payments,
           companyId: companyId,
           existing: existing,
@@ -67,6 +68,13 @@ class PaymentEditScreen extends StatelessWidget {
           sync: services.sync,
           connectivity: services.connectivity,
         );
+        // The company's (or the client's) Default Payment Type.
+        seedPaymentCreateDefaults(
+          settings: services.settings,
+          companyId: companyId,
+          vm: vm,
+        );
+        return vm;
       },
       titleWhileLoading: (ctx) =>
           existingId == null ? ctx.tr('new_payment') : ctx.tr('edit'),

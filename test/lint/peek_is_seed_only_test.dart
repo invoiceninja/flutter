@@ -116,6 +116,9 @@ void main() {
         // The first-frame guess of a new document's inclusive-tax mode. The
         // `resolved()` it always runs next corrects it — the answer that wins.
         'lib/ui/features/billing_shared/seed_billing_create_defaults.dart',
+        // The first-frame guess of a new payment's Default Payment Type, with
+        // the same correction: the `resolved()` it always runs next.
+        'lib/ui/features/payments/seed_payment_create_defaults.dart',
       },
       'peekInvoiceLockReason': {
         'lib/domain/billing/invoice_lock.dart',

@@ -240,7 +240,38 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
   void setCurrencyId(String v) => updateDraft(draft.copyWith(currencyId: v));
   void setExchangeCurrencyId(String v) =>
       updateDraft(draft.copyWith(exchangeCurrencyId: v));
-  void setTypeId(String v) => updateDraft(draft.copyWith(typeId: v));
+  void setTypeId(String v) {
+    _userTouchedType = true;
+    updateDraft(draft.copyWith(typeId: v));
+  }
+
+  bool _userTouchedType = false;
+
+  /// Whether the payment type may still follow the settings cascade's
+  /// `payment_type_id` (Settings → Online Payments → Default Payment Type):
+  /// a create form whose Type the user never picked. A form that opened on a
+  /// staged draft already carrying a type (a clone) never seeds — see
+  /// `seedPaymentCreateDefaults`.
+  bool get canSeedTypeId => isCreate && !_userTouchedType;
+
+  /// Seed the payment type from the settings cascade under [canSeedTypeId],
+  /// without making an untouched form dirty. [companyLevel]: the value came
+  /// from the company layer alone (no client chosen), so a Discard — which
+  /// clears the client — re-applies it.
+  void seedTypeId(String typeId, {required bool companyLevel}) {
+    if (!canSeedTypeId || draft.typeId == typeId) return;
+    seedCreateDefault(
+      (d) => d.copyWith(typeId: typeId),
+      rememberForReset: companyLevel,
+    );
+  }
+
+  @override
+  void reset({required Payment emptyDraft}) {
+    _userTouchedType = false;
+    super.reset(emptyDraft: emptyDraft);
+  }
+
   void setStatusId(String v) => updateDraft(draft.copyWith(statusId: v));
   void setAssignedUserId(String v) =>
       updateDraft(draft.copyWith(assignedUserId: v));

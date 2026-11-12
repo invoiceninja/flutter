@@ -174,6 +174,13 @@ class InTheme extends ThemeExtension<InTheme> {
   /// doesn't need to wire it through copyWith / lerp / every constant.
   Color get onOverdue => const Color(0xFFFFFFFF);
 
+  /// The pen and box colour of a Contact Us screenshot's markup
+  /// (docs/feedback-screenshots.md). The same in every theme: it is painted
+  /// INTO the image that is sent, not onto the app's surfaces, so it must
+  /// stand out on a light or dark screenshot alike. A getter for the same
+  /// reason as [onOverdue].
+  Color get annotationMark => const Color(0xFFE5241B);
+
   /// Foreground colour for content placed *on* the filled [accent] background
   /// (the calendars' "today" marker, for example).
   ///

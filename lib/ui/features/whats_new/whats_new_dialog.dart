@@ -16,7 +16,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/feature_row.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/mobile_promo/mobile_app_promo_dialog.dart';
-import 'package:admin/ui/features/shell/widgets/contact_us_dialog.dart';
+import 'package:admin/ui/features/feedback/contact_us_dialog.dart';
 
 /// How the dialog was closed. Every close means "seen"; the last three also
 /// ask for something, done by [followWhatsNewResult] once the dialog is gone.

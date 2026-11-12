@@ -122,6 +122,12 @@ class ServerFeatures {
   /// range, not just those that *start* in it (React #3378).
   static const String taskActivityDates = '5.13.43';
 
+  /// Images on a support message: `attachments[]` on
+  /// `POST /support/messages/send` (`SendMessageRequest`, `2a26c810a1`).
+  /// An older server drops them without a word, so Contact Us offers no
+  /// attachments there (docs/feedback-screenshots.md).
+  static const String supportAttachments = '5.13.53';
+
   /// `POST /charts/project_analytics/{id}` and `/charts/project_burnup/{id}`
   /// (`0f649ea6dc`). Before it, the project's Analytics tab has nothing to ask.
   static const String projectAnalytics = '5.13.27';

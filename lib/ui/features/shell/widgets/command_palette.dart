@@ -29,6 +29,9 @@ import 'package:admin/ui/features/review_prompt/review_listing.dart';
 import 'package:admin/ui/features/welcome/welcome_dialog.dart';
 import 'package:admin/ui/features/whats_new/whats_new_dialog.dart';
 import 'package:admin/utils/search_fold.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
+import 'package:admin/ui/features/feedback/contact_us_dialog.dart';
+import 'package:admin/ui/features/shell/widgets/sidebar_footer_actions.dart';
 
 /// Search-result group key for a pasted record deep link. Renders as its own
 /// header via `context.tr` — `link` is an existing translated key.
@@ -143,6 +146,41 @@ const String kRateAppSearchGroup = 'rate_the_app';
 
 /// What someone looking to leave a review types, beside the translated label.
 const _kRateAppTerms = ['rate', 'rating', 'review', 'star', 'feedback'];
+
+/// The group of the palette's Help hits — Contact Us, User Guide, Support
+/// Forum — and its heading's key. A desktop user with the sidebar collapsed
+/// found no way to send feedback (invoiceninja/flutter#191); typing it is the
+/// other way in.
+const String kHelpSearchGroup = 'help';
+
+/// [SearchResult.id]s of the [kHelpSearchGroup] hits.
+const String _kHelpContactUs = 'contact_us';
+const String _kHelpUserGuide = 'user_guide';
+const String _kHelpForum = 'support_forum';
+
+/// What someone wanting to reach a person types, beside the translated label.
+/// English, like the other term lists.
+const _kContactUsTerms = [
+  'contact',
+  'feedback',
+  'bug',
+  'message',
+  'support',
+  'problem',
+  'report a problem',
+  'email us',
+];
+
+/// What someone after help in general types: every Help hit answers it.
+const _kHelpTerms = [
+  'help',
+  'support',
+  'docs',
+  'documentation',
+  'guide',
+  'manual',
+  'forum',
+];
 
 /// Groups whose row describes a **contact**, not the record it routes to.
 ///
@@ -397,6 +435,7 @@ class _CommandPaletteState extends State<_CommandPalette> {
         ..._localWelcomeHits(q),
         ..._localWhatsNewHits(q),
         ..._localRateAppHits(q),
+        ..._localHelpHits(q),
         ..._localSettingsHits(q),
       ];
       setState(() {
@@ -416,6 +455,7 @@ class _CommandPaletteState extends State<_CommandPalette> {
           ..._localWelcomeHits(q),
           ..._localWhatsNewHits(q),
           ..._localRateAppHits(q),
+          ..._localHelpHits(q),
           ..._localSettingsHits(q),
         ];
         _selected = 0;
@@ -485,6 +525,32 @@ class _CommandPaletteState extends State<_CommandPalette> {
     }
     return [
       SearchResult(group: kWhatsNewSearchGroup, name: label, id: '', path: ''),
+    ];
+  }
+
+  /// Contact Us, User Guide and Support Forum. "feedback", "bug", "contact"
+  /// and the like go to Contact Us; "help" and its kin list all three.
+  List<SearchResult> _localHelpHits(String query) {
+    final needle = query.trim().toLowerCase();
+    if (needle.length < 3) return const [];
+    bool matches(List<String> terms) =>
+        terms.any((t) => t.startsWith(needle) || t.contains(' $needle'));
+    final contact = context.tr('contact_us');
+    final wantsContact = matches([..._kContactUsTerms, contact.toLowerCase()]);
+    final wantsHelp = matches([
+      ..._kHelpTerms,
+      context.tr('user_guide').toLowerCase(),
+      context.tr('support_forum').toLowerCase(),
+    ]);
+    if (!wantsContact && !wantsHelp) return const [];
+    SearchResult hit(String id, String name) =>
+        SearchResult(group: kHelpSearchGroup, name: name, id: id, path: '');
+    return [
+      hit(_kHelpContactUs, contact),
+      if (wantsHelp) ...[
+        hit(_kHelpUserGuide, context.tr('user_guide')),
+        hit(_kHelpForum, context.tr('support_forum')),
+      ],
     ];
   }
 
@@ -621,6 +687,30 @@ class _CommandPaletteState extends State<_CommandPalette> {
       if (reviewPrompt == null) return;
       rateAppManually(context, reviewPrompt);
       Navigator.of(context).pop();
+      return;
+    }
+    if (r.group == kHelpSearchGroup) {
+      // Nothing navigates: a dialog over the current screen, or a browser.
+      // The link opens first, inside the key press or tap, before any await.
+      final host = Navigator.of(context, rootNavigator: true).context;
+      // The palette is a dialog route, outside any GoRoute's state.
+      final location =
+          GoRouter.maybeOf(
+            context,
+          )?.routerDelegate.currentConfiguration.uri.path ??
+          '';
+      switch (r.id) {
+        case _kHelpUserGuide:
+          unawaited(openExternalUrl(host, userGuideUrl(location)));
+        case _kHelpForum:
+          unawaited(openExternalUrl(host, kSupportForumUrl));
+      }
+      // The palette's own exit, so it isn't in Contact Us's screenshot.
+      final closing = (ModalRoute.of(context) as TransitionRoute?)?.completed;
+      Navigator.of(context).pop();
+      if (r.id == _kHelpContactUs) {
+        unawaited(showContactUsDialog(host, afterClosing: closing));
+      }
       return;
     }
     if (r.group == kWelcomeSearchGroup) {
@@ -949,6 +1039,12 @@ class _CommandPaletteState extends State<_CommandPalette> {
                         ? Icons.new_releases_outlined
                         : r.group == kRateAppSearchGroup
                         ? Icons.star_outline
+                        : r.group == kHelpSearchGroup
+                        ? switch (r.id) {
+                            _kHelpUserGuide => Icons.help_outline,
+                            _kHelpForum => Icons.forum_outlined,
+                            _ => Icons.mail_outline,
+                          }
                         : settingsHit?.section.icon ??
                               (type != null
                                   ? registry[type]?.effectiveOutlinedIcon

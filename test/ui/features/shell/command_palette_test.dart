@@ -792,6 +792,23 @@ void main() {
       expect(find.text('Company Details › Address'), findsOneWidget);
     });
 
+    // A desktop user with the sidebar collapsed found no way to send
+    // feedback (invoiceninja/flutter#191); typing it is the other way in.
+    testWidgets('"feedback" finds Contact Us, offline too', (tester) async {
+      await search(tester, 'feedback');
+      expect(find.text('Contact Us'), findsOneWidget);
+      expect(find.text('Support Forums'), findsNothing);
+    });
+
+    testWidgets('"help" lists Contact Us, User Guide and the forum', (
+      tester,
+    ) async {
+      await search(tester, 'help');
+      expect(find.text('Contact Us'), findsOneWidget);
+      expect(find.text('User Guide'), findsOneWidget);
+      expect(find.text('Support Forums'), findsOneWidget);
+    });
+
     testWidgets('settings rows stop at eight', (tester) async {
       // "mail" matches well over eight settings labels and no report.
       expect(

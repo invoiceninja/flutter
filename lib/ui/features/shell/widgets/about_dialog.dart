@@ -20,6 +20,7 @@ import 'package:admin/ui/features/shell/widgets/keyboard_shortcuts_dialog.dart';
 import 'package:admin/ui/features/shell/widgets/self_update_dialog.dart';
 import 'package:admin/ui/features/welcome/welcome_dialog.dart';
 import 'package:admin/ui/features/whats_new/whats_new_dialog.dart';
+import 'package:admin/ui/features/feedback/contact_us_dialog.dart';
 
 /// Pushes Flutter's bundled `LicensePage`. Modal sub-flow (not page
 /// navigation) — see the routing rule in `docs/architecture.md` § Navigation.
@@ -118,6 +119,16 @@ Future<void> showAppAboutDialog(BuildContext context) async {
               if (outerContext.mounted) openWelcomeOnRequest(outerContext);
             }
           : null,
+      // About is where a desktop user looks for a way to reach us
+      // (invoiceninja/flutter#191).
+      onContactUs: () {
+        // About's own exit, so it isn't in Contact Us's screenshot.
+        final closing = (ModalRoute.of(ctx) as TransitionRoute?)?.completed;
+        Navigator.of(ctx).pop();
+        if (outerContext.mounted) {
+          showContactUsDialog(outerContext, afterClosing: closing);
+        }
+      },
       whatsNewVersion: whatsNew?.first.version,
       onShowWhatsNew: whatsNew == null
           ? null
@@ -155,6 +166,7 @@ class _AboutDialog extends StatelessWidget {
     this.whatsNewVersion,
     this.onShowWhatsNew,
     this.onShowWelcome,
+    this.onContactUs,
   });
 
   final ValueListenable<String?> serverVersion;
@@ -171,6 +183,7 @@ class _AboutDialog extends StatelessWidget {
   final String? whatsNewVersion;
   final VoidCallback? onShowWhatsNew;
   final VoidCallback? onShowWelcome;
+  final VoidCallback? onContactUs;
 
   /// Combined `v<server>-<platformLetter><clientBuild>` label (see
   /// [AppVersion.versionLabel]). [server] is the live `x-app-version` value.
@@ -257,7 +270,8 @@ class _AboutDialog extends StatelessWidget {
               if (onShowWelcome != null ||
                   onShowWhatsNew != null ||
                   onShowMobileApp != null ||
-                  onRateApp != null) ...[
+                  onRateApp != null ||
+                  onContactUs != null) ...[
                 SizedBox(height: InSpacing.md(context)),
                 // Wraps: the two side by side outgrow a phone's About.
                 Wrap(
@@ -304,6 +318,16 @@ class _AboutDialog extends StatelessWidget {
                         onPressed: onRateApp,
                         icon: const Icon(Icons.star_outline, size: 18),
                         label: Text(context.tr('rate_the_app')),
+                      ),
+                    if (onContactUs != null)
+                      OutlinedButton.icon(
+                        key: const ValueKey('about_contact_us'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(64, 40),
+                        ),
+                        onPressed: onContactUs,
+                        icon: const Icon(Icons.mail_outline, size: 18),
+                        label: Text(context.tr('contact_us')),
                       ),
                   ],
                 ),

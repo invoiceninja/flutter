@@ -39,4 +39,13 @@ void main() {
       expect(ServerFeatures.supports(null, '5.13.44', isHosted: true), isTrue);
     });
   });
+
+  // Contact Us images (docs/feedback-screenshots.md): an older server drops
+  // `attachments[]` without a word, so the dialog offers none there.
+  test('support attachments arrived in 5.13.53', () {
+    const since = ServerFeatures.supportAttachments;
+    expect(ServerFeatures.supports('5.13.52', since), isFalse);
+    expect(ServerFeatures.supports('5.13.53', since), isTrue);
+    expect(ServerFeatures.supports(null, since, isHosted: true), isTrue);
+  });
 }

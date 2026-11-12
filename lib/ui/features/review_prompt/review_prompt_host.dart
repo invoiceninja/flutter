@@ -14,7 +14,7 @@ import 'package:admin/domain/sync/sync_event.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/dialogs/automatic_dialogs.dart';
 import 'package:admin/ui/features/review_prompt/review_prompt_dialog.dart';
-import 'package:admin/ui/features/shell/widgets/contact_us_dialog.dart';
+import 'package:admin/ui/features/feedback/contact_us_dialog.dart';
 
 /// Asks for a store review right after the user finishes something, and
 /// counts the days and wins that earn the ask (docs/review-prompt.md).

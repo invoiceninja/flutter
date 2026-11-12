@@ -28,6 +28,7 @@ void main() {
     required double width,
     required bool showCollapseToggle,
     bool touch = true,
+    bool compact = false,
     Widget? leading,
   }) async {
     final fixture = await buildFixture(
@@ -47,6 +48,7 @@ void main() {
             width: width,
             child: SidebarFooterActions(
               touch: touch,
+              compact: compact,
               showCollapseToggle: showCollapseToggle,
               leading: leading,
             ),
@@ -113,6 +115,46 @@ void main() {
       isNull,
       reason: 'fixed-width touch actions would overflow the 232-px rail',
     );
+  });
+
+  // The collapsed rail used to show only the expand toggle, which left a
+  // desktop user no way to send feedback (invoiceninja/flutter#191). The
+  // actions now sit in one Help menu above it.
+  testWidgets('collapsed rail: a Help menu holds every footer action', (
+    tester,
+  ) async {
+    await pumpFooter(
+      tester,
+      width: 64,
+      showCollapseToggle: true,
+      compact: true,
+    );
+    final help = find.widgetWithIcon(
+      IconButton,
+      Icons.contact_support_outlined,
+    );
+    expect(help, findsOneWidget);
+    expect(
+      tester.getSize(help).height,
+      greaterThanOrEqualTo(InSizes.touchTarget),
+    );
+    expect(
+      find.widgetWithIcon(IconButton, Icons.chevron_right),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(help);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    for (final label in [
+      'Contact Us',
+      'Support Forums',
+      'User Guide',
+      'About',
+    ]) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
   });
 
   testWidgets('drawer: the company action makes six, still at the touch floor', (

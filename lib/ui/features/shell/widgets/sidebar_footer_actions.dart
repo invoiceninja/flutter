@@ -7,19 +7,21 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
+import 'package:admin/ui/core/widgets/back_dismissible_menu_anchor.dart';
 import 'package:admin/ui/features/shell/widgets/about_dialog.dart';
 import 'package:admin/ui/features/shell/widgets/company_avatar.dart';
-import 'package:admin/ui/features/shell/widgets/contact_us_dialog.dart';
+import 'package:admin/ui/features/feedback/contact_us_dialog.dart';
 import 'package:admin/ui/features/shell/widgets/show_theme_menu.dart';
 
-const String _kForumUrl = 'https://forum.invoiceninja.com';
+/// The support forum — also offered by the command palette's Help hits.
+const String kSupportForumUrl = 'https://forum.invoiceninja.com';
 const String _kDocsBaseUrl = 'https://invoiceninja.github.io/en';
 
 /// Bottom row pinned to the sidebar: Contact Us, Support Forum, User Guide,
 /// About, a theme switcher — and, on the wide layout, the collapse toggle
 /// pinned to the end with a vertical divider between the two groups. When the wide
-/// sidebar is collapsed to a 64-px rail (`compact: true`), only the toggle
-/// remains; the action icons hide entirely.
+/// sidebar is collapsed to a 64-px rail (`compact: true`), the actions move
+/// into one Help menu above the toggle ([_CollapsedHelpMenu]).
 ///
 /// The row is **five actions, or six**: the single-company mobile drawer drops
 /// the sidebar header entirely (issue #104) and passes its company switcher in
@@ -61,8 +63,14 @@ class SidebarFooterActions extends StatelessWidget {
     this.showCollapseToggle = false,
     this.touch = false,
     this.leading,
+    this.onBeforeModal,
     super.key,
   });
+
+  /// Closes the phone drawer before Contact Us opens (`AppDrawer`'s
+  /// `Navigator.pop`), so the drawer isn't in the screenshot Contact Us may
+  /// take. Null on the persistent rail, which has nothing to close.
+  final VoidCallback? onBeforeModal;
 
   /// Hides the help/info actions (and [leading]) when true — only the collapse
   /// toggle remains, and only if [showCollapseToggle] is also true.
@@ -92,13 +100,22 @@ class SidebarFooterActions extends StatelessWidget {
         icon: Icons.mail_outline,
         tooltipKey: 'contact_us',
         touch: touch,
-        onTap: () => showContactUsDialog(context),
+        onTap: () {
+          final closeDrawer = onBeforeModal;
+          closeDrawer?.call();
+          // The drawer's close has no future to wait on: let Contact Us wait
+          // its settle time. On the rail nothing is closing.
+          showContactUsDialog(
+            context,
+            afterClosing: closeDrawer == null ? Future<void>.value() : null,
+          );
+        },
       ),
       _FooterAction(
         icon: Icons.forum_outlined,
         tooltipKey: 'support_forum',
         touch: touch,
-        onTap: () => _openExternal(context, _kForumUrl),
+        onTap: () => _openExternal(context, kSupportForumUrl),
       ),
       _FooterAction(
         icon: Icons.help_outline,
@@ -131,15 +148,26 @@ class SidebarFooterActions extends StatelessWidget {
 
     final Widget body;
     if (showCollapseToggle && compact) {
-      // Collapsed wide rail: only the expand toggle, pinned to the end so it
-      // slides smoothly from its expanded-state position (the last child of
-      // the footer Row, which is the end in either direction) rather than
-      // jumping inward at toggle-time. Both states are directional: in a
-      // right-to-left locale the rail sits at the right, and the toggle at its
-      // left edge, against the content.
-      body = Align(
-        alignment: AlignmentDirectional.centerEnd,
-        child: _CollapseToggleButton(collapsed: true, touch: touch),
+      // Collapsed wide rail: a Help menu holding the five actions, above the
+      // expand toggle. The toggle stays pinned to the end so it slides
+      // smoothly from its expanded-state position (the last child of the
+      // footer Row, which is the end in either direction) rather than jumping
+      // inward at toggle-time. Both states are directional: in a right-to-left
+      // locale the rail sits at the right, and the toggle at its left edge,
+      // against the content.
+      //
+      // The menu is there because the actions are: hiding them left a
+      // collapsed rail with no way to Contact Us at all, and a desktop user
+      // reported exactly that ("I cannot send feedback",
+      // invoiceninja/flutter#191).
+      body = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          _CollapsedHelpMenu(touch: touch),
+          const SizedBox(height: 4),
+          _CollapseToggleButton(collapsed: true, touch: touch),
+        ],
       );
     } else if (showCollapseToggle) {
       // Expanded wide rail: the actions, a vertical divider, collapse toggle.
@@ -168,6 +196,85 @@ class SidebarFooterActions extends StatelessWidget {
     }
 
     return Padding(padding: const EdgeInsets.fromLTRB(8, 6, 8, 8), child: body);
+  }
+}
+
+/// The collapsed rail's one help button: a menu of the five footer actions,
+/// each labelled, since a 64-px rail has room for one glyph, not five.
+class _CollapsedHelpMenu extends StatefulWidget {
+  const _CollapsedHelpMenu({required this.touch});
+
+  final bool touch;
+
+  @override
+  State<_CollapsedHelpMenu> createState() => _CollapsedHelpMenuState();
+}
+
+class _CollapsedHelpMenuState extends State<_CollapsedHelpMenu> {
+  /// Anchors the theme popup, which opens once this menu has closed.
+  final GlobalKey _anchorKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    MenuItemButton item(IconData icon, String key, VoidCallback onPressed) =>
+        MenuItemButton(
+          leadingIcon: Icon(icon, size: 18),
+          onPressed: onPressed,
+          child: Text(context.tr(key)),
+        );
+    return BackDismissibleMenuAnchor(
+      menuChildren: [
+        item(
+          Icons.mail_outline,
+          'contact_us',
+          // A MenuAnchor closes without an animation: nothing to wait for.
+          () =>
+              showContactUsDialog(context, afterClosing: Future<void>.value()),
+        ),
+        item(
+          Icons.forum_outlined,
+          'support_forum',
+          () => _openExternal(context, kSupportForumUrl),
+        ),
+        item(
+          Icons.help_outline,
+          'user_guide',
+          () => _openExternal(
+            context,
+            userGuideUrl(GoRouterState.of(context).matchedLocation),
+          ),
+        ),
+        item(Icons.info_outline, 'about', () => showAppAboutDialog(context)),
+        item(
+          Icons.brightness_auto_outlined,
+          'appearance',
+          () => showThemeMenu(context, anchorKey: _anchorKey),
+        ),
+      ],
+      builder: (context, controller, _) => Tooltip(
+        message: context.tr('help'),
+        waitDuration: const Duration(milliseconds: 600),
+        child: IconButton(
+          key: _anchorKey,
+          // Same sizing as the toggle below it — see [_CollapseToggleButton].
+          style: IconButton.styleFrom(
+            minimumSize: widget.touch
+                ? const Size(InSizes.touchTarget, InSizes.touchTarget)
+                : const Size(36, 36),
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          icon: Icon(
+            Icons.contact_support_outlined,
+            size: 18,
+            color: tokens.ink3,
+          ),
+          onPressed: () =>
+              controller.isOpen ? controller.close() : controller.open(),
+        ),
+      ),
+    );
   }
 }
 
@@ -215,8 +322,8 @@ class _CollapseToggleButton extends StatelessWidget {
 }
 
 /// Pure-function URL mapping: matched route → docs sub-path. Extracted so the
-/// table can be unit-tested without pumping a widget tree.
-@visibleForTesting
+/// table can be unit-tested without pumping a widget tree; the command
+/// palette's User Guide hit uses it too.
 String userGuideUrl(String location) {
   if (location.startsWith('/clients')) return '$_kDocsBaseUrl/clients';
   if (location.startsWith('/dashboard')) return '$_kDocsBaseUrl/user-guide';

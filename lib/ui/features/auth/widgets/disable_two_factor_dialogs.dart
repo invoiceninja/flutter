@@ -25,7 +25,7 @@ import 'package:admin/ui/features/auth/view_models/login_view_model.dart';
 /// to, or null when cancelled.
 ///
 /// Neither dialog closes on a barrier tap, and neither can be popped while
-/// its request is in flight (`contact_us_dialog.dart`'s pattern): a Send
+/// its request is in flight (`feedback/contact_us_dialog.dart`'s pattern): a Send
 /// dismissed mid-flight still texts a code — spending one of hosted's twelve
 /// daily-verify sends — with no Verify dialog left to type it into.
 Future<String?> showSendTwoFactorResetCodeDialog(

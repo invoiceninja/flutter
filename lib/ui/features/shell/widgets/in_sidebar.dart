@@ -737,6 +737,7 @@ class _InSidebarState extends State<InSidebar> {
                     compact: collapsed,
                     showCollapseToggle: canCollapse,
                     touch: touch,
+                    onBeforeModal: widget.onBeforeModal,
                     // The single-company drawer's company switcher. Pops the
                     // drawer first, exactly like the header switcher does, then
                     // opens the picker — which is always the bottom sheet here,

@@ -54,7 +54,12 @@ void main() {
       final pins = <String>{};
       for (final f in Directory('.github/workflows').listSync()) {
         if (f is! File || !RegExp(r'\.ya?ml$').hasMatch(f.path)) continue;
-        pins.addAll(_all(f.readAsStringSync(), r'flutter-version:\s*(\S+)'));
+        // ci.yaml and _test.yaml carry the pin as their trial input's default.
+        final text = f.readAsStringSync().replaceAllMapped(
+          RegExp(r"\$\{\{ inputs\.flutter_version \|\| '([0-9.]+)' \}\}"),
+          (m) => m[1]!,
+        );
+        pins.addAll(_all(text, r'flutter-version:\s*(\S+)'));
       }
       expect(pins, hasLength(1), reason: 'the workflows disagree: $pins');
 

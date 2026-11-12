@@ -14,6 +14,11 @@ name: Test
 # instead, so the SDK pin and the codegen step can't drift between workflows.
 on:
   workflow_call:
+    inputs:
+      # ci.yaml's trial of another Flutter; blank (every release caller) is the pin.
+      flutter_version:
+        type: string
+        default: ''
 
 # Least privilege: this job only checks out code and runs tests. Declared
 # explicitly rather than inherited — a called workflow otherwise takes the
@@ -41,11 +46,17 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.7
+          flutter-version: ${{ inputs.flutter_version || '3.47.7' }}
           cache: true
 
       - name: Install dependencies
         run: flutter pub get
+
+      # A trial version moves the SDK-pinned packages: resolve the FOSS lock
+      # as upgrade day does, or store_sdk_boundary_test reports the old one.
+      - name: Resolve the FOSS lock (trial version only)
+        if: inputs.flutter_version != ''
+        run: tools/prepare_foss.sh --update-lock
 
       - name: Generate code
         run: dart run build_runner build --delete-conflicting-outputs

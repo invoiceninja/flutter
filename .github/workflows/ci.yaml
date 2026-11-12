@@ -2,6 +2,15 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      # Blank runs on the pin. A version runs every job on it as upgrade day
+      # would (the FOSS lock resolved anew, deprecation infos shown but not
+      # fatal), so a Flutter release can be tried before any pin moves.
+      # docs/upgrading-to-flutter-3-50.md.
+      flutter_version:
+        description: Trial a Flutter version (blank = the pinned one)
+        type: string
+        default: ''
 
 # Least privilege: every job only checks out code and uploads an artifact —
 # neither needs write access to repo contents.
@@ -80,7 +89,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.7
+          flutter-version: ${{ inputs.flutter_version || '3.47.7' }}
           cache: true
 
       - name: Install dependencies
@@ -102,8 +111,10 @@ jobs:
             exit 1
           fi
 
+      # A trial version's new deprecations are shown, not fatal: the pin's
+      # build is what this gate is for.
       - name: Analyze
-        run: flutter analyze
+        run: flutter analyze${{ inputs.flutter_version && ' --no-fatal-infos' || '' }}
 
   # Unit / widget tests — the whole `test/` tree, unfiltered. Defined once in the
   # reusable `_test.yaml` (which carries the sqlite native-assets caveat and the
@@ -111,6 +122,8 @@ jobs:
   # copies would drift. Renders as `unit-tests / test` in the checks UI.
   unit-tests:
     uses: ./.github/workflows/_test.yaml
+    with:
+      flutter_version: ${{ inputs.flutter_version }}
 
   # Web compile gate. The authoritative check for web-platform regressions:
   # `flutter analyze` runs against the VM target and won't catch a native-only
@@ -131,7 +144,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.7
+          flutter-version: ${{ inputs.flutter_version || '3.47.7' }}
           cache: true
 
       - name: Install dependencies
@@ -160,7 +173,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.7
+          flutter-version: ${{ inputs.flutter_version || '3.47.7' }}
           cache: true
 
       - name: Install dependencies
@@ -187,11 +200,17 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.7
+          flutter-version: ${{ inputs.flutter_version || '3.47.7' }}
           cache: true
 
+      # A trial version moves the SDK-pinned packages, so its FOSS lock is
+      # resolved anew first, as upgrade day does.
       - name: Prepare the FOSS build
-        run: tools/prepare_foss.sh
+        env:
+          TRIAL: ${{ inputs.flutter_version }}
+        run: |
+          if [ -n "$TRIAL" ]; then tools/prepare_foss.sh --update-lock; fi
+          tools/prepare_foss.sh
 
       - name: Generate code
         run: dart run build_runner build --delete-conflicting-outputs
@@ -199,7 +218,7 @@ jobs:
       # Not the whole repo: packages/store_services is (correctly) unresolved
       # here, since the non-free SDKs it imports are no longer in the graph.
       - name: Analyze (FOSS)
-        run: flutter analyze lib test packages/store_services_foss
+        run: flutter analyze lib test packages/store_services_foss${{ inputs.flutter_version && ' --no-fatal-infos' || '' }}
 
       - name: Build Android APK (FOSS, --release)
         run: flutter build apk --release
@@ -266,7 +285,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.7
+          flutter-version: ${{ inputs.flutter_version || '3.47.7' }}
           cache: true
 
       - name: Install Linux build deps
@@ -307,7 +326,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.7
+          flutter-version: ${{ inputs.flutter_version || '3.47.7' }}
           cache: true
 
       - name: Install dependencies
@@ -337,7 +356,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.7
+          flutter-version: ${{ inputs.flutter_version || '3.47.7' }}
           cache: true
 
       - name: Select Xcode 26.4.1
@@ -395,7 +414,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.7
+          flutter-version: ${{ inputs.flutter_version || '3.47.7' }}
           cache: true
 
       - name: Enable web

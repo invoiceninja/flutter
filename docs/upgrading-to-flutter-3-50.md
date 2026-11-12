@@ -23,6 +23,10 @@ Prepared 2026-11-12, against the `3.50.0` tag (Dart 3.14.0). Every change below 
 | `flutter build apk --debug` | builds; warns that Gradle 9.3.1, AGP 9.1.1 and KGP 2.4.10 "will soon be dropped" (step 5) and that five plugins apply the Kotlin Gradle plugin (§ Left for later) |
 | `flutter build macos --debug` | builds; not launched (the debug app asks for keychain access) |
 
+## CI can try 3.50 before any pin moves
+
+`ci.yaml` takes a `flutter_version` input: `gh workflow run ci.yaml --ref main -f flutter_version=3.50.0`. Blank, every job runs on the pin. Given a version, every job runs on it as upgrade day would: `_test.yaml` and the FOSS Android job resolve the FOSS lock anew (step 3 below), and both analyze steps pass `--no-fatal-infos`, so the Material deprecations show without failing the run. The release workflows call `_test.yaml` without the input, so they always build on the pin. This is how the platforms this Mac can't build (Windows, the Linux desktop, the CI Xcode's iOS) were checked before the pin moved.
+
 ## Material moves to material_ui, and the app can't follow until its dependencies do
 
 Flutter 3.50 deprecates `package:flutter/material.dart` and `cupertino.dart` in favour of the standalone `material_ui` / `cupertino_ui` packages (`dart fix --apply --code=migrate_design_widgets`). It is a deprecation, not a removal: the framework's own Material still ships and works.
@@ -36,7 +40,7 @@ Until then 3.50's analyzer reports every Material import as deprecated, and `flu
 
 ## Upgrade day, in order
 
-1. Change `flutter-version: 3.47.7` to `3.50.0` in every workflow (`_test.yaml`, `appimage.yml` (F-Droid and Flathub read their Flutter from it), `appstore-ios.yml`, `appstore-macos.yml`, `ci.yaml` ×8 and its comment, `microsoft-store.yml`, `perf.yaml`, `playstore.yml`, `snapcraft.yml`, `web.yml`), plus the 3.47.7 mentions in `pubspec.yaml`'s version comment and `docs/setup.md`.
+1. Change `3.47.7` to `3.50.0` in every workflow (`_test.yaml`, `appimage.yml` (F-Droid and Flathub read their Flutter from it), `appstore-ios.yml`, `appstore-macos.yml`, `ci.yaml` ×8 and its comment, `microsoft-store.yml`, `perf.yaml`, `playstore.yml`, `snapcraft.yml`, `web.yml`), plus the 3.47.7 mentions in `pubspec.yaml`'s version comment and `docs/setup.md`. In `ci.yaml` and `_test.yaml` the pin is the default of the trial input (`${{ inputs.flutter_version || '3.47.7' }}`); `fdroid_recipe_test` reads it there and fails if any workflow disagrees.
 2. `flutter pub get` and commit `pubspec.lock`.
 3. `tools/prepare_foss.sh --update-lock` and commit `tools/foss/pubspec.lock` (`store_sdk_boundary_test` checks it).
 4. The analyzer decision above.

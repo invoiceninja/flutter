@@ -176,6 +176,7 @@ class ProjectActions {
           // No handler: a disabled item is never tapped.
           enabled: false,
           isPrimary: true,
+          isEdit: true,
         ),
       if (!project.isDeleted) ...[
         edit,

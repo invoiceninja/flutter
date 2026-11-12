@@ -497,6 +497,7 @@ class _DocuNinjaDocumentScreenState extends State<DocuNinjaDocumentScreen> {
       label: context.tr(key),
       enabled: idle && enabled,
       isPrimary: primary,
+      isEdit: kind == _Action.edit,
       confirm: confirm,
       confirmMessageKey: confirmMessageKey,
       isDestructive: destructive,

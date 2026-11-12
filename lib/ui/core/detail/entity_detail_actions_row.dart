@@ -31,6 +31,7 @@ class EntityActionItem<A> {
     required this.label,
     required this.enabled,
     this.isPrimary = false,
+    this.isEdit = false,
     this.onTap,
     this.children,
     this.disabledTooltipKey = 'coming_soon',
@@ -48,6 +49,19 @@ class EntityActionItem<A> {
   final String label;
   final bool enabled;
   final bool isPrimary;
+
+  /// This item is the record's Edit action — set by `editActionItem` (and by
+  /// the disabled stand-ins Tasks, Projects and DocuNinja draw in its place).
+  ///
+  /// Not the same as [isPrimary]. Edit is *usually* the primary action, but
+  /// not always: a sent invoice promotes Enter Payment to primary and demotes
+  /// Edit. Two surfaces need Edit itself — the wide list row's pencil button
+  /// (`EntityActionsPopupButton.splitEditAction`) and the editor's overflow,
+  /// which drops it (`filterForEditScreen`). Both used to find it as "the
+  /// primary item", so on a sent invoice the pencil ran Enter Payment under
+  /// an "Edit" tooltip, the row's menu lost Enter Payment, and the editor's
+  /// menu offered Edit on the editor.
+  final bool isEdit;
   final VoidCallback? onTap;
 
   /// True for the universal lifecycle actions (Archive / Restore / Delete /

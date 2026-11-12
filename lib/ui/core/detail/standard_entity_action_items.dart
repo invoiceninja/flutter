@@ -32,6 +32,7 @@ EntityActionItem<A> editActionItem<A>({
   label: context.tr('edit'),
   enabled: true,
   isPrimary: isPrimary,
+  isEdit: true,
   onTap: onTap,
 );
 

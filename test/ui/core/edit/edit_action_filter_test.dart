@@ -4,11 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/edit/edit_action_filter.dart';
 
-enum _Action { edit, viewClient, sendEmail, archive }
+enum _Action { edit, enterPayment, viewClient, sendEmail, archive }
 
 EntityActionItem<_Action> _item(
   _Action kind, {
   bool isPrimary = false,
+  bool isEdit = false,
   bool isNavigationOnly = false,
   bool isLifecycle = false,
 }) => EntityActionItem(
@@ -17,6 +18,7 @@ EntityActionItem<_Action> _item(
   label: kind.name,
   enabled: true,
   isPrimary: isPrimary,
+  isEdit: isEdit,
   isNavigationOnly: isNavigationOnly,
   isLifecycle: isLifecycle,
 );
@@ -25,7 +27,7 @@ bool _isLifecycle(_Action a) => a == _Action.archive;
 
 void main() {
   final items = [
-    _item(_Action.edit, isPrimary: true),
+    _item(_Action.edit, isPrimary: true, isEdit: true),
     _item(_Action.viewClient, isNavigationOnly: true),
     _item(_Action.sendEmail),
     _item(_Action.archive, isLifecycle: true),
@@ -60,7 +62,7 @@ void main() {
       isCreate: false,
       isLifecycle: _isLifecycle,
     ).map((i) => i.kind);
-    // Primary ("Edit") is pointless on the screen that IS the editor.
+    // Edit is pointless on the screen that IS the editor.
     expect(onEdit, isNot(contains(_Action.edit)));
     // Lifecycle survives on an existing record...
     expect(onEdit, contains(_Action.archive));
@@ -74,5 +76,20 @@ void main() {
     // ...but not on a brand-new one.
     expect(onCreate, isNot(contains(_Action.archive)));
     expect(onCreate, contains(_Action.sendEmail));
+  });
+
+  // A sent invoice's primary is Enter Payment, with Edit demoted beside it.
+  // Dropping "the primary" hid Enter Payment from the editor and kept Edit.
+  test('drops Edit, not whichever action is primary', () {
+    final kept = filterForEditScreen(
+      [
+        _item(_Action.enterPayment, isPrimary: true),
+        _item(_Action.edit, isEdit: true),
+        _item(_Action.sendEmail),
+      ],
+      isCreate: false,
+      isLifecycle: _isLifecycle,
+    ).map((i) => i.kind);
+    expect(kept, [_Action.enterPayment, _Action.sendEmail]);
   });
 }

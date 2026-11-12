@@ -299,6 +299,7 @@ class TaskActions {
           // No handler: a disabled item is never tapped.
           enabled: false,
           isPrimary: true,
+          isEdit: true,
         ),
       ?timerItem,
       if (live && canCreateInvoice)

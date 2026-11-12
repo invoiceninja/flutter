@@ -32,10 +32,14 @@ class EntityActionsPopupButton<A> extends StatelessWidget {
 
   final List<EntityActionItem<A>> items;
 
-  /// When true (wide data-table rows), the primary "Edit" action is pulled
-  /// out of the overflow menu and rendered as a dedicated leading icon
-  /// button to the left of the `⋮` menu. The detail header (which shares
-  /// the same [items] list via a different widget) is unaffected.
+  /// When true (wide data-table rows), the Edit action
+  /// ([EntityActionItem.isEdit]) is pulled out of the overflow menu and
+  /// rendered as a dedicated leading icon button to the left of the `⋮` menu.
+  /// The detail header (which shares the same [items] list via a different
+  /// widget) is unaffected.
+  ///
+  /// Keyed on `isEdit`, never `isPrimary`: a sent invoice's primary is Enter
+  /// Payment, which then ran from the pencil and vanished from the menu.
   final bool splitEditAction;
 
   /// Gates the standalone edit button. `false` for soft-deleted rows —
@@ -82,14 +86,12 @@ class EntityActionsPopupButton<A> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Pull the primary (Edit, by convention) item out into its own button
-    // when asked. `isPrimary` is only ever set by `editActionItem`, so this
-    // is the Edit action across every entity. Read-only entities have no
-    // primary item — fall through to the plain popup.
+    // Pull the Edit item out into its own button when asked. Read-only
+    // entities have no Edit item — fall through to the plain popup.
     EntityActionItem<A>? primary;
     var menuItems = items;
     if (splitEditAction) {
-      final idx = items.indexWhere((i) => i.isPrimary);
+      final idx = items.indexWhere((i) => i.isEdit);
       if (idx != -1) {
         primary = items[idx];
         menuItems = [

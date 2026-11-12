@@ -6,9 +6,9 @@ import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 ///
 /// Three adjustments vs. the detail surface:
 ///
-///  * **The primary action is always dropped.** By the
-///    `standard_entity_action_items` convention the only `isPrimary` item
-///    is "Edit" — pointless on the screen that *is* the editor.
+///  * **Edit is always dropped** ([EntityActionItem.isEdit]) — pointless on
+///    the screen that *is* the editor. Not the *primary* item: a sent
+///    invoice's primary is Enter Payment, which the editor's menu must keep.
 ///  * **Pure navigation actions are always dropped.** An item flagged
 ///    [EntityActionItem.isNavigationOnly] (View client / View vendor) persists
 ///    nothing, but `EntityEditScaffold._onAction` treats any action without a
@@ -23,7 +23,7 @@ import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 ///    no empty submenu is left behind.
 ///
 /// On an existing record (`isCreate == false`) the full set is kept (minus
-/// the primary), matching the detail screen.
+/// Edit), matching the detail screen.
 List<EntityActionItem<A>> filterForEditScreen<A>(
   List<EntityActionItem<A>> items, {
   required bool isCreate,
@@ -31,7 +31,7 @@ List<EntityActionItem<A>> filterForEditScreen<A>(
 }) {
   return [
     for (final item in items)
-      if (!item.isPrimary &&
+      if (!item.isEdit &&
           !item.isNavigationOnly &&
           !(isCreate && isLifecycle(item.kind)))
         item,

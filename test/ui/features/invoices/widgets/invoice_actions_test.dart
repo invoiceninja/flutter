@@ -6,6 +6,7 @@ import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/invoice_status.dart';
 import 'package:admin/domain/terminal/terminal_eligibility.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/edit/edit_action_filter.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_actions.dart';
 
 import '../../shell/_shell_test_helpers.dart';
@@ -311,6 +312,29 @@ void main() {
         isFalse,
         reason: 'Edit demotes to a secondary while money is outstanding',
       );
+    });
+
+    // Beta-user report: on a sent invoice the wide list row's pencil took
+    // "the primary item" — Enter Payment — so the `⋮` menu had no Enter
+    // Payment and the pencil ran it under an "Edit" tooltip; the editor's
+    // menu dropped it the same way. Both surfaces now key on `isEdit`.
+    testWidgets('on a sent invoice, Edit is the isEdit item and Enter Payment '
+        'survives the editor filter', (tester) async {
+      final items = await resolveItems(
+        tester,
+        _invoice(status: InvoiceStatus.sent),
+      );
+      final flat = flattenActionItems(items);
+      expect(flat.where((i) => i.isEdit).map((i) => i.kind), [
+        InvoiceAction.edit,
+      ]);
+      final onEditor = filterForEditScreen(
+        items,
+        isCreate: false,
+        isLifecycle: InvoiceActions.isLifecycle,
+      ).map((i) => i.kind);
+      expect(onEditor, contains(InvoiceAction.enterPayment));
+      expect(onEditor, isNot(contains(InvoiceAction.edit)));
     });
 
     testWidgets('offered on a draft, but Edit stays primary', (tester) async {

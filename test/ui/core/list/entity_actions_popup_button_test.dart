@@ -12,8 +12,8 @@ import 'package:admin/ui/core/list/entity_list_constants.dart';
 import '../../../_localization_helper.dart';
 import '../../../_responsive_helper.dart';
 
-/// Builds the canonical action list: a primary "Edit" item (the only place
-/// `isPrimary` is ever set in the app) plus an ordinary "Archive" item.
+/// Builds the canonical action list: a primary "Edit" item (`isEdit`, as
+/// `editActionItem` makes it) plus an ordinary "Archive" item.
 List<EntityActionItem<String>> _items({
   required VoidCallback onEdit,
   required VoidCallback onArchive,
@@ -24,6 +24,7 @@ List<EntityActionItem<String>> _items({
     label: 'Edit',
     enabled: true,
     isPrimary: true,
+    isEdit: true,
     onTap: onEdit,
   ),
   EntityActionItem(
@@ -116,6 +117,60 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Edit'), findsNothing);
     expect(find.text('Archive'), findsOneWidget);
+  });
+
+  // A sent invoice promotes Enter Payment to primary and demotes Edit. The
+  // pencil used to take "the primary item", so it ran Enter Payment under an
+  // "Edit" tooltip and the menu lost Enter Payment (beta-user report).
+  testWidgets('split mode: the pencil is Edit even when another action is '
+      'primary, and the primary stays in the menu', (tester) async {
+    var edited = 0;
+    var paid = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildInTheme(InTheme.light),
+        localizationsDelegates: kTestLocalizationsDelegates,
+        supportedLocales: kTestSupportedLocales,
+        home: Scaffold(
+          body: Center(
+            child: EntityActionsPopupButton<String>(
+              splitEditAction: true,
+              items: [
+                EntityActionItem(
+                  kind: 'enterPayment',
+                  icon: Icons.payments_outlined,
+                  label: 'Enter Payment',
+                  enabled: true,
+                  isPrimary: true,
+                  onTap: () => paid++,
+                ),
+                EntityActionItem(
+                  kind: 'edit',
+                  icon: MdiIcons.circleEditOutline,
+                  label: 'Edit',
+                  enabled: true,
+                  isEdit: true,
+                  onTap: () => edited++,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.widgetWithIcon(IconButton, MdiIcons.circleEditOutline),
+    );
+    await tester.pumpAndSettle();
+    expect(edited, 1);
+    expect(paid, 0);
+
+    await tester.tap(find.widgetWithIcon(IconButton, Icons.more_vert));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter Payment'), findsOneWidget);
+    expect(find.text('Edit'), findsNothing);
   });
 
   testWidgets('non-split mode: no standalone edit button, Edit stays in '

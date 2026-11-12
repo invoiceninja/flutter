@@ -279,7 +279,7 @@ _CompanySettingsApi _$CompanySettingsApiFromJson(
   paymentTypeId: json['payment_type_id'] as String?,
   defaultExpensePaymentTypeId:
       json['default_expense_payment_type_id'] as String?,
-  hiddenPaymentTypes: json['hidden_payment_types'] as String?,
+  hiddenPaymentTypes: jsonScalarToString(json['hidden_payment_types']),
   companyGatewayIds: json['company_gateway_ids'] as String?,
   paymentFlow: json['payment_flow'] as String?,
   unlockInvoiceDocumentsAfterPayment:

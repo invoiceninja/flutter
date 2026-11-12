@@ -1990,7 +1990,7 @@
   "get_the_extension": "Get the extension",
   "last_used_for_this_client": "Last used for this client",
   "payment_types": "Payment Types",
-  "payment_types_help": "Hide the types you never use from the payment and expense Type lists. You can't add a new type, but you can rename one you don't use.",
+  "payment_types_help": "Hide the types you never use from the payment and expense Type lists. You can't add a new type, but you can rename any of them.",
   "search_payment_types": "Search payment types",
   "hide_all": "Hide all",
   "show_all": "Show all",
@@ -2025,5 +2025,7 @@
   "wait_before_sending": "Please wait :seconds seconds before sending again.",
   "images_limit": "You can attach up to :count images.",
   "image_added": "Image added, :count of :max",
-  "image_removed": "Image removed"
+  "image_removed": "Image removed",
+  "send_limit_reached": "You've reached the limit for messages. Please try again later.",
+  "image_not_readable": "That file couldn't be attached as an image."
 }

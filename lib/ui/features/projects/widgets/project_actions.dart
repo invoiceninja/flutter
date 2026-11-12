@@ -165,8 +165,8 @@ class ProjectActions {
       // deleted client. The record screen says why in its banner.
       //
       // Edit alone stays in the list, disabled: a disabled item is hidden
-      // from every menu and bar, but the wide list row still finds it as its
-      // primary and draws the greyed pencil — without it the row's `⋮` would
+      // from every menu and bar, but the wide list row still finds it
+      // (`isEdit`) and draws the greyed pencil — without it the row's `⋮` would
       // slide into the pencil's place, out of line with the rows around it.
       if (project.isDeleted)
         EntityActionItem(

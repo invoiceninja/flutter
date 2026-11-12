@@ -1840,7 +1840,7 @@
   "sign_in_browser": "Im Browser unterschreiben",
   "last_used_for_this_client": "Zuletzt bei diesem Kunden verwendet",
   "payment_types": "Zahlungsarten",
-  "payment_types_help": "Blenden Sie Zahlungsarten, die Sie nie verwenden, in den Typ-Listen von Zahlungen und Ausgaben aus. Neue Arten können Sie nicht anlegen, aber eine ungenutzte umbenennen.",
+  "payment_types_help": "Blenden Sie Zahlungsarten, die Sie nie verwenden, in den Typ-Listen von Zahlungen und Ausgaben aus. Neue Arten können Sie nicht anlegen, aber jede umbenennen.",
   "search_payment_types": "Zahlungsarten suchen",
   "hide_all": "Alle ausblenden",
   "show_all": "Alle einblenden",
@@ -1874,5 +1874,7 @@
   "wait_before_sending": "Bitte warten Sie :seconds Sekunden, bevor Sie erneut senden.",
   "images_limit": "Sie können bis zu :count Bilder anhängen.",
   "image_added": "Bild hinzugefügt, :count von :max",
-  "image_removed": "Bild entfernt"
+  "image_removed": "Bild entfernt",
+  "send_limit_reached": "Sie haben das Nachrichtenlimit erreicht. Bitte versuchen Sie es später erneut.",
+  "image_not_readable": "Diese Datei konnte nicht als Bild angehängt werden."
 }

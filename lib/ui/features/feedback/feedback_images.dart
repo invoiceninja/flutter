@@ -49,7 +49,11 @@ loadPickedImage(UploadSource source) async {
   return (
     attachment: FeedbackAttachment(
       image: image,
-      originalBytes: bytes,
+      // Sent as-is only within the budget; past it the decoded image is
+      // re-encoded, so don't hold up to 30 MB for nothing.
+      originalBytes: bytes.lengthInBytes <= kFeedbackMaxImageBytes
+          ? bytes
+          : null,
       originalExtension: ext,
       source: source,
     ),

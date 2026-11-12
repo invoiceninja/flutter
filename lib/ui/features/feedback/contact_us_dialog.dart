@@ -98,32 +98,39 @@ Future<void> showContactUsDialog(
         afterClosing: afterClosing,
       );
     }
-    if (!rootNavigator.mounted) {
+    // Gone during the wait: the caller's navigator, or the session (a
+    // sign-out would otherwise open it over /login).
+    if (!rootNavigator.mounted || services.auth.session.value == null) {
       capture?.dispose();
       return;
     }
+    // Created once, here — never in the dialog builder below, which runs
+    // again whenever anything above the navigator rebuilds (every /refresh
+    // replaces the credentials and rebuilds the router). A view model made
+    // there was replaced on each rebuild: marks, redactions, added images
+    // and the sending flag all reset mid-dialog. The dialog's State
+    // disposes it.
+    final viewModel = ContactUsViewModel(
+      // Read at send time, as it always was.
+      api: () => services.support,
+      attachmentsEnabled: attachments,
+      capture: capture,
+      encode: (image, marks) =>
+          encodeMarkedImage(image, marks, color: InTheme.light.annotationMark),
+      releaseSources: (sources) =>
+          releaseCapturedPhotos(services.sharedIntakeFiles, sources),
+    );
     final shown = showDialog<void>(
       context: rootNavigator.context,
-      // A send in flight must complete (or fail) before the dialog can go;
-      // Cancel / Esc / back otherwise go through the discard prompt.
+      // A send in flight must complete (or fail) before the dialog can go.
+      // Not dismissible, so Esc and a barrier tap do nothing; Cancel and
+      // Android back go through the discard prompt.
       barrierDismissible: false,
       builder: (ctx) => _ContactUsDialog(
         session: session,
         messenger: messenger,
         intro: intro,
-        viewModel: ContactUsViewModel(
-          // Read at send time, as it always was.
-          api: () => services.support,
-          attachmentsEnabled: attachments,
-          capture: capture,
-          encode: (image, marks) => encodeMarkedImage(
-            image,
-            marks,
-            color: ctx.inTheme.annotationMark,
-          ),
-          releaseSources: (sources) =>
-              releaseCapturedPhotos(services.sharedIntakeFiles, sources),
-        ),
+        viewModel: viewModel,
       ),
     );
     _contactUsOpen = false;
@@ -197,7 +204,6 @@ class _ContactUsDialogState extends State<_ContactUsDialog> {
 
   Future<void> _send({bool withImages = true}) async {
     if (!_canSend) return;
-    setState(() => _imagesRefused = false);
     final services = context.read<Services>();
     final navigator = Navigator.of(context);
     final result = await vm.send(
@@ -210,6 +216,7 @@ class _ContactUsDialogState extends State<_ContactUsDialog> {
     if (!mounted) return;
     switch (result) {
       case ContactUsSent():
+        _imagesRefused = false;
         navigator.pop();
         final m = widget.messenger;
         if (m != null) {
@@ -224,10 +231,14 @@ class _ContactUsDialogState extends State<_ContactUsDialog> {
       case ContactUsImageTooLarge():
         Notify.error(context, _tr('image_too_large'));
       case ContactUsRateLimited(:final retryAfter):
-        final seconds = math.max(1, retryAfter?.inSeconds ?? 60);
+        // One a minute, ten a day: past a couple of minutes it's the daily
+        // limit, and a countdown in seconds would read "86000".
+        final seconds = math.max(2, retryAfter?.inSeconds ?? 60);
         Notify.error(
           context,
-          _tr('wait_before_sending', {'seconds': '$seconds'}),
+          seconds > 120
+              ? _tr('send_limit_reached')
+              : _tr('wait_before_sending', {'seconds': '$seconds'}),
         );
       case ContactUsFailed(:final error):
         // Outlives this dialog: the toast's action may be tapped after it
@@ -287,9 +298,11 @@ class _ContactUsDialogState extends State<_ContactUsDialog> {
     setState(() => _picking = true);
     final intake = intakeOf(context);
     final added = <FeedbackAttachment>[];
-    var problems = 0;
+    var tooLarge = 0;
+    var unreadable = 0;
+    var sources = const <UploadSource>[];
+    var next = 0;
     try {
-      final List<UploadSource> sources;
       if (Env.isMobile) {
         // Where a phone's own screenshots live.
         sources = await pickGalleryPhotos(
@@ -304,17 +317,23 @@ class _ContactUsDialogState extends State<_ContactUsDialog> {
           ),
         );
       }
-      for (final source in sources) {
+      for (; next < sources.length; next++) {
+        final source = sources[next];
         final loaded = await loadPickedImage(source);
         if (loaded.attachment case final a?) {
           added.add(a);
         } else {
-          problems++;
+          loaded.problem == PickedImageProblem.tooLarge
+              ? tooLarge++
+              : unreadable++;
           await releaseCapturedPhotos(intake, [source]);
         }
       }
     } catch (_) {
-      problems++;
+      // A picker that failed, or a file that broke mid-read: release what
+      // was picked but never looked at.
+      unreadable++;
+      await releaseCapturedPhotos(intake, sources.skip(next));
     } finally {
       if (mounted) setState(() => _picking = false);
     }
@@ -341,7 +360,8 @@ class _ContactUsDialogState extends State<_ContactUsDialog> {
         _tr('images_limit', {'count': '$kFeedbackMaxImages'}),
       );
     }
-    if (problems > 0) Notify.error(context, _tr('image_too_large'));
+    if (tooLarge > 0) Notify.error(context, _tr('image_too_large'));
+    if (unreadable > 0) Notify.error(context, _tr('image_not_readable'));
   }
 
   void _announce(String message) {

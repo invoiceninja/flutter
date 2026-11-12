@@ -67,6 +67,9 @@ class DocumentActions {
         label: context.tr('view'),
         enabled: true,
         isPrimary: true,
+        // Opens the viewer, saves nothing — so not in the editor's own menu
+        // (filterForEditScreen), where it used to be dropped as "the primary".
+        isNavigationOnly: true,
         onTap: () => onTap(DocumentAction.view),
       ),
       EntityActionItem(

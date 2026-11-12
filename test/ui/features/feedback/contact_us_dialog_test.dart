@@ -105,4 +105,37 @@ void main() {
     }
     expect(find.byType(AlertDialog), findsNothing);
   });
+
+  // The dialog builder runs again whenever anything above the navigator
+  // rebuilds (every /refresh replaces the credentials and rebuilds the
+  // router). A view model made in the builder was replaced each time, losing
+  // marks, redactions and added images mid-dialog.
+  testWidgets('a rebuild above the dialog keeps the same view model', (
+    tester,
+  ) async {
+    final fixture = await pump(tester, isHosted: true);
+    await openDialog(tester);
+    Object? viewModel() =>
+        (tester.widget(
+                  find.byWidgetPredicate(
+                    (w) => w.runtimeType.toString() == '_ContactUsDialog',
+                  ),
+                )
+                as dynamic)
+            .viewModel;
+    final before = viewModel();
+    expect(before, isNotNull);
+    await tester.pumpWidget(
+      wrapWithShell(
+        fixture.services,
+        Builder(
+          builder: (context) =>
+              TextButton(onPressed: () {}, child: const Text('open again')),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(identical(viewModel(), before), isTrue);
+  });
 }

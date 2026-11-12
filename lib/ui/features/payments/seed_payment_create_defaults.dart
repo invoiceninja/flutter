@@ -38,7 +38,7 @@ class PaymentClientLookups {
 
   /// Types the company hides from the pickers — a hidden last payment type is
   /// passed over for the settings default.
-  final Set<String> Function()? hiddenTypeIds;
+  final Future<Set<String>> Function()? hiddenTypeIds;
 }
 
 /// Seed a new payment's Type — the server never fills it in: a payment saved
@@ -106,7 +106,13 @@ void seedPaymentCreateDefaults({
     if (override.isNotEmpty && override != '0') return seedCascade();
 
     // 2. The client's last manual payment, else 3. the cascade.
-    final hidden = lookups.hiddenTypeIds?.call() ?? const <String>{};
+    Set<String> hidden;
+    try {
+      hidden = await lookups.hiddenTypeIds?.call() ?? const <String>{};
+    } catch (_) {
+      hidden = const <String>{};
+    }
+    if (stale()) return;
     Future<bool> seedLast() async {
       String? last;
       try {

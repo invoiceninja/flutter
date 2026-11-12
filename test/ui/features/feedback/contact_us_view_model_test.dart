@@ -207,6 +207,14 @@ void main() {
       );
     });
 
+    // Offline: nothing reached the server, so it wasn't the images.
+    testWidgets('a request never sent: an ordinary failure', (tester) async {
+      expect(
+        await failWith(tester, const RequestNotSentException('offline')),
+        isA<ContactUsFailed>(),
+      );
+    });
+
     testWidgets('a 429: rate limited, with the wait', (tester) async {
       final r = await failWith(
         tester,

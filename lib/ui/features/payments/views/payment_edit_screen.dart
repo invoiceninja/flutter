@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/payment.dart';
+import 'package:admin/domain/payment_types.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/edit/after_save_create_action.dart';
@@ -91,6 +92,12 @@ class PaymentEditScreen extends StatelessWidget {
                   companyId: companyId,
                   clientId: clientId,
                 ),
+            // A type the company hides is passed over for the default.
+            hiddenTypeIds: () async => parseHiddenPaymentTypes(
+              (await services.company.get(
+                companyId,
+              ))?.settings.hiddenPaymentTypes,
+            ),
           ),
         );
         return vm;

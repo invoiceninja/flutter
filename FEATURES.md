@@ -1815,7 +1815,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Dashboard setup checklist for a new company (logo, first sent invoice, online payments, clients; ticks from local data) | — | — | ✅ | | |
 | Contact-us dialog | ✅ | ✅ | ✅ | ✅ | |
 | About dialog | ✅ | ✅ | ✅ | ✅ | |
-| Contact Us — attach images and an opt-in screenshot of the app, marked up with pen, box and redact | 🟡 | — | ✅ | | React attaches images and a screenshot without markup; `docs/feedback-screenshots.md` |
+| Contact Us — attach images and an opt-in screenshot of the app, marked up with pen, box and redact | 🟡 | ❌ | ✅ | | React attaches images and a screenshot without markup; `docs/feedback-screenshots.md` |
 | Contact Us from a collapsed sidebar (Help menu), the command palette ("feedback", "help") and About; a failed send offers the support forum | ❌ | ❌ | ✅ | | flutter#191 |
 | What's new dialog after an update (bundled release notes, highlights that open the feature; About and the command palette reopen it) | — | — | ✅ | | |
 | Health check dialog (self-hosted diagnostics) | ✅ | ✅ | ✅ | ✅ | |

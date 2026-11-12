@@ -365,7 +365,10 @@ abstract class CompanySettingsApi with _$CompanySettingsApi {
     // Comma-separated payment type ids the company leaves out of the Type
     // pickers (docs/payment-types.md). Cleared as '', never null —
     // includeIfNull:false would leave the stored list in place.
-    @JsonKey(name: 'hidden_payment_types') String? hiddenPaymentTypes,
+    // Lenient: a list another client wrote as a number must not throw the
+    // whole settings blob away (fromJsonLenient falls back to empty settings).
+    @JsonKey(name: 'hidden_payment_types', fromJson: jsonScalarToString)
+    String? hiddenPaymentTypes,
     @JsonKey(name: 'company_gateway_ids') String? companyGatewayIds,
     @JsonKey(name: 'payment_flow') String? paymentFlow,
     @JsonKey(name: 'unlock_invoice_documents_after_payment')

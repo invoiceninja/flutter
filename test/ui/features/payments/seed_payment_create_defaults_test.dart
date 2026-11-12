@@ -71,7 +71,7 @@ class _Lookups {
       local[id] = r;
       return true;
     },
-    hiddenTypeIds: () => hidden,
+    hiddenTypeIds: () async => hidden,
   );
 }
 

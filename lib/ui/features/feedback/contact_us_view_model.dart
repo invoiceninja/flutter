@@ -255,7 +255,13 @@ class ContactUsViewModel extends ChangeNotifier {
       return e.statusCode == 413 && sentImages
           ? const ContactUsImagesRefused()
           : ContactUsFailed(e);
+    } on RequestNotSentException catch (e) {
+      // Offline, DNS, refused: nothing reached the server, images or not.
+      return ContactUsFailed(e);
     } on NetworkException catch (e) {
+      // The outcome is unknown — on the web a proxy's 413 has no CORS header
+      // and arrives as one. A quick resend of a message that did arrive meets
+      // the one-a-minute throttle, not a duplicate.
       return sentImages ? const ContactUsImagesRefused() : ContactUsFailed(e);
     } catch (e) {
       return ContactUsFailed(e);

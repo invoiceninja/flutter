@@ -347,12 +347,12 @@ class EntityOverflowActionBar<A> extends StatelessWidget {
 /// row was handed, not the device size):
 ///
 ///  * **Wide** (full-screen detail, or a slide-over pane expanded to full
-///    width) → reuses [EntityOverflowActionBar] with the primary **Edit**
-///    pinned as `leading`: as many of the remaining actions as fit spread
+///    width) → reuses [EntityOverflowActionBar] with the primary action —
+///    usually **Edit**; Enter Payment on a sent invoice — pinned as `leading`: as many of the remaining actions as fit spread
 ///    inline, the rest collapse into a labeled "More" menu — identical to the
 ///    edit-screen bar.
 ///  * **Narrow** (mobile, or the half-width master-detail / slide-over pane) →
-///    the compact form: the primary **Edit** as a dedicated button followed by
+///    the compact form: the primary action as a dedicated button followed by
 ///    a single `⋮` menu holding every *other* action.
 ///
 /// Degenerate cases (both widths): a soft-deleted record (no `isPrimary` item)

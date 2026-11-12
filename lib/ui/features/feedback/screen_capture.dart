@@ -45,13 +45,21 @@ Future<ui.Image?> captureAppScreen({
   // No boundary (a test, a surface outside the app's builder): nothing to wait
   // for.
   if (boundaryKey.currentContext == null) return null;
+  final capture = _capture(
+    boundaryKey: boundaryKey,
+    devicePixelRatio: devicePixelRatio,
+    afterClosing: afterClosing,
+    settleWait: settleWait,
+  );
   try {
-    return await _capture(
-      boundaryKey: boundaryKey,
-      devicePixelRatio: devicePixelRatio,
-      afterClosing: afterClosing,
-      settleWait: settleWait,
-    ).timeout(timeout, onTimeout: () => null);
+    return await capture.timeout(
+      timeout,
+      onTimeout: () {
+        // The snapshot may still arrive; nobody will hold it.
+        capture.then((image) => image?.dispose(), onError: (Object _) {});
+        return null;
+      },
+    );
   } catch (_) {
     return null;
   }

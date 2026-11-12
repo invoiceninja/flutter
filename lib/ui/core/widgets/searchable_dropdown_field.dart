@@ -292,24 +292,33 @@ class _SearchableDropdownFieldState<T extends Object>
     super.didUpdateWidget(oldWidget);
     // Resync when the parent's [initialValue] changes (e.g. statics finished
     // loading async, or another part of the form reset the field). Skip while
-    // focused — we'd be yanking the cursor mid-edit.
+    // the user is typing in it — we'd be yanking the cursor mid-edit — but
+    // not merely because it has focus: a value seeded late (a payment's type
+    // from the client's last payment, after a fetch) landing while the field
+    // is focused and untouched was otherwise ignored, and the blur snapped
+    // the text back to the old item while the form held the new one.
     final oldInitial = oldWidget.initialValue;
     final newInitial = widget.initialValue;
     final oldId = oldInitial == null ? null : oldWidget.idOf(oldInitial);
     final newId = newInitial == null ? null : widget.idOf(newInitial);
     // The same item can be relabelled under the field — a label that leaves
     // out what the rest of the form already says (the invoice picker drops
-    // the client's name once one is chosen). Follow it while the field still
-    // shows the old label, never over text the user typed.
+    // the client's name once one is chosen), or a payment type the company
+    // renamed. Follow it while the field still shows the old label, never
+    // over text the user typed — and take the parent's fresh instance, so
+    // the popover's first row and the next blur use the new label too.
     final committed = _committed;
     if (oldId == newId &&
         committed != null &&
         !_focusNode.hasFocus &&
         _controller.text == oldWidget.displayString(committed)) {
-      final relabelled = widget.displayString(committed);
+      final fresh = newInitial ?? committed;
+      _committed = fresh;
+      final relabelled = widget.displayString(fresh);
       if (_controller.text != relabelled) _controller.text = relabelled;
     }
-    if (oldId != newId && !_focusNode.hasFocus) {
+    if (oldId != newId &&
+        (!_focusNode.hasFocus || _isPristine(_controller.text))) {
       _committed = widget.initialValue;
       final expected = _committed == null
           ? ''
@@ -487,9 +496,13 @@ class _SearchableDropdownFieldState<T extends Object>
   /// what is already selected instead of whatever sorts first.
   List<T> _idleOptions() {
     final excludes = widget.idleExcludes;
-    final shown = excludes == null
+    var shown = excludes == null
         ? widget.items
         : widget.items.where((it) => !excludes(it));
+    // Everything excluded (a company that hid every payment type): an empty
+    // opening list would show no popover at all — no options, no footer to
+    // undo it from — so offer the whole list instead.
+    if (excludes != null && shown.isEmpty) shown = widget.items;
     final committed = _committed;
     if (committed == null) {
       return shown.take(widget.idleResults).toList(growable: false);

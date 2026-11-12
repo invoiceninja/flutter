@@ -1593,4 +1593,84 @@ void main() {
       expect(inOptions('Apricot'), findsNothing);
     });
   });
+
+  // A value the parent sets late — a payment's type seeded from the client's
+  // last payment after a fetch — used to be ignored while the field had
+  // focus, and the blur then snapped the text back to the old item while the
+  // form held the new one.
+  group('a new value from the parent', () {
+    Widget field(_Option? initial) => _host(
+      SearchableDropdownField<_Option>(
+        label: 'Fruit',
+        items: _items,
+        initialValue: initial,
+        displayString: (o) => o.name,
+        idOf: (o) => o.id,
+        onChanged: (_) {},
+      ),
+      sink: true,
+    );
+
+    String text(WidgetTester tester) => tester
+        .widget<TextField>(
+          find.descendant(
+            of: find.byType(SearchableDropdownField<_Option>),
+            matching: find.byType(TextField),
+          ),
+        )
+        .controller!
+        .text;
+
+    testWidgets('is adopted while focused if nothing was typed, and survives '
+        'the blur', (tester) async {
+      await tester.pumpWidget(field(_items[0]));
+      await tester.tap(find.byType(TextField).first);
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(field(_items[3]));
+      await tester.pumpAndSettle();
+      expect(text(tester), 'Cherry');
+      await tester.tap(find.byKey(const ValueKey('sink')));
+      await tester.pumpAndSettle();
+      expect(text(tester), 'Cherry');
+    });
+
+    testWidgets('never replaces what the user is typing', (tester) async {
+      await tester.pumpWidget(field(_items[0]));
+      await tester.tap(find.byType(TextField).first);
+      await tester.enterText(find.byType(TextField).first, 'ban');
+      await tester.pumpWidget(field(_items[3]));
+      await tester.pump();
+      expect(text(tester), 'ban');
+    });
+
+    testWidgets('a renamed selection shows its new name', (tester) async {
+      await tester.pumpWidget(field(const _Option('2', 'Apricot')));
+      await tester.pumpWidget(field(const _Option('2', 'Aprikose')));
+      await tester.pump();
+      expect(text(tester), 'Aprikose');
+    });
+  });
+
+  testWidgets('idleExcludes that exclude everything fall back to the whole '
+      'list, so the popover still opens', (tester) async {
+    await tester.pumpWidget(
+      _host(
+        SearchableDropdownField<_Option>(
+          label: 'Fruit',
+          items: _items,
+          initialValue: null,
+          displayString: (o) => o.name,
+          idOf: (o) => o.id,
+          idleExcludes: (_) => true,
+          onChanged: (_) {},
+        ),
+      ),
+    );
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: find.byType(ListView), matching: find.text('Apple')),
+      findsOneWidget,
+    );
+  });
 }

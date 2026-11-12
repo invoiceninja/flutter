@@ -286,7 +286,7 @@ class TaskActions {
     return [
       // Edit stays in the list for a deleted task, disabled: a disabled item
       // is hidden from every menu and bar, but the wide list row still finds
-      // it as its primary and draws the greyed pencil — without it the row's
+      // it (`isEdit`) and draws the greyed pencil — without it the row's
       // `⋮` would slide into the pencil's place, out of line with its
       // neighbours.
       if (live)

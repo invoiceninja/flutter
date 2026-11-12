@@ -44,7 +44,8 @@ Until then 3.50's analyzer reports every Material import as deprecated, and `flu
 6. macOS: 3.50 carries the fix for Impeller's garbled text on Intel Macs ([flutter#191538](https://github.com/flutter/flutter/issues/191538), on main since 2026-08-25, inside the 3.50.0 tag). Remove `FLTEnableImpeller` from `macos/Runner/Info.plist` **only after** running the 3.50 build on an Intel Mac with an AMD GPU (`docs/upstream-workarounds.md` § 16).
 7. Recheck `docs/upstream-workarounds.md` § 4 (desktop integration tests one file per run): [flutter#189192](https://github.com/flutter/flutter/pull/189192), the fix it waited on, is in 3.50.
 8. Android: release builds now ignore engine flags and `route` / `dart_entrypoint` / cached-engine extras on untrusted intents. `MainActivity` already strips every extra, so nothing should change, but check a share and a deep link on a release build on Android 13 and on 14 or newer.
-9. Run the whole test suite, a Deploy to Web test run and CI, then release.
+9. **Flatpak.** Flathub builds the release itself: its **Update app** workflow regenerates the offline sources from the tag with a pinned `theappgineer/flatpak-flutter` image (0.15.0, June 2026, the newest when this was written). 0.15.0 built 5.1.24 on 3.47.7, but nothing in its releases or issues mentions 3.50, so the first 3.50 release's update PR is where an incompatibility would show up: a failed `flathub/build`, which turns Deploy to all's `flathub` leg red. Before the release, look for a newer flatpak-flutter that names 3.50 or Dart 3.14 (github.com/TheAppgineer/flatpak-flutter/releases). Moving its pin, or any other change on the Flathub side, is Hillel's by hand (`docs/flatpak.md`, Flathub's AI policy). A failed update build breaks nothing for users: Flathub keeps serving the previous version until a build passes.
+10. Run the whole test suite, a Deploy to Web test run and CI, then release.
 
 ## Left for later
 

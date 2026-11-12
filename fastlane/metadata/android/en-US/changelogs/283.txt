@@ -1,0 +1,6 @@
+- Attach a marked-up screenshot to Contact Us
+- New payments remember each client's type
+- Rename or hide payment types
+- Partial payments from an invoice save again
+- Enter Payment is back in the invoice list menu
+- Self-hosted installs on a sub-path can sign in

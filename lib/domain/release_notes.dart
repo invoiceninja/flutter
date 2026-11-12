@@ -258,6 +258,61 @@ List<ReleaseNotes> releasesToShow({
 
 const List<ReleaseNotes> kReleaseNotes = [
   ReleaseNotes(
+    version: '5.1.25',
+    highlights: [
+      ReleaseHighlight(
+        icon: Icons.mail_outline,
+        title: 'Show us what you see',
+        body: 'Contact Us can attach a marked-up screenshot of the app.',
+      ),
+      ReleaseHighlight(
+        icon: Icons.payments,
+        title: "Each client's payment type",
+        body: "A new payment starts with the type the client last paid by.",
+        target: ReleaseHighlightRoute('/payments', module: EntityType.payment),
+      ),
+      ReleaseHighlight(
+        icon: Icons.credit_card_outlined,
+        title: 'Your payment types',
+        body: "Hide the types you never use, and rename any of them.",
+        target: ReleaseHighlightRoute(
+          '/settings/payment_types',
+          module: EntityType.payment,
+        ),
+      ),
+    ],
+    items: [
+      ReleaseNoteItem(
+        'Added: Contact Us can attach a screenshot of the app and up to two '
+        'of your own images, each marked up with a box, a pen or a redaction '
+        '(server 5.13.53 or newer). It is also on the collapsed sidebar, in '
+        'the command palette and in About.',
+      ),
+      ReleaseNoteItem(
+        "Added: A new payment's type defaults to the client's last payment "
+        'type, then to the Default Payment Type setting '
+        '[#191](https://github.com/invoiceninja/flutter/issues/191).',
+      ),
+      ReleaseNoteItem(
+        'Added: Settings > Payment Types hides the types you never use and '
+        'renames any of them. A new name also shows on PDFs, the client '
+        'portal and emails.',
+      ),
+      ReleaseNoteItem(
+        "Fixed: A partial payment entered from an invoice's Enter Payment no "
+        'longer fails with "Amounts do not balance correctly".',
+      ),
+      ReleaseNoteItem(
+        "Fixed: A sent invoice's list menu offers Enter Payment again, and "
+        "the row's pencil edits the invoice.",
+      ),
+      ReleaseNoteItem(
+        'Fixed: A self-hosted install at a sub-path (such as '
+        'example.com/ninja) can sign in.',
+      ),
+    ],
+  ),
+  ReleaseNotes(
     version: '5.1.24',
     highlights: [
       ReleaseHighlight(

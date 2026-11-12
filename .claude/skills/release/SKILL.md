@@ -130,6 +130,25 @@ yet: run the list again in a separate call.
 - The run takes a while (one test gate, then the GitHub Release, then five stores
   in parallel). Don't poll it; give Hillel the run URL. Watch it only if asked.
 
+### Start Flathub's update once the GitHub Release exists
+
+Flathub's repo runs its update workflow only weekly (Flathub's rule), so start it
+as soon as the release it looks for exists, about 40 minutes after the dispatch.
+This only starts that repo's own hand-written workflow; nothing else touches
+Flathub (`docs/flatpak.md`). Run the wait with `run_in_background`, so it ends
+with one notification:
+
+```sh
+for i in {1..180}; do gh release view "v<version>" >/dev/null 2>&1 && break; sleep 60; done
+gh release view "v<version>" >/dev/null 2>&1 \
+  && gh workflow run update.yml -R flathub/com.invoiceninja.InvoiceNinja \
+  || echo "no v<version> release after 3 h: Deploy to all's release job failed?"
+```
+
+- If the release job failed, say so and skip this; the failed run is what to report.
+- Deploy to all's `flathub` leg then sees the update PR within minutes and follows it
+  to the merge.
+
 ## 4. Resolve the Sentry issues that earlier releases fixed
 
 After the dispatch, so it can never hold the release up. A failure here is
@@ -164,6 +183,7 @@ if it is missing, skip this step and say so.
 - That GitHub emails Hillel when the run finishes (he dispatched it via `gh`).
   Success emails need "Only notify for failed workflows" unticked at
   github.com/settings/notifications → Actions; by default only a failure emails.
+- Whether Flathub's update workflow was dispatched.
 - The Sentry issues resolved, each with its release, and the ones left open
   with the script's reason.
 - If a single store fails later: "Re-run failed jobs" on that run, never

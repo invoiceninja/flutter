@@ -4,8 +4,9 @@ name: Deploy to Flathub
 # and publishes from its own repo, and this follows that to the end.
 #
 # Deploy to all's `flathub` leg. Flathub builds and publishes the app itself,
-# from flathub/com.invoiceninja.InvoiceNinja: that repo's own update workflow sees the
-# new release tag within the hour, regenerates the offline sources from it, and
+# from flathub/com.invoiceninja.InvoiceNinja: that repo's own update workflow (weekly,
+# and dispatched by the release skill once the GitHub Release exists) sees the
+# new release tag, regenerates the offline sources from it, and
 # opens branch update-v<version> with auto-merge on; Flathub's bot test-builds
 # it for x86_64 and aarch64, and the merge publishes. The release notes are
 # already in the tag: tools/bump_client_version.sh wrote the version's
@@ -14,8 +15,8 @@ name: Deploy to Flathub
 # So this workflow only reads — tools/follow_flathub_release.sh waits for the
 # PR, fails only on a failed test build or a closed PR, and reports how far it
 # got in the job summary. "Not there yet" (no PR, or a build still running,
-# when the wait ends) is a warning, not a red leg: that repo's hourly cron is
-# throttled and its merges are manual until auto-merge is enabled. It never writes to Flathub, and nothing in this repo may: Flathub's
+# when the wait ends) is a warning, not a red leg: that repo's schedule is
+# weekly, so an undispatched update waits for it. It never writes to Flathub, and nothing in this repo may: Flathub's
 # generative-AI policy keeps every Flathub-side file and PR human-written
 # (docs/flatpak.md). No secrets, no test gate (it builds nothing).
 #

@@ -194,7 +194,10 @@ collaborators. So each side does its half:
 
 1. **The Flathub repo updates itself.** Its update workflow (`.github/workflows/update.yml`
    there, added in `flathub/com.invoiceninja.InvoiceNinja#32`), modelled on
-   `flathub/com.adilhanney.saber/.github/workflows/update.yml`, runs hourly and on dispatch.
+   `flathub/com.adilhanney.saber/.github/workflows/update.yml`, runs weekly and on dispatch.
+   Weekly is Flathub's ask for a custom update workflow (flathub/flathub#11108, 2026-11-12), so a
+   release reaches Flathub promptly only because the release skill dispatches it once the
+   GitHub Release exists (`.claude/skills/release/SKILL.md` § 3).
    - It finds the newest `invoiceninja/flutter` release tag. Every release is still a GitHub
      *pre-release* until the general launch (docs/going-live.md § GitHub Releases), so it must
      not filter those out, or it never fires.
@@ -203,8 +206,8 @@ collaborators. So each side does its half:
      would have opened `update-v5.1.23` on its first run and shipped plain v5.1.23, which predates
      the app-ID move (§ The Linux app ID is v1's Flathub ID).
    - It skips a version whose `update-v<version>` branch already exists. Without that, every
-     hourly run before the merge regenerates and may force-push the branch, restarting the
-     two-arch test build. The cost: a version whose PR was closed unmerged is never retried on
+     run before the merge regenerates and may force-push the branch, restarting the two-arch
+     test build. The cost: a version whose PR was closed unmerged is never retried on
      its own. Delete its branch and dispatch the workflow to retry it.
    - It reads the Flutter and sqlite3mc pins from that tag.
    - It regenerates the offline sources with a flatpak-flutter image pinned by version and
@@ -212,13 +215,20 @@ collaborators. So each side does its half:
      flatpak-flutter leaves a `.flatpak-builder/` directory behind, which the repo's `.gitignore`
      keeps out of the PR. A forced dry run against v5.1.23 (2026-11-10) regenerated `generated/`
      byte for byte, so an update PR carries only the pins.
-   - It opens branch **`update-v<version>`** and asks for GitHub auto-merge. That step is
-     non-fatal, since it fails until Flathub enables auto-merge on the repo.
+   - It opens branch **`update-v<version>`** and asks for GitHub auto-merge, which Flathub
+     enabled on the repo on 2026-11-12 (flathub/flathub#11108).
+   - The same review asked for three changes there, all made by hand:
+     - the weekly schedule above;
+     - a failure to enable auto-merge fails the run (no `|| true`), so it shows;
+     - each run closes any older open `update-*` PR, and the PR step sets `delete-branch: true`.
+       Branch protection requires an up-to-date branch, so a newer PR can't auto-merge while an
+       older one is still open.
    - `flathub.json` sets `"disable-external-data-checker": true`: Flathub's own checker would
      bump the tag without regenerating the pub sources.
 2. **Flathub's bot test-builds the PR** for x86_64 and aarch64. Its checks are `flathub/build`,
-   `flathub/permissions` and others. Auto-merge then merges the PR, which publishes. Flathub
-   grants auto-merge on request to verified apps. Without it, the PR waits for a human merge.
+   `flathub/permissions` and others, and both gate the merge, so nothing lands on a red check.
+   Auto-merge then merges the PR, which publishes. Flathub grants auto-merge on request to
+   verified apps, and this repo has it (flathub/flathub#11108).
    - **The permission review diffs against the *published* build, not `master`.** A PR opened
      before the previous build reaches users is flagged with that build's permission changes
      again and waits for a moderator: #32, which touched no manifest, was held on #31's three
@@ -226,9 +236,9 @@ collaborators. So each side does its half:
 3. **Deploy to all's `flathub` leg** (`.github/workflows/flathub.yml` running
    `tools/follow_flathub_release.sh`) reads only. Its steps:
    - Waits up to 90 minutes for the PR. If none appears, it ends green with a warning to run
-     that repo's **Update app** workflow: the hourly cron there is throttled on a quiet repo
-     (5.1.24's PR waited until the workflow was dispatched by hand, 5 hours after the last
-     scheduled run).
+     that repo's **Update app** workflow: its schedule is weekly, so without the release skill's
+     dispatch the PR can be days away. (5.1.24's waited 5 hours, under the old hourly cron that
+     GitHub throttled on a quiet repo, until it was dispatched by hand.)
    - Fails, with the PR link, on a failed test build or a PR closed unmerged. These are the
      only red outcomes besides a missing Flathub repo.
    - Waits for the merge. If the checks pass, or are still running, and nobody has merged it,

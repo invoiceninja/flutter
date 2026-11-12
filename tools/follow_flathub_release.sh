@@ -5,7 +5,8 @@ set -euo pipefail
 #
 # Flathub builds the app itself, from flathub/com.invoiceninja.InvoiceNinja. That
 # repo's own update workflow (hand-written there, never by an agent: Flathub's
-# generative-AI policy, docs/flatpak.md) sees the new release within the hour,
+# generative-AI policy, docs/flatpak.md) runs weekly and on dispatch; the release
+# skill dispatches it once the GitHub Release exists. It sees the new release,
 # regenerates the offline sources and opens branch update-v<version> with
 # auto-merge on. Flathub's bot test-builds the PR for x86_64 and aarch64, the
 # merge publishes, and the listing shows the version a few hours later.
@@ -22,8 +23,8 @@ set -euo pipefail
 #
 # Only a real problem fails: a failed test build, a PR closed unmerged, or no
 # Flathub repo. "Not there yet" ends green with a warning saying what's left:
-# no PR by the deadline (that repo's hourly cron is throttled on a quiet repo:
-# 5.1.24's waited 5 h for a hand-dispatched run), or a test build still running
+# no PR by the deadline (nobody dispatched that repo's update workflow, whose
+# schedule is weekly), or a test build still running
 # when the wait ends. A red Deploy to all leg for either was noise, and
 # nothing on this side can hurry Flathub.
 #
@@ -37,7 +38,7 @@ APP_ID="com.invoiceninja.InvoiceNinja"
 REPO="${FLATHUB_REPO:-flathub/$APP_ID}"
 APPSTREAM_URL="${FLATHUB_APPSTREAM_URL:-https://flathub.org/api/v2/appstream/$APP_ID}"
 POLL_SECONDS="${FLATHUB_POLL_SECONDS:-120}"
-PR_WAIT_MINUTES="${FLATHUB_PR_WAIT_MINUTES:-90}"     # the Flathub repo's cron is hourly
+PR_WAIT_MINUTES="${FLATHUB_PR_WAIT_MINUTES:-90}"     # a dispatched update opens it in minutes
 MERGE_WAIT_MINUTES="${FLATHUB_MERGE_WAIT_MINUTES:-210}" # two arches build, then auto-merge
 PUBLISH_WAIT_MINUTES="${FLATHUB_PUBLISH_WAIT_MINUTES:-45}"
 
@@ -78,7 +79,7 @@ while :; do
     --json number,url,state 2>/dev/null || echo '[]')"
   [[ "$(jq length <<<"$pr_json")" -gt 0 ]] && break
   if (($(date +%s) >= until_pr)); then
-    annotate warning "No $branch PR on $REPO after $PR_WAIT_MINUTES min: run that repo's update workflow (Actions → Update app), or wait for its schedule."
+    annotate warning "No $branch PR on $REPO after $PR_WAIT_MINUTES min: run that repo's update workflow (Actions → Update app), or wait for its weekly schedule."
     summary "Flathub: no update PR for $version yet. Run Update app at https://github.com/$REPO/actions to open it now."
     exit 0
   fi

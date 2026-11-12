@@ -203,13 +203,16 @@ jobs:
           flutter-version: ${{ inputs.flutter_version || '3.47.7' }}
           cache: true
 
-      # A trial version moves the SDK-pinned packages, so its FOSS lock is
-      # resolved anew first, as upgrade day does.
+      # A trial version moves the SDK-pinned packages, so the store lock and
+      # then the FOSS lock are resolved anew first, as upgrade day does.
       - name: Prepare the FOSS build
         env:
           TRIAL: ${{ inputs.flutter_version }}
         run: |
-          if [ -n "$TRIAL" ]; then tools/prepare_foss.sh --update-lock; fi
+          if [ -n "$TRIAL" ]; then
+            flutter pub get
+            tools/prepare_foss.sh --update-lock
+          fi
           tools/prepare_foss.sh
 
       - name: Generate code

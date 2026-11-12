@@ -282,10 +282,10 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 
 ## 21. Dart 3.14's AOT compiler crashes on a `final` local assigned inside a pattern switch
 
-- Issue / waiting on: no upstream issue filed yet. • Found: 2026-11-12 • Flutter: 3.50.0 (Dart 3.14.0); 3.47.7 compiles the same code.
+- Issue / waiting on: [dart-lang/sdk#64917](https://github.com/dart-lang/sdk/issues/64917) (a 40-line plain-Dart repro: `dart compile aot-snapshot` crashes on 3.14.0, compiles on 3.13.5). • Found: 2026-11-12 • Flutter: 3.50.0 (Dart 3.14.0); 3.47.7 compiles the same code.
 - Symptom: every release build on 3.50 (Android arm / arm64 / x64, Linux, Windows, macOS) fails with `linearscan.cc: 3013: error: unreachable code` and "AOT snapshotter exited with code -6". Debug builds and tests don't compile ahead of time, so only a release build shows it; the CI trial (`gh workflow run ci.yaml -f flutter_version=3.50.0`, `docs/upgrading-to-flutter-3-50.md`) found it.
-- Root cause: in the register allocator (`runtime/vm/compiler/backend/linearscan.cc`). `gen_snapshot --trace_compiler` on the app's kernel named the last function it started: `SearchableDropdownField`'s `onSelected` closure, which declared `final T item;`, assigned it in one case of a `switch` over the sealed `_Opt<T>`, returned from the other case, then captured `item` in a `setState` closure. A standalone copy of that shape compiles, so it needs the surrounding inlining; the reproduction is building this repo at a commit before the change with 3.50.0.
-- Commit ref: not yet committed
+- Root cause: in the register allocator (`runtime/vm/compiler/backend/linearscan.cc`). `gen_snapshot --trace_compiler` on the app's kernel named the last function it started: `SearchableDropdownField`'s `onSelected` closure, which declared `final T item;`, assigned it in one case of a `switch` over the sealed `_Opt<T>`, returned from the other case, then captured `item` in a `setState` closure. The reduced repro in the issue needs the closure capturing the local and two call sites; without either it compiles.
+- Commit ref: da6bef16
 - Change(s):
   - `lib/ui/core/widgets/searchable_dropdown_field.dart` — **KEEP**: each case of `onSelected` does its own work, so nothing is assigned across the switch. Same behaviour, and clearer code, so there is nothing to revert.
 - Revert: nothing to revert. Until a Dart release fixes it, don't reintroduce the shape: a `final` local left unassigned, then assigned inside a pattern `switch` that returns from another case.

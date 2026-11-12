@@ -318,6 +318,23 @@ void main() {
       expect(vm.validateForSave(), isNull);
     });
 
+    // Still reported on 5.1.24: an invoice's Enter Payment opens the form
+    // with the invoice already allocated its balance (a staged draft), so
+    // nothing had told the view model that balance and the amount never led.
+    test('an invoice\'s Enter Payment takes a partial amount', () {
+      final vm = PaymentEditViewModel(
+        repo: repo,
+        companyId: companyId,
+        cloneFrom: emptyPayment().copyWith(
+          clientId: 'c_1',
+          paymentables: [inv('i1', 1250)],
+        ),
+      );
+      vm.setAmount('625');
+      expect(amounts(vm), ['625']);
+      expect(vm.validateForSave(), isNull);
+    });
+
     test('typing digit by digit grows back, capped at the open amount', () {
       final vm = vmFor();
       vm.startFromInvoice(

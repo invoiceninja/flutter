@@ -234,6 +234,22 @@ class _LiveSectionState extends State<_LiveSection> {
       builder: (context, snapshot) {
         final all = snapshot.data ?? const <AllocationTarget>[];
         final onOpenAmounts = widget.onOpenAmounts;
+        // Report the open amounts of what the form already allocates, not
+        // just of what the user picks here: an invoice's Enter Payment opens
+        // with the invoice allocated, and without its balance a typed partial
+        // amount could not follow it (beta reports on 5.1.24). The owner only
+        // records them — no notify — so this is safe during build.
+        if (onOpenAmounts != null && all.isNotEmpty) {
+          final held = paymentables
+              .where(belongsToThisKind)
+              .map(idOfRow)
+              .toSet();
+          final known = {
+            for (final t in all)
+              if (held.contains(t.id)) t.id: t.balance,
+          };
+          if (known.isNotEmpty) onOpenAmounts(known);
+        }
         final ValueChanged<List<Paymentable>> onChanged = onOpenAmounts == null
             ? widget.onChanged
             : (next) {

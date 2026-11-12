@@ -59,7 +59,21 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
          initialDraft: cloneFrom ?? existing ?? emptyPayment(),
          original: existing,
          companyId: companyId,
-       );
+       ) {
+    // A staged create — an invoice's Enter Payment — arrives with its invoice
+    // allocated what is open on it and no amount of its own. Take that as the
+    // open amount, so a partial amount typed over it follows: the form's
+    // invoice list reports the real balance when it loads, but it leaves out
+    // an archived invoice and may not have loaded before the user types.
+    final staged = cloneFrom;
+    if (existing == null && staged != null && staged.amount == Decimal.zero) {
+      for (final p in staged.paymentables) {
+        if (p.invoiceId.isNotEmpty && p.amount > Decimal.zero) {
+          _invoiceOpenAmounts[p.invoiceId] = p.amount;
+        }
+      }
+    }
+  }
 
   final PaymentRepository repo;
 

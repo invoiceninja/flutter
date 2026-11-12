@@ -89,6 +89,18 @@
     <control>touch</control>
   </supports>
   <releases>
+    <release version="5.1.25" date="2026-11-12">
+      <description>
+        <ul>
+          <li>Attach a marked-up screenshot to Contact Us</li>
+          <li>New payments remember each client's type</li>
+          <li>Rename or hide payment types</li>
+          <li>Partial payments from an invoice save again</li>
+          <li>Enter Payment is back in the invoice list menu</li>
+          <li>Self-hosted installs on a sub-path can sign in</li>
+        </ul>
+      </description>
+    </release>
     <release version="5.1.24" date="2026-11-11">
       <description>
         <ul>

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:admin/app/entity_links.dart';
 import 'package:admin/data/services/auth_service.dart';
 import 'package:admin/data/services/passkey_authenticator.dart';
 import 'package:admin/data/services/passkey_codec.dart';
@@ -82,6 +83,8 @@ void main() {
     List<String>? log,
     DateTime Function()? now,
     List<String> appOrigins = const [_playOrigin],
+    String pageOrigin = '',
+    bool relatedOrigins = false,
   }) => PasskeyReadiness(
     authenticator: _Authenticator(available: available),
     client: _server(files, log: log),
@@ -89,6 +92,8 @@ void main() {
     pageHost: pageHost,
     now: now,
     appOrigins: () async => appOrigins,
+    pageOrigin: pageOrigin,
+    relatedOriginsSupported: () async => relatedOrigins,
   );
 
   const hostedApi = 'https://invoicing.co';
@@ -299,6 +304,127 @@ void main() {
         );
       },
     );
+  });
+
+  group('web, as a related origin of the hosted relying party', () {
+    const admin = 'https://admin.invoicing.co';
+    PasskeyReadiness page({String origin = admin, bool capable = true}) =>
+        readiness(
+          PasskeyPlatform.web,
+          pageHost: Uri.parse(origin).host,
+          pageOrigin: origin,
+          relatedOrigins: capable,
+        );
+
+    PasskeyLoginOptions options({List<String> related = const []}) =>
+        PasskeyLoginOptions(
+          publicKey: const {'rpId': kHostedPasskeyRpId},
+          challengeToken: 't',
+          relatedOrigins: related,
+        );
+
+    test('is ready only on a listed page in a browser that can', () async {
+      expect(
+        await page().isReady(apiBaseUrl: hostedApi, isHosted: true),
+        isTrue,
+      );
+      expect(
+        await page(
+          capable: false,
+        ).isReady(apiBaseUrl: hostedApi, isHosted: true),
+        isFalse,
+        reason: 'Safari and Firefox report no relatedOrigins capability',
+      );
+      expect(
+        await page(
+          origin: 'https://preview.example.pages.dev',
+        ).isReady(apiBaseUrl: hostedApi, isHosted: true),
+        isFalse,
+        reason: 'not one of kHostedPasskeyRelatedOrigins',
+      );
+      expect(
+        await page().isReady(
+          apiBaseUrl: 'https://ninja.example.com',
+          isHosted: false,
+        ),
+        isFalse,
+        reason: 'self-hosted relying parties have no related origins',
+      );
+    });
+
+    test('starts a ceremony only once the server lists this page', () async {
+      final r = page();
+      expect(
+        await r.allowsCeremony(
+          apiBaseUrl: hostedApi,
+          isHosted: true,
+          options: options(),
+        ),
+        isFalse,
+        reason: 'a server without PASSKEY_RELATED_ORIGINS would refuse it',
+      );
+      expect(
+        await r.allowsCeremony(
+          apiBaseUrl: hostedApi,
+          isHosted: true,
+          options: options(related: const ['https://other.example']),
+        ),
+        isFalse,
+      );
+      expect(
+        await r.allowsCeremony(
+          apiBaseUrl: hostedApi,
+          isHosted: true,
+          options: options(related: const [admin]),
+        ),
+        isTrue,
+      );
+    });
+
+    test(
+      'a refusal hides the button until the answer may have changed',
+      () async {
+        var clock = DateTime(2026, 11, 13, 12);
+        final r = PasskeyReadiness(
+          authenticator: _Authenticator(),
+          client: _server(const {}),
+          platform: PasskeyPlatform.web,
+          pageHost: 'admin.invoicing.co',
+          pageOrigin: admin,
+          relatedOriginsSupported: () async => true,
+          now: () => clock,
+        );
+        Future<bool> ready() =>
+            r.isReady(apiBaseUrl: hostedApi, isHosted: true);
+
+        expect(await ready(), isTrue);
+        await r.allowsCeremony(
+          apiBaseUrl: hostedApi,
+          isHosted: true,
+          options: options(),
+        );
+        expect(await ready(), isFalse, reason: 'the server just refused it');
+
+        clock = clock.add(PasskeyReadiness.cacheFor);
+        expect(await ready(), isTrue, reason: 'it may have deployed since');
+      },
+    );
+
+    test('a page on the relying party itself needs no list', () async {
+      final r = readiness(
+        PasskeyPlatform.web,
+        pageHost: kHostedPasskeyRpId,
+        pageOrigin: 'https://$kHostedPasskeyRpId',
+      );
+      expect(
+        await r.allowsCeremony(
+          apiBaseUrl: hostedApi,
+          isHosted: true,
+          options: options(),
+        ),
+        isTrue,
+      );
+    });
   });
 
   test('a device that cannot show a passkey sheet is never ready', () async {

@@ -4,6 +4,8 @@ import 'package:admin/data/services/passkey_failure.dart';
 /// platforms go through `NativePasskeys`.
 Future<bool> webPasskeysAvailable() async => false;
 
+Future<bool> webPasskeysRelatedOrigins() async => false;
+
 Future<Map<String, dynamic>> webPasskeyGet(Map<String, dynamic> publicKey) =>
     throw const PasskeyException(PasskeyFailure.unsupported);
 

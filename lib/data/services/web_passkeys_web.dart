@@ -24,6 +24,32 @@ Future<bool> webPasskeysAvailable() async {
   }
 }
 
+/// Whether the browser says it supports WebAuthn Related Origin Requests
+/// (`PublicKeyCredential.getClientCapabilities().relatedOrigins`): a page on
+/// one host running a ceremony for a relying party on another that lists it
+/// in its `/.well-known/webauthn`. Chrome and Edge report it from 133; Safari
+/// supports it without (yet) saying so, and Firefox has neither — both read as
+/// false, so the passkey button stays hidden there (docs/passkeys.md §
+/// Related origins). Never throws.
+Future<bool> webPasskeysRelatedOrigins() async {
+  try {
+    final pkc = globalContext.getProperty<JSAny?>('PublicKeyCredential'.toJS);
+    if (!pkc.isA<JSObject>()) return false;
+    final constructor = pkc! as JSObject;
+    if (!constructor.has('getClientCapabilities')) return false;
+    final capabilities = await constructor
+        .callMethod<JSPromise<JSAny?>>('getClientCapabilities'.toJS)
+        .toDart;
+    if (!capabilities.isA<JSObject>()) return false;
+    final related = (capabilities! as JSObject).getProperty<JSAny?>(
+      'relatedOrigins'.toJS,
+    );
+    return related.isA<JSBoolean>() && (related! as JSBoolean).toDart;
+  } on Object catch (_) {
+    return false;
+  }
+}
+
 Future<Map<String, dynamic>> webPasskeyGet(
   Map<String, dynamic> publicKey,
 ) async {

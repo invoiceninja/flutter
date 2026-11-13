@@ -24,7 +24,7 @@ Until each lands, the platforms that depend on it stay hidden, and each one appe
 | Android | The RP's `assetlinks.json` grants `com.invoiceninja.admin` `get_login_creds` | The options' `android_origins` include **this install's** origin. `MainActivity` reports its signing-certificate hashes on `invoice_ninja/app_identity`. A server without the fix lists none, and a debug or upload-key build is never listed; either would have its assertion rejected. |
 | iOS / macOS | Hosted only. `app.invoicing.co`'s AASA lists `NPC44Y2C98.com.invoiceninja.admin` under `webcredentials` | The options name `app.invoicing.co` |
 | Windows | Always: its WebAuthn API takes any RP ID | Not loopback |
-| Web | The page host is the RP ID or below it (the browser's own rule) | Same |
+| Web | The page host is the RP ID or below it (the browser's own rule), or the hosted page is a related origin in a browser that reports it (§ Related origins) | Same, or for a related origin the options' `related_origins` include this page |
 | Linux, F-Droid, demo | Never | — |
 
 The RP ID is inferred before options exist (hosted: `kHostedPasskeyRpId`; self-hosted: the API host) and re-checked against the options' own. Answers are cached for `PasskeyReadiness.cacheFor` (10 minutes), so a deploy shows up without an app update. A ceremony that still fails with `notAssociated`, for example while Apple's CDN catches up (it caches an AASA for up to a day), shows `passkey_unavailable`.
@@ -38,11 +38,27 @@ The RP ID is the host of the server's `REACT_URL`. On hosted that is `app.invoic
 | Android | `android:apk-key-hash:` + unpadded base64url SHA-256 of the signing certificate | `get_login_creds` in `https://<rpId>/.well-known/assetlinks.json` (fetched at runtime, so a self-hosted server can provide it); the server must list the hash (`addAndroidKeyHashes`, derived from `APP_LINKS_ANDROID_FINGERPRINTS`) |
 | iOS / macOS | `https://<rpId>` | `webcredentials:<rpId>` in the app's entitlements (compile-time, so hosted only; macOS Release only, as with `applinks:`) and `webcredentials` in the RP's AASA |
 | Windows | `https://<rpId>` | none |
-| Web | the page origin | the page host must be the RP ID or a subdomain of it |
+| Web | the page origin | the page host must be the RP ID or a subdomain of it, or listed by `https://<rpId>/.well-known/webauthn` (§ Related origins) |
 
 The Play app-signing certificate is `BB:BC:8B:FB:…:7D:E8:88` (Play Console → App signing, Play App Signing enrolled), the first default of `APP_LINKS_ANDROID_FINGERPRINTS` and what hosted's `invoicing.co/.well-known/assetlinks.json` lists. Debug and upload-key builds report other hashes, so test Android passkeys on a Play internal-testing install.
 
 A self-hosted server still on `.env.example`'s `REACT_URL=http://localhost:3001` has RP ID `localhost`, which no app can use. The fix is the admin's: set `REACT_URL` to APP_URL (or unset it). Until then `isReady` refuses a loopback RP ID on every platform but web, where the browser enforces the rule.
+
+## Related origins
+
+The hosted Flutter web app lives on `admin.invoicing.co`, but every hosted passkey belongs to `app.invoicing.co`, React's host. WebAuthn Related Origin Requests let a page run a ceremony for another relying party that lists it: the browser fetches `https://app.invoicing.co/.well-known/webauthn` and goes ahead only if `origins` includes the page. Decided 2026-11-13, so the passkeys users already have keep working on the new page.
+
+Three things have to be true, and `PasskeyReadiness` checks each, failing closed:
+
+1. **The page is one of `kHostedPasskeyRelatedOrigins`** (`lib/app/entity_links.dart`), and only for the hosted relying party. A preview alias or a self-hosted page never qualifies.
+2. **The browser reports the capability**: `PublicKeyCredential.getClientCapabilities()` → `relatedOrigins` (`webPasskeysRelatedOrigins`). Chrome and Edge do from 133. Safari supports the feature but may not report it (WebKit bug 281092), and Firefox doesn't support it; both read as false, and the login screen's "Can't sign in here?" line offers Invoice Ninja Web instead. These two decide whether the button shows (`isReady`).
+3. **The server says it will verify this page**: the options carry `related_origins` listing the page's origin (`allowsCeremony`). The browser would happily sign without it, and the server would then reject the assertion, which counts toward the login lockout. So until the server change below is deployed, Chrome shows the button, refuses the first ceremony with `passkey_unavailable` before any browser sheet, and then hides the button: `isReady` remembers the refusal per server for `cacheFor`, so a deploy still shows up without an update. That first tap is the one gap in "proven before offered", and the reason the server change and the `webauthn` file are launch gates (docs/web-deploy.md § Going live).
+
+The server side is outside this repo: `lbuchs/webauthn` checks the origin against the RP ID alone (`_checkOrigin` is private), so it needs an allow-list beside `addAndroidKeyHashes()`; then `PasskeyService` reads `PASSKEY_RELATED_ORIGINS` and returns `related_origins` in both options responses. And `app.invoicing.co` must serve `/.well-known/webauthn` as JSON, with no redirect.
+
+## Google re-authentication
+
+The password sheet offers "Confirm with Apple" and, on web, "Confirm with Microsoft", but never "Confirm with Google", on any platform. The server's Google branch of `PasswordProtection` reads the header as an id token (`getTokenResponse`), which the access-token sign-in this app uses never has, and its password-and-OAuth case calls `Hash::check(auth()->user()->password, $x_api_password)` with the arguments reversed. So a Google user whose company turns on `oauth_password_required` needs an account password; the sheet says so ("Please set an account password") rather than offering a button that cannot work. A one-line server fix would swap the arguments; until it ships, nothing here changes.
 
 ## The passkey sheet is our own native code on one channel, never a pub plugin, and only Android's half is non-free
 

@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:admin/app/entity_links.dart';
 import 'package:admin/data/services/auth_service.dart';
 import 'package:admin/data/services/passkey_authenticator.dart';
+import 'package:admin/data/services/web_passkeys.dart';
 import 'package:admin/domain/mobile_app_promo.dart' show isLoopbackHost;
 
 /// The apps' identity in the domain-association files (docs/passkeys.md).
@@ -60,7 +61,12 @@ enum PasskeyPlatform { android, apple, windows, web, none }
 ///    `apple-app-site-association` to list the app under `webcredentials`
 ///    (the entitlement is compile-time, so a self-hosted domain never can).
 ///  * **Windows** needs nothing: its WebAuthn API takes any RP ID.
-///  * **Web** needs the page to be on the RP ID's host (the browser's rule).
+///  * **Web** needs the page to be on the RP ID's host (the browser's rule),
+///    or, for the hosted RP only, to be one of [kHostedPasskeyRelatedOrigins]
+///    in a browser that reports Related Origin Requests ([isReady]) *and* to
+///    get options whose `related_origins` list this page ([allowsCeremony]):
+///    until the server accepts the origin, a ceremony would end in an
+///    assertion the browser signed and the server refused.
 ///
 /// Any error, non-200 or non-JSON body (an SPA's `index.html`) is "not ready".
 class PasskeyReadiness {
@@ -71,7 +77,12 @@ class PasskeyReadiness {
     String? pageHost,
     DateTime Function()? now,
     Future<List<String>> Function()? appOrigins,
+    String? pageOrigin,
+    Future<bool> Function()? relatedOriginsSupported,
   }) : _authenticator = authenticator,
+       _pageOrigin = pageOrigin ?? (kIsWeb ? Uri.base.origin : ''),
+       _relatedOriginsSupported =
+           relatedOriginsSupported ?? webPasskeysRelatedOrigins,
        _appOrigins = appOrigins ?? androidAppOrigins,
        _client = client,
        _platform = platform ?? _currentPlatform(),
@@ -82,6 +93,14 @@ class PasskeyReadiness {
   final http.Client? _client;
   final PasskeyPlatform _platform;
   final String _pageHost;
+  final String _pageOrigin;
+  final Future<bool> Function() _relatedOriginsSupported;
+  Future<bool>? _relatedOrigins;
+
+  /// When each server last sent options that didn't list this related page:
+  /// the button stays hidden for [cacheFor] rather than offer a ceremony the
+  /// server has just shown it would refuse.
+  final Map<String, DateTime> _relatedRefused = {};
   final DateTime Function() _now;
   final Future<List<String>> Function() _appOrigins;
   Future<List<String>>? _ownOrigins;
@@ -128,7 +147,13 @@ class PasskeyReadiness {
       case PasskeyPlatform.windows:
         return true;
       case PasskeyPlatform.web:
-        return _pageHost == rp || _pageHost.endsWith('.$rp');
+        if (_pageHost == rp || _pageHost.endsWith('.$rp')) return true;
+        // Only for the button: options in hand ([allowsCeremony]) are newer.
+        final refused = rpId == null ? _relatedRefused[apiBaseUrl] : null;
+        if (refused != null && _now().difference(refused) < cacheFor) {
+          return false;
+        }
+        return _isHostedRelatedOrigin(isHosted: isHosted, rp: rp);
       case PasskeyPlatform.apple:
         if (!isHosted || rp != kHostedPasskeyRpId) return false;
         return _check(
@@ -159,12 +184,36 @@ class PasskeyReadiness {
     if (!await isReady(apiBaseUrl: apiBaseUrl, isHosted: isHosted, rpId: rp)) {
       return false;
     }
+    if (_platform == PasskeyPlatform.web) {
+      final rpHost = rp.toLowerCase();
+      if (_pageHost == rpHost || _pageHost.endsWith('.$rpHost')) return true;
+      // A related origin: only once the server says it verifies this page.
+      if (options.relatedOrigins.contains(_pageOrigin)) {
+        _relatedRefused.remove(apiBaseUrl);
+        return true;
+      }
+      _relatedRefused[apiBaseUrl] = _now();
+      return false;
+    }
     if (_platform != PasskeyPlatform.android) return true;
     // This install's own origin, not just any: a build signed with a key the
     // server does not list (a debug or upload-key build, or config drift)
     // would have its assertion rejected.
     final mine = await (_ownOrigins ??= _appOrigins());
     return options.androidOrigins.any(mine.contains);
+  }
+
+  /// The page is a hosted related origin of the hosted relying party, in a
+  /// browser that can use one. The browser's answer is asked once.
+  Future<bool> _isHostedRelatedOrigin({
+    required bool isHosted,
+    required String rp,
+  }) async {
+    if (!isHosted || rp != kHostedPasskeyRpId) return false;
+    if (!kHostedPasskeyRelatedOrigins.contains(_pageOrigin)) return false;
+    return _relatedOrigins ??= _relatedOriginsSupported().catchError(
+      (Object _) => false,
+    );
   }
 
   /// [url]'s verdict, from the cache while it is fresh. Only a definitive

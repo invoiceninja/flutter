@@ -527,6 +527,7 @@ class PasskeyLoginOptions {
     required this.publicKey,
     required this.challengeToken,
     this.androidOrigins = const [],
+    this.relatedOrigins = const [],
   });
 
   /// Reads a response body `{data: {...}}` — see [PasskeyLoginOptions.fromData].
@@ -541,7 +542,8 @@ class PasskeyLoginOptions {
     return PasskeyLoginOptions.fromData(data, statusCode: response.statusCode);
   }
 
-  /// Reads `{publicKey: {...}, challenge_token: '...', android_origins: [...]}`.
+  /// Reads `{publicKey: {...}, challenge_token: '...', android_origins: [...],
+  /// related_origins: [...]}`.
   /// Anything without the first two is a [ServerException]: a ceremony started
   /// on half an answer could only fail later, inside the OS sheet.
   factory PasskeyLoginOptions.fromData(Object? data, {int statusCode = 200}) {
@@ -552,17 +554,20 @@ class PasskeyLoginOptions {
         token.isEmpty) {
       throw ServerException(statusCode, 'Malformed passkey options');
     }
-    final origins = data is Map<String, dynamic>
-        ? data['android_origins']
-        : null;
+    List<String> strings(String key) {
+      final list = data is Map<String, dynamic> ? data[key] : null;
+      return [
+        if (list is List)
+          for (final item in list)
+            if (item is String) item,
+      ];
+    }
+
     return PasskeyLoginOptions(
       publicKey: publicKey,
       challengeToken: token,
-      androidOrigins: [
-        if (origins is List)
-          for (final origin in origins)
-            if (origin is String) origin,
-      ],
+      androidOrigins: strings('android_origins'),
+      relatedOrigins: strings('related_origins'),
     );
   }
 
@@ -575,6 +580,12 @@ class PasskeyLoginOptions {
   /// server that predates native Android passkeys, where an Android ceremony
   /// must not be started (docs/passkeys.md).
   final List<String> androidOrigins;
+
+  /// The web origins other than the relying party's own whose assertions the
+  /// server will verify (WebAuthn Related Origin Requests). Empty on a server
+  /// that doesn't accept any, where a ceremony from such a page must not be
+  /// started: the browser would sign, and the server reject it.
+  final List<String> relatedOrigins;
 
   /// The relying party these options are for: `rpId` on a sign-in, `rp.id`
   /// on a registration. Empty when the server named none.

@@ -28,6 +28,7 @@ void main() {
       'android_origins': [
         'android:apk-key-hash:u7yL-3JO8lZ3MDGxySLAUdNd7j_OvVk69xEvq0Z96Ig',
       ],
+      'related_origins': ['https://admin.invoicing.co', 7],
     },
   };
 
@@ -45,6 +46,8 @@ void main() {
     expect(result.challengeToken, 'token-1');
     expect(result.relyingPartyId, 'app.invoicing.co');
     expect(result.androidOrigins, hasLength(1));
+    // Strings only; anything else is dropped.
+    expect(result.relatedOrigins, ['https://admin.invoicing.co']);
   });
 
   test(
@@ -63,6 +66,7 @@ void main() {
           );
 
       expect(result.androidOrigins, isEmpty);
+      expect(result.relatedOrigins, isEmpty);
     },
   );
 

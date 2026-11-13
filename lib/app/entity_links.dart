@@ -92,6 +92,13 @@ const String kHostedAppLinkHost = 'invoicing.co';
 /// `webcredentials:` entitlements by `test/lint/universal_links_test.dart`.
 const String kHostedPasskeyRpId = 'app.invoicing.co';
 
+/// The hosted pages, other than [kHostedPasskeyRpId] itself, that may run a
+/// passkey ceremony for it through WebAuthn Related Origin Requests: the
+/// Flutter web app on Cloudflare Pages (docs/passkeys.md § Related origins).
+/// Each is also listed by `https://app.invoicing.co/.well-known/webauthn` and
+/// by the server's `PASSKEY_RELATED_ORIGINS`, which says so in the options.
+const Set<String> kHostedPasskeyRelatedOrigins = {'https://admin.invoicing.co'};
+
 /// OAuth-return host used by the calendar connection handshake.
 const String kCalendarLinkHost = 'calendar_connection';
 

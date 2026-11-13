@@ -11,25 +11,28 @@ set -euo pipefail
 
 archive="${1:?usage: check_server_tarball.sh <archive>}"
 fail() { echo "!! $1" >&2; exit 1; }
+grep_list() { printf '%s\n' "$list"; }
+# Listed once: `tar | grep -q` would die of SIGPIPE under pipefail.
+list=$(tar -tzf "$archive")
 
 tar -tvzf "$archive" | awk '$1 !~ /^[-d]/ { bad = 1 } END { exit bad }' \
   || fail "a link or a special file"
-if tar -tzf "$archive" | grep -E '(^|/)\.\.?(/|$)'; then
+if grep_list | grep -E '(^|/)\.\.?(/|$)'; then
   fail "a relative path"
 fi
-if tar -tzf "$archive" | grep -Ev '^(public/|resources/|resources/views/|resources/views/(flutter|landing)/|resources/views/(flutter|landing)/index\.html|public/(flutter|landing)/.*)$'; then
+if grep_list | grep -Ev '^(public/|resources/|resources/views/|resources/views/(flutter|landing)/|resources/views/(flutter|landing)/index\.html|public/(flutter|landing)/.*)$'; then
   fail "files outside the four paths"
 fi
-if tar -tzf "$archive" | grep -E '^public/' | grep -Ev '/$' | grep -Eiv '(/[^/.]+|/\.gitkeep|\.(js|mjs|wasm|json|css|png|jpg|jpeg|gif|webp|svg|ico|ttf|otf|woff|woff2|frag|bin|txt|map))$'; then
+if grep_list | grep -E '^public/' | grep -Ev '/$' | grep -Eiv '(/[^/.]+|/\.gitkeep|\.(js|mjs|wasm|json|css|png|jpg|jpeg|gif|webp|svg|ico|ttf|otf|woff|woff2|frag|bin|txt|map))$'; then
   fail "a file type the server doesn't accept under public/"
 fi
-if tar -tzf "$archive" | grep -Ei '\.(php[0-9]?|pht|phtml|phar|phps|cgi|pl|shtml)(\.|/|$)'; then
+if grep_list | grep -Ei '\.(php[0-9]?|pht|phtml|phar|phps|cgi|pl|shtml)(\.|/|$)'; then
   fail "a file the web server could execute"
 fi
-if tar -tzf "$archive" | grep -E '/\.' | grep -Ev '/\.gitkeep$'; then
+if grep_list | grep -E '/\.' | grep -Ev '/\.gitkeep$'; then
   fail "a dotfile"
 fi
 for part in public/flutter/flutter_bootstrap.js resources/views/flutter/index.html resources/views/landing/index.html; do
-  tar -tzf "$archive" | grep -qx "$part" || fail "no $part"
+  grep -qxF "$part" <<< "$list" || fail "no $part"
 done
 echo "The server will accept $archive."

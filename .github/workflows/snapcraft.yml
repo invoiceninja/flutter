@@ -1,11 +1,19 @@
 name: Deploy to Snapcraft
 
 # Manual only — building + uploading a snap is a deliberate release action, not a
-# per-push gate. Publishes to the `edge` channel of the existing `invoiceninja`
-# snap. `stable` is v1's channel until launch: promoting there is a deliberate
-# `snapcraft release` after snap-smoke.yml passes on edge (docs/going-live.md § Snap).
+# per-push gate. Publishes to the `stable` and `edge` channels of the
+# `invoiceninja` snap, which this app took over from v1 on 2026-11-13 (revision
+# 80, after snap-smoke.yml passed). A change to confinement, plugs or the
+# keyring launcher is dispatched with `channels: edge` first and goes through
+# snap-smoke.yml before it reaches stable (docs/going-live.md § Snap).
 on:
   workflow_dispatch:
+    inputs:
+      channels:
+        description: Channels to release to
+        type: choice
+        options: ['stable,edge', edge]
+        default: 'stable,edge'
   # Also called by deploy-all.yml, whose release job has already run the
   # suite once for this commit. `skip_tests` exists only on the call: a manual
   # dispatch cannot skip the test gate.
@@ -15,13 +23,16 @@ on:
         description: Set only by deploy-all.yml, whose release job already ran _test.yaml.
         type: boolean
         default: false
+      channels:
+        type: string
+        default: 'stable,edge'
 
 permissions:
   contents: read
 
 jobs:
   # Test gate — mirrors appstore-ios.yml. CI is workflow_dispatch-only, so this
-  # is what guarantees the suite ran before a snap reaches the edge channel.
+  # is what guarantees the suite ran before a snap reaches the store.
   test:
     # Skipped only under deploy-all.yml (skip_tests), whose release ran it once.
     if: ${{ !inputs.skip_tests }}
@@ -95,10 +106,12 @@ jobs:
 
       # Credentials: repo secret SNAPCRAFT_STORE_CREDENTIALS, generated via
       # `snapcraft export-login --snaps invoiceninja --acls ... --expires ...`.
-      - name: Publish to Snap Store (edge)
+      - name: Publish to Snap Store (stable, edge)
         uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
         with:
           snap: ${{ steps.build.outputs.snap }}
-          release: edge
+          # Comma-separated, passed to `snapcraft upload --release`. edge stays
+          # in step so an edge install never sits behind stable.
+          release: ${{ inputs.channels || 'stable,edge' }}

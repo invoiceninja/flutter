@@ -10,14 +10,14 @@ Updated 2026-11-12, after 5.1.25. Update this table whenever a store moves; the 
 |---|---|---|---|
 | Flathub | ✅ since 5.1.23 (2026-11-10) | stable, as an update to v1's listing | the follow-ups in § Flathub |
 | F-Droid | ✅ | f-droid.org | nothing until the app rename |
-| Snap | ❌ `stable` is still v1 (5.0.204) | `edge` (5.1.25) | **next:** keyring fix done, not yet released; release to edge, run the Snap smoke test, promote (§ Snap) |
+| Snap | ✅ since 5.1.25 (2026-11-13, revision 80) | `stable` and `edge`, replacing v1 | nothing until the app rename |
 | Android (Play) | ❌ | Open testing | § Google Play |
 | iOS | ❌ | TestFlight, external beta | § App Store (iOS and macOS) |
 | macOS | ❌ | TestFlight | § App Store (iOS and macOS) |
 | Windows | ❌ | Microsoft Store, Private audience | § Microsoft Store |
 | Web | ❌ | staged by Deploy to Web, never committed | `docs/web-deploy.md` § Going live |
 
-Going live is one app release with the beta flag off, plus a store-console step on each store. Today every pipeline ships to testers: Play Open testing, TestFlight (iOS and macOS), Snap `edge`, a restricted Microsoft Store listing and a GitHub pre-release. F-Droid is already public.
+Going live is one app release with the beta flag off, plus a store-console step on each store. Today every pipeline ships to testers: Play Open testing, TestFlight (iOS and macOS), a restricted Microsoft Store listing and a GitHub pre-release. F-Droid, Flathub and the Snap are already public.
 
 On Play, the App Store and Microsoft the new app (`com.invoiceninja.admin`) has its own listing, so going live there leaves the v1 app (`com.invoiceninja.app`) untouched. **The Snap is the exception:** both apps are the `invoiceninja` snap, so releasing to `stable` replaces v1 for every snap user.
 
@@ -74,10 +74,10 @@ v1's snap (admin-portal's `snap/snapcraft.yaml`, 5.0.204 on `stable`) plugs only
 
 - [x] Route the key through the Secret portal while the plug is unconnected (2026-11-12, in Docker on Ubuntu 22.04). An auto-connect request to the store is no longer needed.
 - [x] Set `grade: stable`, so a tested `edge` revision can be promoted as it is.
-- [ ] Release it to `edge` (the next Deploy to all).
-- [ ] Run **Snap smoke test** (`snap-smoke.yml`) on `edge`: on GitHub's Ubuntu 22.04 and 24.04 runners (real snapd and AppArmor) it checks a fresh install and a refresh from v1's `stable`, with no plug connected by hand. All four jobs pass, and the screenshots in their artifacts show the sign-in screen, not the keyring screen.
-- [ ] Promote that revision: `snapcraft release invoiceninja <rev> stable`.
-- [ ] Make Deploy to all publish to `stable`: `release: stable` in `snapcraft.yml`, its step name and header comment, and the Snap rows in `docs/store-deployment-setup.md`.
+- [x] Release it to `edge`: revision 80 (5.1.25), 2026-11-13.
+- [x] Run **Snap smoke test** (`snap-smoke.yml`) on `edge`: on GitHub's Ubuntu 22.04 and 24.04 runners (real snapd and AppArmor) it checks a fresh install and a refresh from v1's `stable`, with no plug connected by hand. Run 43390912853 passed all four jobs: the plug unconnected, `default.keyring` written, the portal holding a secret for `snap.invoiceninja`, AppArmor denying only the Dart VM's harmless `/proc/sys/vm/max_map_count` read, and the sign-in screen on both launches.
+- [x] Promote that revision: `snapcraft release invoiceninja 80 stable` (2026-11-13). To roll back, release revision 76 (v1, 5.0.204) to `stable`.
+- [x] Make Deploy to all publish to `stable`: `snapcraft.yml` releases to `stable,edge`. A change to confinement, plugs or `snap/local/keyring-backend` is dispatched with `channels: edge` and passes `snap-smoke.yml` before it reaches `stable`.
 
 ### Flathub
 
@@ -105,13 +105,13 @@ Already public on f-droid.org: each tagged release reaches users once F-Droid's 
 
 ## One-click production releases
 
-Today one **Deploy to all** dispatch ships every store to its testing channel with no manual step: Play Open testing (track and rollout chosen in the dispatch form), TestFlight (built, What to Test set, added to "Beta - External" and submitted for beta review by `tools/testflight_release.py`), the restricted Microsoft Store listing (release notes set and committed by `tools/msstore_release_notes.py`), Snap `edge`, a GitHub pre-release, and F-Droid. The decision (2026-11-08) is to keep it that way until launch, then make the same single dispatch publish to production. That needs:
+Today one **Deploy to all** dispatch ships every store to its testing channel with no manual step: Play Open testing (track and rollout chosen in the dispatch form), TestFlight (built, What to Test set, added to "Beta - External" and submitted for beta review by `tools/testflight_release.py`), the restricted Microsoft Store listing (release notes set and committed by `tools/msstore_release_notes.py`), a GitHub pre-release, and to production on F-Droid, Flathub and the Snap (`stable`). The decision (2026-11-08) is to keep it that way until launch, then make the same single dispatch publish to production. That needs:
 
 - [ ] **Play:** grant the service account "Release to production" (Play Console → Users and permissions), add `production` to `playstore.yml`'s `track` options and to Deploy to all's `play_track`, and make it the default. The `play_rollout` input already stages it.
 - [ ] **App Store (iOS and macOS):** after the first version has been submitted and approved by hand (Apple needs its screenshots, description, privacy answers and age rating once), extend `tools/testflight_release.py` or add a sibling to: create the App Store version for the release, attach the build, set "What's New in This Version" from the same digest, and submit it for review with release-after-approval — plus a dispatch input choosing phased release (iOS, 7 days) or everyone at once.
 - [ ] **GitHub Release:** drop `--prerelease` in `appimage.yml` so the Release is marked Latest.
 - [ ] **Microsoft Store:** switch the listing's Audience to Public in Partner Center (§ Microsoft Store); CI needs no change, since `tools/msstore_release_notes.py` already commits a `Public` submission (`ALLOWED_VISIBILITY`). Drop " - Beta" from the listing name with the app rename above.
-- [ ] **Snap:** `release: stable` in `snapcraft.yml` once § Snap's smoke test passes; `stable` replaces v1 for every Snap user.
+- [x] **Snap:** `snapcraft.yml` releases to `stable,edge` (2026-11-13, § Snap).
 - [ ] Flip each workflow's header comment and `docs/store-deployment-setup.md` from "testers" to "production".
 
 ## Decisions outside the code

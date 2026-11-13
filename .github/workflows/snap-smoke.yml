@@ -77,8 +77,13 @@ jobs:
         run: |
           sudo snap install invoiceninja --channel=stable
           snap list invoiceninja | tee "$OUT/v1.txt"
-          timeout 20 snap run invoiceninja >"$OUT/v1-run.log" 2>&1 || true
+          # Screenshot while v1 is still up, then stop it; it has written its
+          # data by then, which is what the refresh below carries over.
+          snap run invoiceninja >"$OUT/v1-run.log" 2>&1 &
+          sleep 20
           import -window root "$OUT/0-v1.png" || true
+          pkill -f '/snap/invoiceninja/' || true
+          sleep 3
 
       - name: Install or refresh to ${{ inputs.channel }}
         run: |

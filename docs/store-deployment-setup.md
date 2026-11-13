@@ -17,7 +17,7 @@ Six workflows publish the app. Every one of them:
 | Target | Workflow | Lands in | Store credentials |
 |---|---|---|---|
 | Linux AppImage + F-Droid APKs | `appimage.yml` | GitHub Release (prerelease) → F-Droid | a repo setting, plus the F-Droid signing key (4, in an Environment) |
-| Linux Snap | `snapcraft.yml` | Snap Store `edge` | 1 |
+| Linux Snap | `snapcraft.yml` | Snap Store `stable` + `edge` | 1 |
 | Android | `playstore.yml` | Play **Open testing** (or another testing track) | 5 |
 | Windows | `microsoft-store.yml` | Store certification → live listing | 5 |
 | iOS | `appstore-ios.yml` | TestFlight | 8 |
@@ -256,7 +256,7 @@ Paste the **entire** contents of `exported.txt` into `SNAPCRAFT_STORE_CREDENTIAL
 
 > **Record the expiry date somewhere you'll see it.** Expired credentials break publishing, and the failure is not obviously about expiry.
 
-**Verify** — dispatch `Deploy to Snapcraft`. Success puts a new revision on the `edge` channel; check with `snap info invoiceninja`. The workflow never releases to `stable`, where v1's users are; promoting a revision there is a deliberate `snapcraft release` (`docs/going-live.md` § Snap).
+**Verify** — dispatch `Deploy to Snapcraft` with `channels: edge`. Success puts a new revision on the `edge` channel; check with `snap info invoiceninja`. The default, `stable,edge`, ships to every snap user (this app replaced v1 on `stable` at revision 80), so a change to confinement, plugs or `snap/local/keyring-backend` goes to `edge` first and through `snap-smoke.yml` (`docs/going-live.md` § Snap).
 
 > The database key goes through the desktop's Secret portal, so a fresh install needs no manual step. Only a desktop with no Secret portal needs `snap connect invoiceninja:password-manager-service`, and the app's keyring screen says so: `docs/setup.md` § Linux desktop / Snap.
 
@@ -426,7 +426,7 @@ Run them in this order — cheapest failure first:
 
 1. **AppImage** (dry run, `publish: false`) — validates checkout, the test gate, and the Flutter build with zero credentials, and publishes nothing.
 2. **AppImage** (real) — validates the release-writing permission. **This publishes a public GitHub Release** (§3A), so treat it as a real release, not a rehearsal.
-3. **Snap** — one secret, reversible (edge channel).
+3. **Snap** — one secret; dispatch with `channels: edge`, since the default ships to every snap user on `stable`.
 4. **Google Play** — five secrets, lands on a testing track.
 5. **iOS**, then **macOS** — most credential surface; TestFlight is still testers-only.
 6. **Microsoft Store** — last, because it is the only one that auto-publishes to the listing.
@@ -440,7 +440,7 @@ Once each target is green on its own, ship whole releases with **Deploy to all**
 | Target | Where the build lands | How to promote |
 |---|---|---|
 | AppImage | GitHub Release `v<version>`, marked prerelease | Uncheck "pre-release" on the Release |
-| Snap | `edge` channel | `snapcraft release invoiceninja <rev> <channel>`; `stable` replaces v1 for every snap user |
+| Snap | `stable` and `edge` | Already live. A `channels: edge` dispatch is promoted with `snapcraft release invoiceninja <rev> stable` |
 | Play | Open testing track (or the dispatched testing track) | Play Console: promote to production |
 | iOS / macOS | TestFlight | App Store Connect: submit for review |
 | Microsoft | Certification, then the live listing | Automatic — no promotion step |
@@ -527,7 +527,6 @@ These are deliberate beta-posture settings, listed so they aren't mistaken for s
 
 | Where | Current | At GA |
 |---|---|---|
-| `snapcraft.yml` | `release: edge` | `release: stable`, after an `edge` revision has passed `snap-smoke.yml` (`docs/going-live.md` § Snap). `grade: stable` is already set, so that revision can be promoted as it is. |
 | `pubspec.yaml` `msix_config` | `display_name: Invoice Ninja - Beta` | Drop the ` - Beta` |
 | `appimage.yml` | `prerelease: true` | Decide per release |
 | `ios/Runner/Info.plist` | `CFBundleDisplayName = Ninja Beta`, `CFBundleName = admin` | `Invoice Ninja`. The beta installs beside the v1 app, whose home-screen label is "Invoice Ninja", and iOS truncates a label at about 12 characters — "Invoice Ninja Beta" would read "Invoice Ninj…" and look like the old app. The exported `.ipa` filename derives from this value, so `appstore-ios.yml` renames it before the upload. The v1 app's beta invitation names this label (`kBetaAppNameMobile` in admin-portal), so change the two together. |

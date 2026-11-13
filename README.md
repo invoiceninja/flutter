@@ -6,7 +6,7 @@ v2 client application for [Invoice Ninja](https://github.com/invoiceninja/invoic
 - Windows: [apps.microsoft.com/detail/restricted/9NG93WNXN797](https://apps.microsoft.com/detail/restricted/9NG93WNXN797)
 - macOS: [testflight.apple.com/join/YY1BZ7uR](https://testflight.apple.com/join/YY1BZ7uR)
 - Linux (Flathub): [flathub.org/apps/com.invoiceninja.InvoiceNinja](https://flathub.org/apps/com.invoiceninja.InvoiceNinja)
-- Linux (Snap): `sudo snap install invoiceninja --edge`
+- Linux (Snap): `sudo snap install invoiceninja`
 - Linux (AppImage): [Releases](https://github.com/invoiceninja/flutter/releases)
 
 #### Mobile Apps

@@ -7,14 +7,14 @@
   "client_portal": "https://invoicing.co/client/",
   "platforms": [
     {
-      "id": "mac", "group": "desktop", "name": "Mac", "icon": "apple", "color": "ink",
-      "min_os": "macOS 12 or later",
-      "store": ["Mac App Store", "https://apps.apple.com/us/app/invoice-ninja/id1503970375?platform=mac"]
-    },
-    {
       "id": "windows", "group": "desktop", "name": "Windows", "icon": "windows", "color": "#0078D4",
       "min_os": "Windows 10 or later",
       "store": ["Microsoft Store", "https://apps.microsoft.com/detail/9n3f2bbcfdr6"]
+    },
+    {
+      "id": "mac", "group": "desktop", "name": "Mac", "icon": "apple", "color": "ink",
+      "min_os": "macOS 12 or later",
+      "store": ["Mac App Store", "https://apps.apple.com/us/app/invoice-ninja/id1503970375?platform=mac"]
     },
     {
       "id": "linux", "group": "desktop", "name": "Linux", "icon": "linux", "color": "ink",
@@ -26,15 +26,15 @@
       ]
     },
     {
-      "id": "ios", "group": "mobile", "name": "iPhone & iPad", "icon": "apple", "color": "ink",
-      "min_os": "iOS 15 or later",
-      "store": ["App Store", "https://apps.apple.com/us/app/invoice-ninja/id1503970375"]
-    },
-    {
       "id": "android", "group": "mobile", "name": "Android", "icon": "android", "color": "#3DDC84",
       "min_os": "Android 8.0 or later",
       "store": ["Google Play", "https://play.google.com/store/apps/details?id=com.invoiceninja.app"],
       "alt": [["F-Droid", "https://f-droid.org/packages/com.invoiceninja.admin/"]]
+    },
+    {
+      "id": "ios", "group": "mobile", "name": "iPhone & iPad", "icon": "apple", "color": "ink",
+      "min_os": "iOS 15 or later",
+      "store": ["App Store", "https://apps.apple.com/us/app/invoice-ninja/id1503970375"]
     }
   ],
   "addons": {

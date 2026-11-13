@@ -215,6 +215,8 @@ jobs:
           set -euo pipefail
           name="invoiceninja-web-${{ steps.prep.outputs.version }}.tar.gz"
           tar -czf "$name" -C server public resources
+          # What the backend checks before it unpacks this; fail here, not there.
+          tools/web_deploy/check_server_tarball.sh "$name"
           echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "size=$(du -h "$name" | cut -f1)" >> "$GITHUB_OUTPUT"
 
@@ -373,9 +375,11 @@ jobs:
 
       # The server's release (react_release.yml in invoiceninja/invoiceninja)
       # takes the tarball only with this: `gh attestation verify --repo
-      # invoiceninja/app --signer-workflow .../web.yml`. Its two views are
-      # compiled as PHP on every server, so a file merely uploaded to the
-      # release under the right name must not be enough (docs/web-deploy.md).
+      # invoiceninja/app --cert-identity-regex` pinned to this web.yml on main
+      # or a vX.Y.Z tag. The tarball is static files the server fills or serves
+      # as they are, but they reach every self-hosted server, so a file merely
+      # uploaded to the release under the right name must not be enough
+      # (docs/web-deploy.md).
       - name: Attest the tarball's provenance
         uses: actions/attest-build-provenance@v4
         with:

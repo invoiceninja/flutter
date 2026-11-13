@@ -45,6 +45,22 @@ void main() {
     expect(listed, backendTokens);
   });
 
+  test('every token sits where an escaped value is safe', () {
+    // The backend escapes with htmlspecialchars (ENT_QUOTES): enough inside a
+    // quoted attribute or <title>, not inside a <script>, where a backslash
+    // or a newline would break out.
+    final page = File('tools/web_deploy/boot_page.html').readAsStringSync();
+    final bad = <String>[];
+    for (final line in page.split('\n')) {
+      final rest = line.replaceAll(
+        RegExp(r'="__IN_[A-Z_]+__"|<title>__IN_[A-Z_]+__</title>'),
+        '',
+      );
+      if (RegExp(r'__IN_[A-Z_]+__').hasMatch(rest)) bad.add(line.trim());
+    }
+    expect(bad, isEmpty);
+  });
+
   test('nothing on either page is template syntax a server would run', () {
     for (final path in [
       'tools/web_deploy/boot_page.html',

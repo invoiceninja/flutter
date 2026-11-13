@@ -2,7 +2,7 @@
   "_comment": "Every link and requirement on the invoicing.co landing page (docs/web-deploy.md § The landing page). render_landing.py builds the page from this file; test/lint/landing_apps_test.dart pins each min_os to the app's build files, so a deployment-target bump that forgets this file fails CI. Store links name each store's live listing: switch a store to the new app's listing when that store goes live (docs/going-live.md).",
   "web": {
     "react": { "url": "https://app.invoicing.co", "source": "https://github.com/invoiceninja/ui" },
-    "app": { "url": "https://admin.invoicing.co", "source": "https://github.com/invoiceninja/flutter" }
+    "app": { "url": "https://admin.invoicing.co", "source": "https://github.com/invoiceninja/app" }
   },
   "client_portal": "https://invoicing.co/client/",
   "platforms": [
@@ -22,7 +22,7 @@
       "store": ["Snap Store", "https://snapcraft.io/invoiceninja"],
       "alt": [
         ["Flathub", "https://flathub.org/apps/com.invoiceninja.InvoiceNinja"],
-        ["AppImage", "https://github.com/invoiceninja/flutter/releases/latest"]
+        ["AppImage", "https://github.com/invoiceninja/app/releases/latest"]
       ]
     },
     {

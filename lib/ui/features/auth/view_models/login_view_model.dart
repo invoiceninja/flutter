@@ -8,6 +8,7 @@ import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/apple_sign_in.dart';
 import 'package:admin/data/services/auth_service.dart';
 import 'package:admin/data/services/google_oauth.dart';
+import 'package:admin/data/services/web_sign_in.dart';
 import 'package:admin/data/services/passkey_authenticator.dart';
 import 'package:admin/data/services/passkey_readiness.dart';
 import 'package:admin/data/services/tls/certificate_trust_store.dart';
@@ -30,6 +31,7 @@ enum LoginAction {
   login,
   passkey,
   google,
+  microsoft,
   apple,
   recover,
 }
@@ -135,6 +137,15 @@ class LoginViewModel extends ChangeNotifier {
 
   /// Whether to offer the Apple button — see [AppleSignIn.isSupported].
   bool get appleEnabled => AppleSignIn.isSupported;
+
+  /// Whether to offer the Microsoft button: web only, on the hosted page or a
+  /// self-hosted server that sets `MICROSOFT_CLIENT_ID` ([WebSignIn]).
+  bool get microsoftEnabled => WebSignIn.microsoftEnabled;
+
+  /// Whether to offer any provider button. Google and Apple are hosted-only;
+  /// Microsoft follows the page that served this one.
+  bool get socialEnabled =>
+      (isHosted && (googleEnabled || appleEnabled)) || microsoftEnabled;
 
   /// Whether to offer "Login with a Passkey" on the credentials step: only
   /// once [passkeyReadiness] has proven it can work against this server —
@@ -732,6 +743,8 @@ class LoginViewModel extends ChangeNotifier {
         options: options,
       )) {
         _setError(key: 'passkey_unavailable');
+        // It would refuse again: hide the button rather than offer it.
+        _passkeyReady = false;
         return false;
       }
       final credential = await passkeyAuthenticator.authenticate(
@@ -812,6 +825,13 @@ class LoginViewModel extends ChangeNotifier {
     LoginAction.google,
     (baseUrl) =>
         signInWithGoogle(auth: auth, baseUrl: baseUrl, isHosted: isHosted),
+  );
+
+  /// Sign in with Microsoft (web only). Same contract as [submitGoogle].
+  Future<bool> submitMicrosoft() => _submitSocial(
+    LoginAction.microsoft,
+    (baseUrl) =>
+        signInWithMicrosoft(auth: auth, baseUrl: baseUrl, isHosted: isHosted),
   );
 
   /// Busy / error bookkeeping around one social sign-in. `false` without an

@@ -4,6 +4,8 @@ import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/apple_sign_in.dart';
 import 'package:admin/data/services/google_oauth.dart';
+import 'package:admin/data/services/web_oauth.dart';
+import 'package:admin/data/services/web_sign_in.dart';
 import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
 
 /// Why a social sign-in failed, in the busy / error shape both auth view
@@ -70,12 +72,17 @@ Future<bool> signInWithApple({
       params: {'message': e.message},
     );
   } on SignInWithAppleException catch (e) {
+    // Apple JS on web: the browser refused the window.
+    if (e is SignInWithAppleCredentialsException &&
+        e.message.contains('popup_blocked_by_browser')) {
+      throw const SocialSignInFailure(key: 'web_sign_in_blocked');
+    }
     throw SocialSignInFailure(
       key: 'apple_sign_in_unavailable_with_error',
       params: {'error': e.toString()},
     );
   } on Object catch (e) {
-    throw _failureFrom(e);
+    throw _failureFrom(e, provider: 'apple', isHosted: isHosted);
   }
 }
 
@@ -111,12 +118,101 @@ Future<bool> signInWithGoogle({
     );
     return true;
   } on Object catch (e) {
-    throw _failureFrom(e);
+    throw _failureFrom(e, provider: 'google', isHosted: isHosted);
   }
 }
 
-SocialSignInFailure _failureFrom(Object e) {
+/// Sign in with Microsoft against `/api/v1/oauth_login`, on web only
+/// ([WebSignIn.microsoftEnabled]: the hosted page, or a self-hosted server
+/// that sets `MICROSOFT_CLIENT_ID`). Same contract as [signInWithApple].
+///
+/// The server takes MSAL's access token for Microsoft Graph (`user.read`) and
+/// checks it was issued to its own `MICROSOFT_CLIENT_ID`. Like Google, it
+/// creates an account only with [create].
+Future<bool> signInWithMicrosoft({
+  required AuthRepository auth,
+  required String baseUrl,
+  required bool isHosted,
+  bool create = false,
+}) async {
+  if (!WebSignIn.microsoftEnabled) return false;
+  try {
+    // No await in front of this: it opens the window.
+    final accessToken = await WebSignIn.microsoftAccessToken();
+    if (accessToken == null || accessToken.isEmpty) return false;
+    await auth.oauthLogin(
+      baseUrl: baseUrl,
+      isHosted: isHosted,
+      provider: 'microsoft',
+      accessToken: accessToken,
+      create: create,
+    );
+    return true;
+  } on Object catch (e) {
+    throw _failureFrom(e, provider: 'microsoft', isHosted: isHosted);
+  }
+}
+
+/// The provider's name as the buttons write it.
+String _providerName(String id) => switch (id.toLowerCase()) {
+  'google' => 'Google',
+  'microsoft' => 'Microsoft',
+  'apple' => 'Apple',
+  _ => id,
+};
+
+/// The server's `oauth_login` refusals that a user can act on, in plain
+/// words (`LoginController::handleGoogleOauth` / `handleMicrosoftOauth`). The
+/// server words them for a developer ("User not found. If you believe this is
+/// an error, please send an email to contact@…"), and the first one is what
+/// a new user meets on the login screen.
+SocialSignInFailure? _refusal(
+  String message,
+  String provider, {
+  required bool isHosted,
+}) {
+  if (message.startsWith('User not found')) {
+    // Only hosted has a signup screen to point to.
+    return SocialSignInFailure(
+      key: isHosted ? 'oauth_user_not_found' : 'oauth_user_not_found_here',
+      params: {'provider': _providerName(provider)},
+    );
+  }
+  if (message.contains('use your email and password to login')) {
+    return const SocialSignInFailure(key: 'oauth_email_uses_password');
+  }
+  final linked = RegExp(r'already linked to (\w+) sign-in').firstMatch(message);
+  if (linked != null) {
+    return SocialSignInFailure(
+      key: 'oauth_email_uses_provider',
+      params: {'provider': _providerName(linked.group(1)!)},
+    );
+  }
+  return null;
+}
+
+SocialSignInFailure _failureFrom(
+  Object e, {
+  required String provider,
+  required bool isHosted,
+}) {
   if (e is SocialSignInFailure) return e;
+  if (e is WebOAuthException) {
+    return switch (e.failure) {
+      WebOAuthFailure.blocked => const SocialSignInFailure(
+        key: 'web_sign_in_blocked',
+      ),
+      WebOAuthFailure.notLoaded => const SocialSignInFailure(
+        key: 'web_sign_in_loading',
+      ),
+      WebOAuthFailure.unavailable => const SocialSignInFailure(
+        key: 'web_sign_in_unavailable',
+      ),
+      WebOAuthFailure.failed => SocialSignInFailure(
+        message: e.message.isEmpty ? formatNotifyError(e) : e.message,
+      ),
+    };
+  }
   // Social sign-in is hosted-only, and the hosted service's certificate is
   // never ours to overrule — explain it rather than toast the handshake.
   if (e is UntrustedCertificateException) {
@@ -132,7 +228,10 @@ SocialSignInFailure _failureFrom(Object e) {
       params: {'message': e.message},
     );
   }
-  if (e is ApiException) return SocialSignInFailure(message: e.message);
+  if (e is ApiException) {
+    return _refusal(e.message, provider, isHosted: isHosted) ??
+        SocialSignInFailure(message: e.message);
+  }
   // Login is the one screen a user cannot route around, and it was the one
   // screen with no catch-all: anything that isn't an `ApiException` subtype
   // escaped and the button simply un-spun and said nothing, forever. Real

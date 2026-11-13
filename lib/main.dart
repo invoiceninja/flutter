@@ -59,6 +59,8 @@ import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/sync_lifecycle_observer.dart';
 import 'package:admin/data/services/tls/certificate_trust_seam.dart';
 import 'package:admin/data/services/tls/certificate_trust_store.dart';
+import 'package:admin/data/services/web_oauth.dart';
+import 'package:admin/data/services/web_sign_in.dart';
 import 'package:admin/domain/expenses/receipt_scanner.dart';
 import 'package:admin/l10n/company_labels_scope.dart';
 import 'package:admin/l10n/localization.dart';
@@ -431,6 +433,14 @@ Future<void> _bootstrap() async {
   // (docs/web-deploy.md): the sign-in uses its URL, and `?signup=true` there
   // opens the signup screen (hosted only).
   final servingServer = readServingServer();
+  // Its Google / Microsoft / Apple sign-in, if any (docs/web-deploy.md § Web
+  // sign-in). `Uri.base` is the build folder, but only its origin is used.
+  WebSignIn.configure(
+    servingServer,
+    pageOrigin: kIsWeb ? Uri.base.origin : '',
+    secureContext: webOAuthSecureContext(),
+  );
+  WebSignIn.prepare();
   final initialLocation = services.auth.isAuthenticated
       ? (restored == null
             ? defaultPostLoginRoute(services.auth.session.value)

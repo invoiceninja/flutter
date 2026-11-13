@@ -34,6 +34,8 @@ class PasswordSubject {
   bool get isExempt => isOAuth && !oauthPasswordRequired;
 
   bool get isApple => oauthProvider.trim() == 'apple';
+
+  bool get isMicrosoft => oauthProvider.trim() == 'microsoft';
 }
 
 /// Short-lived in-memory cache for the credential a password-protected

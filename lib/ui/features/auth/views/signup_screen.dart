@@ -5,9 +5,11 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/serving_server.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/services/web_sign_in.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/google_logo.dart';
+import 'package:admin/ui/core/widgets/microsoft_logo.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/auth/view_models/signup_view_model.dart';
 import 'package:admin/ui/features/auth/widgets/auth_fields.dart';
@@ -37,6 +39,8 @@ class _SignupScreenState extends State<SignupScreen> {
       passwordCache: services.passwordCache,
       served: context.read<ServingServer?>(),
     );
+    // Web: ready the providers' windows before anyone taps (WebSignIn).
+    WebSignIn.prepare();
   }
 
   @override
@@ -83,6 +87,13 @@ class _SignupBody extends StatelessWidget {
   }
 
   Future<void> _onSubmit(BuildContext context) => _finish(context, vm.submit());
+
+  static final ButtonStyle _providerStyle = OutlinedButton.styleFrom(
+    minimumSize: const Size.fromHeight(48),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(InRadii.r2),
+    ),
+  );
 
   Future<void> _finish(BuildContext context, Future<bool> attempt) async {
     final ok = await attempt;
@@ -189,47 +200,58 @@ class _SignupBody extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (vm.appleEnabled || vm.googleEnabled) ...[
+                  if (vm.googleEnabled ||
+                      vm.microsoftEnabled ||
+                      vm.appleEnabled) ...[
                     SizedBox(height: InSpacing.md(context)),
                     const AuthOrDivider(),
                     SizedBox(height: InSpacing.md(context)),
                   ],
-                  if (vm.appleEnabled)
-                    FilledButton.icon(
-                      key: const ValueKey('signup_apple'),
-                      onPressed: vm.busy
-                          ? null
-                          : () => _finish(context, vm.submitApple()),
-                      icon: const Icon(Icons.apple, size: 18),
-                      label: Text(context.tr('sign_up_with_apple')),
-                      style: FilledButton.styleFrom(
-                        // Apple HIG: black-on-light, white-on-dark — `ink`
-                        // inverts with brightness (same as the login screen).
-                        backgroundColor: tokens.ink,
-                        foregroundColor: tokens.surface,
-                        minimumSize: const Size.fromHeight(48),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(InRadii.r2),
+                  // Google, Microsoft, then Apple: the login screen's order.
+                  for (final (i, button) in [
+                    if (vm.googleEnabled)
+                      OutlinedButton.icon(
+                        key: const ValueKey('signup_google'),
+                        onPressed: vm.busy
+                            ? null
+                            : () => _finish(context, vm.submitGoogle()),
+                        icon: const GoogleLogo(),
+                        label: Text(context.tr('sign_up_with_google')),
+                        style: _providerStyle,
+                      ),
+                    if (vm.microsoftEnabled)
+                      OutlinedButton.icon(
+                        key: const ValueKey('signup_microsoft'),
+                        onPressed: vm.busy
+                            ? null
+                            : () => _finish(context, vm.submitMicrosoft()),
+                        icon: const MicrosoftLogo(),
+                        label: Text(context.tr('microsoft_sign_up')),
+                        style: _providerStyle,
+                      ),
+                    if (vm.appleEnabled)
+                      FilledButton.icon(
+                        key: const ValueKey('signup_apple'),
+                        onPressed: vm.busy
+                            ? null
+                            : () => _finish(context, vm.submitApple()),
+                        icon: const Icon(Icons.apple, size: 18),
+                        label: Text(context.tr('sign_up_with_apple')),
+                        style: FilledButton.styleFrom(
+                          // Apple HIG: black-on-light, white-on-dark — `ink`
+                          // inverts with brightness (same as the login screen).
+                          backgroundColor: tokens.ink,
+                          foregroundColor: tokens.surface,
+                          minimumSize: const Size.fromHeight(48),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(InRadii.r2),
+                          ),
                         ),
                       ),
-                    ),
-                  if (vm.appleEnabled && vm.googleEnabled)
-                    SizedBox(height: InSpacing.md(context)),
-                  if (vm.googleEnabled)
-                    OutlinedButton.icon(
-                      key: const ValueKey('signup_google'),
-                      onPressed: vm.busy
-                          ? null
-                          : () => _finish(context, vm.submitGoogle()),
-                      icon: const GoogleLogo(),
-                      label: Text(context.tr('sign_up_with_google')),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(InRadii.r2),
-                        ),
-                      ),
-                    ),
+                  ].indexed) ...[
+                    if (i > 0) SizedBox(height: InSpacing.md(context)),
+                    button,
+                  ],
                   const SizedBox(height: InSpacing.sm),
                   TextButton(
                     onPressed: () => context.go('/login'),

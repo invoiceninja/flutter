@@ -6,7 +6,10 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/services/google_oauth.dart';
+import 'package:admin/data/services/web_oauth.dart';
+import 'package:admin/data/services/web_sign_in.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/microsoft_logo.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/view_models/user_details_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
@@ -240,8 +243,8 @@ class _ConnectMailerRow extends StatelessWidget {
 
 /// Not-yet-connected state: an in-app "Connect Google" action (reuses the
 /// same `GoogleOAuth` helper as Google sign-in — access-token path, no
-/// browser round-trip) plus an honest note that Microsoft connect is
-/// web-only (no native MSAL on this client). Connecting enqueues a
+/// browser round-trip) plus "Connect Microsoft" on web, or, natively, an
+/// honest note that Microsoft connect is web-only (no native MSAL). Connecting enqueues a
 /// `connect_oauth` outbox row; the server then reports the account as
 /// connected and [_ConnectedSection] takes over (with its working
 /// Disconnect).
@@ -253,9 +256,17 @@ class _ConnectSection extends StatefulWidget {
 }
 
 class _ConnectSectionState extends State<_ConnectSection> {
-  bool _busy = false;
+  /// The provider whose connect is in flight, if any.
+  String? _busyProvider;
 
-  Future<void> _connectGoogle() async {
+  bool get _busy => _busyProvider != null;
+
+  /// Signs in with [provider] for its access token ([token]: null when the
+  /// user closed the chooser), then queues the `connect_oauth`.
+  Future<void> _connect(
+    String provider,
+    Future<String?> Function() token,
+  ) async {
     if (_busy) return;
     final messenger = ScaffoldMessenger.maybeOf(context);
     final vm = context.read<UserDetailsViewModel>();
@@ -266,17 +277,32 @@ class _ConnectSectionState extends State<_ConnectSection> {
     }
     final successLabel = context.tr('saved_settings');
     final errorLabel = context.tr('error_refresh_page');
-    setState(() => _busy = true);
+    final blockedLabel = context.tr('web_sign_in_blocked');
+    final loadingLabel = context.tr('web_sign_in_loading');
+    final unavailableLabel = context.tr('web_sign_in_unavailable');
+    setState(() => _busyProvider = provider);
     try {
-      var accessToken = '';
-      final ok = await GoogleOAuth.signIn((_, token) {
-        accessToken = token;
-      });
-      if (!ok || accessToken.isEmpty) {
+      // On web this opens the provider's window: nothing is awaited first.
+      final accessToken = await token() ?? '';
+      if (accessToken.isEmpty) {
         return; // chooser dismissed / no token — nothing to surface
       }
-      await vm.enqueueConnect(provider: 'google', accessToken: accessToken);
+      await vm.enqueueConnect(provider: provider, accessToken: accessToken);
       if (mounted) Notify.success(context, successLabel);
+    } on WebOAuthException catch (e) {
+      if (mounted) {
+        Notify.error(
+          context,
+          switch (e.failure) {
+            WebOAuthFailure.blocked => blockedLabel,
+            WebOAuthFailure.notLoaded => loadingLabel,
+            WebOAuthFailure.unavailable => unavailableLabel,
+            WebOAuthFailure.failed => errorLabel,
+          },
+          detail: e.failure == WebOAuthFailure.failed ? e.message : null,
+          messenger: messenger,
+        );
+      }
     } catch (e) {
       if (mounted) {
         Notify.error(
@@ -287,9 +313,20 @@ class _ConnectSectionState extends State<_ConnectSection> {
         );
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _busyProvider = null);
     }
   }
+
+  Future<void> _connectGoogle() => _connect('google', () async {
+    var accessToken = '';
+    await GoogleOAuth.signIn((_, token) {
+      accessToken = token;
+    });
+    return accessToken;
+  });
+
+  Future<void> _connectMicrosoft() =>
+      _connect('microsoft', WebSignIn.microsoftAccessToken);
 
   @override
   Widget build(BuildContext context) {
@@ -299,7 +336,8 @@ class _ConnectSectionState extends State<_ConnectSection> {
       title: context.tr('oauth_mail'),
       children: [
         // Hidden, not disabled, where this build can't sign in with Google
-        // (no client ID for the platform, desktop, web, the F-Droid build):
+        // (no client ID for the platform, desktop, the F-Droid build, a web
+        // page without Google's ID):
         // a dead button next to "Connect your Google account" only suggests
         // something is broken.
         if (googleEnabled) ...[
@@ -315,7 +353,7 @@ class _ConnectSectionState extends State<_ConnectSection> {
               FilledButton.icon(
                 style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
                 onPressed: _busy ? null : _connectGoogle,
-                icon: _busy
+                icon: _busyProvider == 'google'
                     ? const SizedBox(
                         width: 16,
                         height: 16,
@@ -330,12 +368,34 @@ class _ConnectSectionState extends State<_ConnectSection> {
           const Divider(height: 1),
           SizedBox(height: InSpacing.lg(context)),
         ],
-        Text(
-          context.tr('connect_microsoft_web_hint'),
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: tokens.ink3),
-        ),
+        // Web only (MSAL in the page, docs/web-deploy.md § Web sign-in); the
+        // native apps have no Microsoft sign-in, so they point to the web.
+        if (WebSignIn.microsoftEnabled)
+          Row(
+            children: [
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(64, 40),
+                ),
+                onPressed: _busy ? null : _connectMicrosoft,
+                icon: _busyProvider == 'microsoft'
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const MicrosoftLogo(),
+                label: Text(context.tr('connect_microsoft')),
+              ),
+            ],
+          )
+        else
+          Text(
+            context.tr('connect_microsoft_web_hint'),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: tokens.ink3),
+          ),
       ],
     );
   }

@@ -16,9 +16,12 @@ import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/apple_sign_in.dart';
 import 'package:admin/data/services/google_oauth.dart';
 import 'package:admin/data/services/password_cache.dart' show PasswordSubject;
+import 'package:admin/data/services/web_oauth.dart';
+import 'package:admin/data/services/web_sign_in.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
+import 'package:admin/ui/core/widgets/microsoft_logo.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
@@ -348,6 +351,13 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
     if (subject.isApple && AppleSignIn.isSupported) {
       return _DangerCredential.apple;
     }
+    // Unlike Apple's above (admin-portal's order), a Microsoft user the server
+    // lets through anyway is never sent to a window.
+    if (subject.isMicrosoft &&
+        !subject.isExempt &&
+        WebSignIn.microsoftEnabled) {
+      return _DangerCredential.microsoft;
+    }
     if (subject.isExempt) return _DangerCredential.none;
     return _DangerCredential.setPassword;
   }
@@ -359,7 +369,9 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
     }
     return switch (_credential) {
       _DangerCredential.password => _passwordCtrl.text.isNotEmpty,
-      _DangerCredential.apple || _DangerCredential.none => true,
+      _DangerCredential.apple ||
+      _DangerCredential.microsoft ||
+      _DangerCredential.none => true,
       _DangerCredential.setPassword => false,
     };
   }
@@ -432,6 +444,9 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
     final fallbackErrMsg = context.tr('error_title');
     final alreadyDeletedMsg = context.tr('already_deleted_remote');
     final serverDidntRespondMsg = context.tr('server_didnt_respond');
+    final blockedMsg = context.tr('web_sign_in_blocked');
+    final loadingMsg = context.tr('web_sign_in_loading');
+    final unavailableMsg = context.tr('web_sign_in_unavailable');
     final isHosted = preSession?.isHosted ?? false;
     final isDelete = widget.kind == _DangerKind.delete;
 
@@ -459,6 +474,32 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
         }
         if (token == null) {
           // Apple sheet dismissed — nothing happened, nothing to report.
+          if (mounted) setState(() => _busy = false);
+          return;
+        }
+        services.passwordCache.setOAuthToken(token);
+      case _DangerCredential.microsoft:
+        final String? token;
+        try {
+          // Opens Microsoft's window: nothing is awaited before it.
+          token = await WebSignIn.microsoftAccessToken();
+        } on Object catch (e) {
+          if (!mounted) return;
+          setState(() {
+            _busy = false;
+            _topBannerError = e is WebOAuthException
+                ? switch (e.failure) {
+                    WebOAuthFailure.blocked => blockedMsg,
+                    WebOAuthFailure.notLoaded => loadingMsg,
+                    WebOAuthFailure.unavailable => unavailableMsg,
+                    WebOAuthFailure.failed => e.message,
+                  }
+                : formatNotifyError(e);
+          });
+          return;
+        }
+        if (token == null || token.isEmpty) {
+          // Window closed — nothing happened, nothing to report.
           if (mounted) setState(() => _busy = false);
           return;
         }
@@ -806,14 +847,22 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
                 ),
               ],
               SizedBox(height: InSpacing.md(context)),
-              if (_credential == _DangerCredential.apple)
+              if (_credential == _DangerCredential.apple ||
+                  _credential == _DangerCredential.microsoft)
                 Row(
                   children: [
-                    const Icon(Icons.apple),
+                    if (_credential == _DangerCredential.apple)
+                      const Icon(Icons.apple)
+                    else
+                      const MicrosoftLogo(size: 24),
                     SizedBox(width: InSpacing.sm),
                     Expanded(
                       child: Text(
-                        context.tr('confirm_with_apple'),
+                        context.tr(
+                          _credential == _DangerCredential.apple
+                              ? 'confirm_with_apple'
+                              : 'confirm_with_microsoft',
+                        ),
                         style: TextStyle(color: tokens.ink2),
                       ),
                     ),
@@ -945,6 +994,9 @@ enum _DangerCredential {
 
   /// "Confirm with Apple" on Continue — `X-API-OAUTH-PASSWORD`.
   apple,
+
+  /// "Confirm with Microsoft" on Continue (web) — `X-API-OAUTH-PASSWORD`.
+  microsoft,
 
   /// Nothing: the server lets this OAuth user through without one.
   none,

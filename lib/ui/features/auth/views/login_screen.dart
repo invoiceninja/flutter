@@ -6,17 +6,21 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/serving_server.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
+import 'package:admin/app/old_web_app.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/sign_out_notice.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/app/version.dart';
+import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/passkey_readiness.dart';
 import 'package:admin/data/services/tls/certificate_trust_store.dart';
+import 'package:admin/data/services/web_sign_in.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/dialogs/untrusted_certificate_dialog.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/google_logo.dart';
+import 'package:admin/ui/core/widgets/microsoft_logo.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/auth/view_models/login_view_model.dart';
 import 'package:admin/ui/features/auth/widgets/auth_fields.dart';
@@ -64,21 +68,34 @@ class _LoginScreenState extends State<LoginScreen> {
   /// looked at the screen is worse than one tap.
   bool _returnedToEmail = false;
 
+  /// A self-hosted server that used to serve admin-portal's web app: say
+  /// once, until this app has signed in here, why the user is asked to
+  /// sign in again ([oldWebAppNoticeDue]).
+  late final bool _newWebAppNotice;
+  late final AuthRepository _auth;
+
   @override
   void initState() {
     super.initState();
+    _auth = context.read<Services>().auth;
+    final served = context.read<ServingServer?>();
+    _newWebAppNotice =
+        served != null && !served.isHosted && oldWebAppNoticeDue();
     _vm = LoginViewModel(
-      auth: context.read<Services>().auth,
+      auth: _auth,
       certificateTrust: context.read<CertificateTrustStore?>(),
       passkeyReadiness: context.read<PasskeyReadiness?>(),
       // Registered only on a page an Invoice Ninja server served
       // (docs/web-deploy.md); null everywhere else.
       served: context.read<ServingServer?>(),
     );
+    // Web: ready the providers' windows before anyone taps (WebSignIn).
+    WebSignIn.prepare();
   }
 
   @override
   void dispose() {
+    if (_newWebAppNotice && _auth.isAuthenticated) oldWebAppNoticeDone();
     _emailFocus.dispose();
     _passwordFocus.dispose();
     _otpFocus.dispose();
@@ -238,6 +255,11 @@ class _LoginScreenState extends State<LoginScreen> {
     if (mounted && !ok) _toastRequestError();
   }
 
+  Future<void> _onMicrosoft() async {
+    final ok = await _vm.submitMicrosoft();
+    if (mounted && !ok) _toastRequestError();
+  }
+
   Future<void> _onApple() async {
     final ok = await _vm.submitApple();
     if (mounted && !ok) _toastRequestError();
@@ -315,6 +337,7 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: InSpacing.xl),
         ],
         const _SignOutNoticeCard(),
+        if (_newWebAppNotice) const _NewWebAppNotice(),
         AuthSurfaceCard(
           shadow: tokens.shadow2,
           padding: const EdgeInsets.all(InSpacing.xl),
@@ -383,7 +406,7 @@ class _LoginScreenState extends State<LoginScreen> {
   List<Widget> _emailStep(BuildContext context) {
     final vm = _vm;
     final busy = vm.busy;
-    final showSocial = vm.isHosted && (vm.googleEnabled || vm.appleEnabled);
+    final showSocial = vm.socialEnabled;
     // A page an Invoice Ninja server served signs in to that server: there is
     // no platform or URL to choose.
     final served = vm.served != null;
@@ -459,46 +482,66 @@ class _LoginScreenState extends State<LoginScreen> {
         SizedBox(height: InSpacing.lg(context)),
         const AuthOrDivider(),
         SizedBox(height: InSpacing.lg(context)),
-        // Google first, then Apple — React's order.
-        if (vm.googleEnabled)
-          OutlinedButton.icon(
-            key: const ValueKey('login_google'),
-            onPressed: busy ? null : _onGoogle,
-            icon: vm.busyAction == LoginAction.google
-                ? const _Spinner()
-                : const GoogleLogo(),
-            label: Text(context.tr('sign_in_with_google')),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(InRadii.r2),
+        // Google, Microsoft, then Apple: React's order.
+        ..._spaced(context, [
+          if (vm.isHosted && vm.googleEnabled)
+            OutlinedButton.icon(
+              key: const ValueKey('login_google'),
+              onPressed: busy ? null : _onGoogle,
+              icon: vm.busyAction == LoginAction.google
+                  ? const _Spinner()
+                  : const GoogleLogo(),
+              label: Text(context.tr('sign_in_with_google')),
+              style: _providerStyle,
+            ),
+          if (vm.microsoftEnabled)
+            OutlinedButton.icon(
+              key: const ValueKey('login_microsoft'),
+              onPressed: busy ? null : _onMicrosoft,
+              icon: vm.busyAction == LoginAction.microsoft
+                  ? const _Spinner()
+                  : const MicrosoftLogo(),
+              label: Text(context.tr('sign_in_with_microsoft')),
+              style: _providerStyle,
+            ),
+          if (vm.isHosted && vm.appleEnabled)
+            FilledButton.icon(
+              key: const ValueKey('login_apple'),
+              onPressed: busy ? null : _onApple,
+              icon: vm.busyAction == LoginAction.apple
+                  ? _Spinner(color: context.inTheme.surface)
+                  : const Icon(Icons.apple, size: 18),
+              label: Text(context.tr('sign_in_with_apple')),
+              style: FilledButton.styleFrom(
+                // Apple HIG: black-on-light, white-on-dark. `ink` already
+                // inverts with brightness, so the button flips for free.
+                backgroundColor: context.inTheme.ink,
+                foregroundColor: context.inTheme.surface,
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(InRadii.r2),
+                ),
               ),
             ),
-          ),
-        if (vm.googleEnabled && vm.appleEnabled)
-          SizedBox(height: InSpacing.md(context)),
-        if (vm.appleEnabled)
-          FilledButton.icon(
-            key: const ValueKey('login_apple'),
-            onPressed: busy ? null : _onApple,
-            icon: vm.busyAction == LoginAction.apple
-                ? _Spinner(color: context.inTheme.surface)
-                : const Icon(Icons.apple, size: 18),
-            label: Text(context.tr('sign_in_with_apple')),
-            style: FilledButton.styleFrom(
-              // Apple HIG: black-on-light, white-on-dark. `ink` already
-              // inverts with brightness, so the button flips for free.
-              backgroundColor: context.inTheme.ink,
-              foregroundColor: context.inTheme.surface,
-              minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(InRadii.r2),
-              ),
-            ),
-          ),
+        ]),
       ],
     ];
   }
+
+  static final ButtonStyle _providerStyle = OutlinedButton.styleFrom(
+    minimumSize: const Size.fromHeight(48),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(InRadii.r2),
+    ),
+  );
+
+  /// [buttons] with the provider buttons' gap between each pair.
+  List<Widget> _spaced(BuildContext context, List<Widget> buttons) => [
+    for (var i = 0; i < buttons.length; i++) ...[
+      if (i > 0) SizedBox(height: InSpacing.md(context)),
+      buttons[i],
+    ],
+  ];
 
   /// Step 2: only the credentials this account needs.
   List<Widget> _credentialsStep(BuildContext context) {
@@ -813,14 +856,14 @@ class _HostedLinks extends StatelessWidget {
 // ─── The other web app (hosted web only) ─────────────────────────────────
 
 /// The hosted web page (admin.invoicing.co, docs/web-deploy.md § Going live)
-/// signs in with email and password alone: no Google, Microsoft or Apple
-/// button on the web yet, and passkeys belong to app.invoicing.co, a host this
-/// page can't use (docs/passkeys.md). So an account that only ever signed in
-/// one of those ways is pointed at Invoice Ninja Web, the React app on the
-/// same account, before it tries a password it doesn't have. "Choose another
-/// app" goes back to the invoicing.co landing page. Both open in this tab: the
-/// user is switching apps, not looking something up. Remove the first line
-/// once the web build signs in the same ways as React.
+/// signs in with email and password, Google and Microsoft, but not every way
+/// React does: Apple waits on its Services ID (`hosted_sign_in.json`), and a
+/// passkey works only in a browser that supports Related Origin Requests,
+/// once the server accepts this page (docs/passkeys.md § Related origins). So
+/// it always offers a way to Invoice Ninja Web, the React app on the same
+/// account, rather than leave someone stuck. "Choose another app" goes back
+/// to the invoicing.co landing page. Both open in this tab: the user is
+/// switching apps, not looking something up.
 class _OtherWebAppNote extends StatelessWidget {
   const _OtherWebAppNote();
 
@@ -830,7 +873,7 @@ class _OtherWebAppNote extends StatelessWidget {
     return Column(
       children: [
         Text(
-          context.tr('web_oauth_hint'),
+          context.tr('web_cant_sign_in_hint'),
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13, color: tokens.ink3),
         ),
@@ -979,6 +1022,43 @@ class _TrustedCertificateLine extends StatelessWidget {
             child: Text(context.tr('forget')),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The one-time card on a self-hosted server that has just moved from
+/// admin-portal's web app to this one: same address, but a new app that
+/// can't read the old one's session.
+class _NewWebAppNotice extends StatelessWidget {
+  const _NewWebAppNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Padding(
+      padding: EdgeInsets.only(bottom: InSpacing.md(context)),
+      child: Container(
+        key: const ValueKey('login_new_web_app_notice'),
+        padding: EdgeInsets.all(InSpacing.lg(context)),
+        decoration: BoxDecoration(
+          color: tokens.surface,
+          border: Border.all(color: tokens.border),
+          borderRadius: BorderRadius.circular(InRadii.r3),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.auto_awesome_outlined, size: 18, color: tokens.ink2),
+            const SizedBox(width: InSpacing.sm),
+            Expanded(
+              child: Text(
+                context.tr('new_web_app_notice'),
+                style: TextStyle(color: tokens.ink2),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

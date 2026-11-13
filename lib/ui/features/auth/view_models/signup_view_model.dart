@@ -6,6 +6,7 @@ import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/apple_sign_in.dart';
 import 'package:admin/data/services/google_oauth.dart';
+import 'package:admin/data/services/web_sign_in.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
 import 'package:admin/ui/features/auth/view_models/social_sign_in.dart';
@@ -57,6 +58,7 @@ class SignupViewModel extends ChangeNotifier {
   /// gates, so the two screens show the same providers.
   bool get appleEnabled => AppleSignIn.isSupported;
   bool get googleEnabled => GoogleOAuth.isEnabled;
+  bool get microsoftEnabled => WebSignIn.microsoftEnabled;
 
   String email = '';
   String password = '';
@@ -196,6 +198,16 @@ class SignupViewModel extends ChangeNotifier {
   /// in an existing one.
   Future<bool> submitGoogle() => _submitSocial(
     () => signInWithGoogle(
+      auth: auth,
+      baseUrl: _baseUrl,
+      isHosted: true,
+      create: true,
+    ),
+  );
+
+  /// Create the account with Microsoft (web only), as [submitGoogle].
+  Future<bool> submitMicrosoft() => _submitSocial(
+    () => signInWithMicrosoft(
       auth: auth,
       baseUrl: _baseUrl,
       isHosted: true,

@@ -1,6 +1,7 @@
 import 'package:store_services/store_services.dart';
 
 import 'package:admin/app/env.dart';
+import 'package:admin/data/services/web_sign_in.dart';
 
 /// Google sign-in for the Invoice Ninja API (`/api/v1/oauth_login`).
 ///
@@ -24,6 +25,11 @@ import 'package:admin/app/env.dart';
 /// The SDK calls live in `package:store_services` ([GoogleSignInClient]) so
 /// the F-Droid build can drop Play Services — there [isEnabled] is always
 /// false and the Google buttons hide themselves (docs/fdroid.md).
+///
+/// On web it is Google Identity Services' token client instead
+/// ([WebSignIn.googleAccessToken]): an access token on the same server path,
+/// on the hosted page only (docs/web-deploy.md § Web sign-in). The web build
+/// is on the FOSS graph, so it is never `google_sign_in`.
 class GoogleOAuth {
   GoogleOAuth._();
 
@@ -32,17 +38,28 @@ class GoogleOAuth {
 
   /// Off unless this build carries the client ID for the running platform —
   /// see `docs/setup.md` § Google Sign-In client IDs.
-  static bool get isEnabled => GoogleSignInClient.isSupported(
-    androidServerClientId: _androidClientId,
-    iosClientId: _iosClientId,
-  );
+  static bool get isEnabled => WebSignIn.isWeb
+      ? WebSignIn.googleEnabled
+      : GoogleSignInClient.isSupported(
+          androidServerClientId: _androidClientId,
+          iosClientId: _iosClientId,
+        );
 
   /// Interactive sign-in. Invokes [callback] with `(idToken, accessToken)`;
   /// `idToken` is always empty (see class doc — we ride the access-token
   /// path). Returns true when a non-empty access token was obtained.
+  ///
+  /// On web it throws `WebOAuthException` when the window was blocked or the
+  /// script isn't loaded, and must be called straight from the tap.
   static Future<bool> signIn(
     void Function(String idToken, String accessToken) callback,
   ) async {
+    if (WebSignIn.isWeb) {
+      // No await in front of this: it opens the window.
+      final token = await WebSignIn.googleAccessToken() ?? '';
+      callback('', token);
+      return token.isNotEmpty;
+    }
     final accessToken = await GoogleSignInClient.signIn(
       androidServerClientId: _androidClientId,
       iosClientId: _iosClientId,
@@ -54,7 +71,8 @@ class GoogleOAuth {
   /// Best effort: ends the SDK's session on sign-out. Never throws — a Google
   /// SDK hiccup must not block leaving the app.
   static Future<void> signOut() async {
-    if (!isEnabled) return;
+    // GIS's token client keeps no session to end.
+    if (WebSignIn.isWeb || !isEnabled) return;
     try {
       await GoogleSignInClient.signOut(
         androidServerClientId: _androidClientId,
@@ -65,8 +83,11 @@ class GoogleOAuth {
 
   /// Best effort: revokes the app's Google grant after the user unlinks
   /// Google from their account (admin-portal did the same). Never throws.
+  ///
+  /// Nothing on web: the token client keeps no token to revoke, and the
+  /// grant stays listed in the user's Google account, as React leaves it.
   static Future<void> disconnect() async {
-    if (!isEnabled) return;
+    if (WebSignIn.isWeb || !isEnabled) return;
     try {
       await GoogleSignInClient.disconnect(
         androidServerClientId: _androidClientId,

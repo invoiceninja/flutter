@@ -5,7 +5,7 @@
      tools/web_deploy/render_boot_page.py. Every variable is optional (`??`), so
      a controller that passes fewer of them can never 500 the page. The glue
      blocks match web/index.html (test/lint/web_boot_page_glue_test.dart). --}}
-<html data-served="1" data-hosted="{{ ($is_hosted ?? false) ? '1' : '0' }}" data-signup="{{ $signup ?? '' }}" data-rc="{{ $rc ?? '' }}" data-white-label="{{ $white_label ?? '' }}" data-api-url="{{ $api_url ?? '' }}">
+<html data-served="1" data-hosted="{{ ($is_hosted ?? false) ? '1' : '0' }}" data-signup="{{ $signup ?? '' }}" data-rc="{{ $rc ?? '' }}" data-white-label="{{ $white_label ?? '' }}" data-api-url="{{ $api_url ?? '' }}" data-google-client-id="{{ $google_client_id ?? '' }}" data-microsoft-client-id="{{ $microsoft_client_id ?? '' }}" data-apple-client-id="{{ $apple_client_id ?? '' }}">
 <head>
   <base href="{{ $base_href ?? '/flutter/' }}">
   <meta charset="UTF-8">
@@ -36,6 +36,26 @@
       if (!root.getAttribute('data-rc') && query.get('rc')) {
         root.setAttribute('data-rc', query.get('rc'));
       }
+    })();
+  </script>
+
+  <script>
+    (function () {
+      // The sign-in SDKs, each only when the page names a client ID for it
+      // (docs/web-deploy.md § Web sign-in). Loaded with the page, never on a
+      // tap: a sign-in window opened after the app awaited a download is
+      // blocked as a pop-up. MSAL is vendored next to the build, like pdf.js.
+      var root = document.documentElement;
+      function load(attribute, src) {
+        if (!root.getAttribute(attribute)) return;
+        var s = document.createElement('script');
+        s.src = src;
+        s.async = true;
+        document.head.appendChild(s);
+      }
+      load('data-google-client-id', 'https://accounts.google.com/gsi/client');
+      load('data-microsoft-client-id', 'msal/msal-browser.min.js?v=4.30.0');
+      load('data-apple-client-id', 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js');
     })();
   </script>
 

@@ -20,6 +20,9 @@ class ServingServer {
     this.signup = false,
     this.referralCode = '',
     this.whiteLabel = false,
+    this.googleClientId = '',
+    this.microsoftClientId = '',
+    this.appleClientId = '',
   });
 
   /// The API root, in [canonicalBaseUrl] form. It must be byte-stable across
@@ -38,6 +41,16 @@ class ServingServer {
 
   /// A white-labelled self-hosted account: no Invoice Ninja logo before login.
   final bool whiteLabel;
+
+  /// The OAuth client IDs this page signs in with (`data-google-client-id`,
+  /// `data-microsoft-client-id`, `data-apple-client-id`), empty for a provider
+  /// it doesn't offer. The hosted page carries the hosted platform's public
+  /// IDs (`tools/web_deploy/hosted_sign_in.json`); a self-hosted server passes
+  /// its own `MICROSOFT_CLIENT_ID` and nothing else (docs/web-deploy.md §
+  /// Web sign-in).
+  final String googleClientId;
+  final String microsoftClientId;
+  final String appleClientId;
 }
 
 /// [ServingServer] from the boot page's `data-*` attributes ([attribute]) and
@@ -85,5 +98,8 @@ ServingServer? parseServingServer({
     signup: attribute('data-signup') == 'true',
     referralCode: (attribute('data-rc') ?? '').trim(),
     whiteLabel: attribute('data-white-label') == '1',
+    googleClientId: (attribute('data-google-client-id') ?? '').trim(),
+    microsoftClientId: (attribute('data-microsoft-client-id') ?? '').trim(),
+    appleClientId: (attribute('data-apple-client-id') ?? '').trim(),
   );
 }

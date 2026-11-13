@@ -159,6 +159,23 @@ void main() {
       expect(plain.referralCode, '');
       expect(plain.whiteLabel, isFalse);
     });
+
+    test('sign-in client IDs are read trimmed, and empty when absent', () {
+      final served = parse({
+        'data-served': '1',
+        'data-google-client-id': ' g.apps.googleusercontent.com ',
+        'data-microsoft-client-id': 'ms-id',
+        'data-apple-client-id': '',
+      })!;
+      expect(served.googleClientId, 'g.apps.googleusercontent.com');
+      expect(served.microsoftClientId, 'ms-id');
+      expect(served.appleClientId, '');
+
+      final none = parse({'data-served': '1'})!;
+      expect(none.googleClientId, '');
+      expect(none.microsoftClientId, '');
+      expect(none.appleClientId, '');
+    });
   });
 
   group('the login and signup view models use the page\'s server', () {

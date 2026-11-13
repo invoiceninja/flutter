@@ -11,7 +11,8 @@ Two modes (docs/web-deploy.md):
             to the demo server from a local copy). --api-url names the API
             server for a page that is not served from it: the hosted page on
             Cloudflare Pages (`--hosted --base-href / --api-url
-            https://invoicing.co`).
+            https://invoicing.co`). --hosted also fills in the sign-in
+            client IDs from hosted_sign_in.json.
 
 The template keeps to a small, fixed set of Blade forms, so the static render
 is a substitution, not a PHP interpreter, and it fails if anything is left.
@@ -19,12 +20,28 @@ Stdlib only.
 """
 
 import argparse
+import json
 import pathlib
 import re
 import sys
 
 TEMPLATE = pathlib.Path(__file__).with_name("index.blade.php")
 VERSION_TOKEN = "__BOOTSTRAP_VERSION__"
+# The hosted page's OAuth client IDs (docs/web-deploy.md § Web sign-in).
+SIGN_IN = pathlib.Path(__file__).with_name("hosted_sign_in.json")
+CLIENT_ID = re.compile(r"[A-Za-z0-9._-]*")
+
+
+def hosted_client_ids():
+    data = json.loads(SIGN_IN.read_text(encoding="utf-8"))
+    ids = {}
+    for key in ("google_client_id", "microsoft_client_id", "apple_client_id"):
+        value = data.get(key, "")
+        # Written into an HTML attribute unescaped: an ID never needs more.
+        if not isinstance(value, str) or not CLIENT_ID.fullmatch(value):
+            sys.exit(f"render_boot_page: {SIGN_IN.name} {key} is not a client ID: {value!r}")
+        ids[key] = value
+    return ids
 
 
 def render_static(text, *, base_href, hosted, standalone, api_url=""):
@@ -39,6 +56,7 @@ def render_static(text, *, base_href, hosted, standalone, api_url=""):
         text,
         flags=re.S,
     )
+    ids = hosted_client_ids() if hosted and not standalone else {}
     values = {
         "{{ ($is_hosted ?? false) ? '1' : '0' }}": "1" if hosted else "0",
         "{{ $signup ?? '' }}": "",
@@ -46,6 +64,9 @@ def render_static(text, *, base_href, hosted, standalone, api_url=""):
         "{{ $white_label ?? '' }}": "",
         "{{ $base_href ?? '/flutter/' }}": base_href,
         "{{ $api_url ?? '' }}": api_url,
+        "{{ $google_client_id ?? '' }}": ids.get("google_client_id", ""),
+        "{{ $microsoft_client_id ?? '' }}": ids.get("microsoft_client_id", ""),
+        "{{ $apple_client_id ?? '' }}": ids.get("apple_client_id", ""),
         "{{ ($white_label ?? false) ? '' : 'Invoice Ninja' }}": "Invoice Ninja",
     }
     for blade, value in values.items():

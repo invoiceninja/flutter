@@ -26,6 +26,7 @@ REQUIRED = [
     "sqlite3.wasm",
     "pdfjs/pdf.min.mjs",
     "pdfjs/pdf.worker.min.mjs",
+    "msal/msal-browser.min.js",
     "version.json",
     "build.json",
     "manifest.json",

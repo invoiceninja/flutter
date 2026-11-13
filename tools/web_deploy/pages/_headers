@@ -5,6 +5,10 @@
 # When Flutter 3.50's --web-content-hash names every file by its hash, give the
 # hashed paths their own rule with `! Cache-Control` first (Pages adds the
 # values of every matching rule) and `public, max-age=31536000, immutable`.
+# Never a `Cross-Origin-Opener-Policy: same-origin` (say, for skwasm threads):
+# it cuts this page off from the Google, Microsoft and Apple sign-in windows,
+# which then never report back. `same-origin-allow-popups` is the most it can
+# be (test/lint/web_sign_in_popups_test.dart).
 /*
   Cache-Control: no-cache
   X-Content-Type-Options: nosniff

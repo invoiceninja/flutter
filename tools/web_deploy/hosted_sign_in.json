@@ -1,0 +1,6 @@
+{
+  "_comment": "The hosted page's OAuth client IDs (docs/web-deploy.md § Web sign-in). Public values: React's hosted build carries the same Google and Microsoft IDs. Each provider's console must list https://admin.invoicing.co (Google: an authorized JavaScript origin; Microsoft: an SPA redirect URI) before it works there. Apple stays empty until its Services ID lists admin.invoicing.co and the server's APPLE_CLIENT_IDS accepts it; an empty ID hides the button.",
+  "google_client_id": "320847535584-4vopvt8v9064hs7kje3htonr0vlpuorn.apps.googleusercontent.com",
+  "microsoft_client_id": "1023b9ce-5b09-4f04-98f8-e1ed85a72332",
+  "apple_client_id": ""
+}

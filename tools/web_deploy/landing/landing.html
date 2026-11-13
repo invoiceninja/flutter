@@ -324,9 +324,33 @@ try { hadOldApp = Object.keys(localStorage).some(function (k) { return k.indexOf
 if (state === 'moved' || (!state && hadOldApp)) document.getElementById('banner-moved').hidden = false;
 if (state === 'installed' || (!state && window.matchMedia('(display-mode: standalone)').matches)) document.getElementById('banner-installed').hidden = false;
 if (last === 'web' || last === 'app') document.querySelector((last === 'app' ? '#card-app' : '#card-web') + ' .tag.last').hidden = false;
+// What the visitor arrived with goes on to the app they pick: a sign-up link's
+// ?signup=true and ?rc= (React's route is #/register, this app's the query),
+// UTM tags, and an old bookmark's #/route (this app's own route table, which
+// maps admin-portal's; React's routes differ, so it opens at its start).
+var arrived = new URLSearchParams(location.search);
+var signup = arrived.get('signup') === 'true';
+var rc = arrived.get('rc') || '';
+var oldRoute = /^#\/./.test(location.hash) ? location.hash : '';
+function forward(url, which) {
+  var u = new URL(url);
+  arrived.forEach(function (value, key) {
+    if (key.indexOf('utm_') === 0) u.searchParams.append(key, value);
+  });
+  if (which === 'app') {
+    if (signup) u.searchParams.set('signup', 'true');
+    if (rc) u.searchParams.set('rc', rc);
+    if (oldRoute) u.hash = oldRoute;
+  } else if (signup || rc) {
+    u.hash = '/register' + (rc ? '?rc=' + encodeURIComponent(rc) : '');
+  }
+  return u.toString();
+}
 document.querySelectorAll('a[href="{{ web.react.url }}"], a[href="{{ web.app.url }}"]').forEach(function (a) {
+  var which = a.getAttribute('href') === '{{ web.app.url }}' ? 'app' : 'web';
+  a.href = forward(a.getAttribute('href'), which === 'app' ? 'app' : 'react');
   a.addEventListener('click', function () {
-    try { localStorage.setItem(LAST_KEY, a.getAttribute('href') === '{{ web.app.url }}' ? 'app' : 'web'); } catch (e) {}
+    try { localStorage.setItem(LAST_KEY, which); } catch (e) {}
   });
 });
 

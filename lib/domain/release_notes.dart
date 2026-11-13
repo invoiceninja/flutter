@@ -268,13 +268,13 @@ const List<ReleaseNotes> kReleaseNotes = [
       ReleaseHighlight(
         icon: Icons.payments,
         title: "Each client's payment type",
-        body: "A new payment starts with the type the client last paid by.",
+        body: 'A new payment starts with the type the client last paid by.',
         target: ReleaseHighlightRoute('/payments', module: EntityType.payment),
       ),
       ReleaseHighlight(
         icon: Icons.credit_card_outlined,
         title: 'Your payment types',
-        body: "Hide the types you never use, and rename any of them.",
+        body: 'Hide the types you never use, and rename any of them.',
         target: ReleaseHighlightRoute(
           '/settings/payment_types',
           module: EntityType.payment,

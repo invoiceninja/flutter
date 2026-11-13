@@ -34,8 +34,12 @@
 /// report is printed at the end.
 library;
 
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
@@ -86,6 +90,18 @@ const int kTextScaleX100 = int.fromEnvironment(
 );
 
 const String kLocale = String.fromEnvironment('UX_LOCALE', defaultValue: 'en');
+
+/// Native runs only: the folder each PNG is written to. On web the driver
+/// writes them (`test_driver/ux_review_driver.dart`); a desktop runner has no
+/// `takeScreenshot`, so [_capture] snapshots the app's own screenshot
+/// boundary instead.
+const String kOutDir = String.fromEnvironment('UX_OUT_DIR');
+
+/// Native runs only: device pixels per logical pixel in the PNG. 2 gives a
+/// HiDPI capture (a 1000x700 window → 2000x1400, Flathub's ceiling).
+const int kPixelRatio = int.fromEnvironment('UX_PIXEL_RATIO', defaultValue: 2);
+
+late Services _services;
 
 /// Prefix for every PNG in this run, so passes don't overwrite each other.
 String get _tag {
@@ -192,11 +208,38 @@ Future<void> _stop(
     await _settle(tester);
     _drain(tester, name);
     _auditTouchTargets(tester, name);
-    await binding.takeScreenshot('${_tag}__$name');
+    await _capture(tester, binding, '${_tag}__$name');
   } catch (e) {
     _note(name, 'STOP FAILED: ${e.toString().split('\n').first}');
     _drain(tester, name);
   }
+}
+
+/// Web: a browser-viewport capture through the driver. Native: the window's
+/// own screenshot boundary (`ScreenshotWindow.boundaryKey`, the Debug Panel's
+/// store-capture boundary), which holds the drawn Windows / Linux title bar
+/// and leaves toasts out — what a desktop store listing needs.
+Future<void> _capture(
+  WidgetTester tester,
+  IntegrationTestWidgetsFlutterBinding binding,
+  String name,
+) async {
+  if (kIsWeb) {
+    await binding.takeScreenshot(name);
+    return;
+  }
+  final boundary =
+      _services.screenshotWindow.boundaryKey.currentContext!.findRenderObject()!
+          as RenderRepaintBoundary;
+  final bytes = await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: kPixelRatio.toDouble());
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    return data!.buffer.asUint8List();
+  });
+  final dir = Directory(kOutDir.isEmpty ? 'build/ux-review' : kOutDir)
+    ..createSync(recursive: true);
+  File('${dir.path}/$name.png').writeAsBytesSync(bytes!);
 }
 
 /// Captures the dashboard a viewport at a time below its first screen. The
@@ -275,7 +318,7 @@ Future<void> _sweep(
   final httpClient = http.Client();
   addTearDown(httpClient.close);
 
-  final services = Services.build(
+  final services = _services = Services.build(
     db: db,
     tokenStorage: InMemoryTokenStorage(),
     httpClient: httpClient,

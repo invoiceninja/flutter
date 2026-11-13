@@ -358,3 +358,34 @@ the update workflow (§ Deploy to all follows the release).
 Nothing retires now: this app is v1's listing's next version (§ The Linux app ID is v1's Flathub
 ID). The PR that switched the manifest merged on 2026-11-10, so v1 gets no more version bumps
 there: its last was 5.0.204 (#30).
+
+## The listing screenshots are the Linux app at 1000×700
+
+The metainfo's screenshots (`appimage/screenshots/1-4.png`) follow Flathub's quality
+guidelines: the app's own window decoration (on Linux, the title bar `WindowFrame` draws), a
+window of 1000×700 or smaller (2000×1400 HiDPI), no editing or cropping, the first in the
+platform's default light style, and dark ones only alongside light ones. A browser capture has
+no title bar, so they come from the Linux app. The set from 2026-11-13 is 2000×1400: the
+dashboard (Sand), the invoices list (Carbon, the one dark shot), clients and the reports
+gallery.
+
+To remake them, run `integration_test/ux_review_test.dart` on `-d linux` under Xvfb in an
+Ubuntu 22.04 container with Flutter at the pinned version, the Linux build packages
+(`docs/setup.md` § Linux desktop / Snap), Xvfb and dbus, and the full `openjdk-17-jdk` with
+`JAVA_HOME` set (the `jni` plugin's CMake looks for AWT, which the headless JDK lacks; GitHub's
+runners have one preinstalled). Copy the tree in without `build/` and `.dart_tool/`, so the
+container never writes over the host's, then per theme:
+
+```
+dbus-run-session -- xvfb-run -a -s "-screen 0 2560x1600x24" \
+  flutter test integration_test/ux_review_test.dart -d linux \
+    --dart-define=IN_DEMO_API_TOKEN=TOKEN \
+    --dart-define=IN_DEMO_API_URL=https://demo.invoiceninja.com \
+    --dart-define=IN_DEMO_MODE=true --dart-define=UX_VIEWPORT=1000x700 \
+    --dart-define=UX_THEME=dark-carbon --dart-define=UX_OUT_DIR=/out
+```
+
+On a desktop runner the test writes each stop from the app's own screenshot boundary
+(`ScreenshotWindow.boundaryKey`), which holds the drawn title bar and leaves toasts out, at
+`UX_PIXEL_RATIO` (default 2). Commit the images first, then point the metainfo's URLs at that
+commit. Flathub picks the new set up with the next release tag.

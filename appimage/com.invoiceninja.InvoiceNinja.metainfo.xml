@@ -41,20 +41,20 @@
   </description>
   <screenshots>
     <screenshot type="default">
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/invoiceninja/flutter/9e20147994a5cb7ad0697dfe542f7eec98fbdae4/appimage/screenshots/1.png</image>
+      <image type="source" width="2000" height="1400">https://raw.githubusercontent.com/invoiceninja/flutter/049695d8775afa8979aa8738bb7b6039275f1481/appimage/screenshots/1.png</image>
       <caption>See what needs your attention, with this month&apos;s totals</caption>
     </screenshot>
     <screenshot>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/invoiceninja/flutter/9e20147994a5cb7ad0697dfe542f7eec98fbdae4/appimage/screenshots/2.png</image>
-      <caption>Invoices at a glance, filtered by status</caption>
+      <image type="source" width="2000" height="1400">https://raw.githubusercontent.com/invoiceninja/flutter/049695d8775afa8979aa8738bb7b6039275f1481/appimage/screenshots/2.png</image>
+      <caption>Invoices at a glance, in dark mode</caption>
     </screenshot>
     <screenshot>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/invoiceninja/flutter/9e20147994a5cb7ad0697dfe542f7eec98fbdae4/appimage/screenshots/3.png</image>
-      <caption>An invoice beside its PDF</caption>
+      <image type="source" width="2000" height="1400">https://raw.githubusercontent.com/invoiceninja/flutter/049695d8775afa8979aa8738bb7b6039275f1481/appimage/screenshots/3.png</image>
+      <caption>Clients and their balances</caption>
     </screenshot>
     <screenshot>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/invoiceninja/flutter/9e20147994a5cb7ad0697dfe542f7eec98fbdae4/appimage/screenshots/4.png</image>
-      <caption>Clients, with balances and contacts</caption>
+      <image type="source" width="2000" height="1400">https://raw.githubusercontent.com/invoiceninja/flutter/049695d8775afa8979aa8738bb7b6039275f1481/appimage/screenshots/4.png</image>
+      <caption>Reports on invoices, payments, quotes and credits</caption>
     </screenshot>
   </screenshots>
   <launchable type="desktop-id">com.invoiceninja.InvoiceNinja.desktop</launchable>

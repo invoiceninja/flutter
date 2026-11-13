@@ -195,6 +195,9 @@ tools/prepare_foss.sh --restore      # back to the store build, byte-for-byte
 it runs only step 1 (the twin) and step 3 (the FOSS lock and its checks). The sqlite3mc source and
 the ML Kit plugin are native-only, so a web build never reads them. One FOSS web build serves
 hosted and self-hosted servers (docs/web-deploy.md). `--restore` undoes it the same way.
+So the web build's Google and Microsoft sign-in never come from a pub package: the page loads
+the providers' own scripts at runtime (Google's from its CDN, MSAL vendored in `web/msal/`) and
+the app calls them through `js_interop` (docs/web-deploy.md § Web sign-in).
 
 `tools/prepare_foss.sh --update-lock` is the exception: it only rewrites `tools/foss/pubspec.lock`,
 working on a copy, so it is safe in the shared checkout (§ F-Droid resolves a committed FOSS lock).

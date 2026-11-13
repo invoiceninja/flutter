@@ -73,12 +73,12 @@ the honest default.
 | Signup / account creation | ✅ | ✅ | ✅ | ✅ | |
 | Sign up with Google / Apple (`oauth_login?create=true` + terms) | ✅ | ✅ | ✅ | | |
 | OAuth — Google | ✅ | ✅ | ✅ | ✅ | |
-| OAuth — Microsoft / Azure | ✅ | ✅ | ❌ |  | |
+| OAuth — Microsoft / Azure | ✅ | ✅ | 🟡 |  | Web only, as in v1 (MSAL popup): the hosted page, and a self-hosted server that sets `MICROSOFT_CLIENT_ID` — docs/web-deploy.md § Web sign-in |
 | OAuth — Apple (Sign in with Apple) | ✅ | ✅ | ✅ | ✅ | |
 | Two-factor authentication (TOTP / Google Authenticator) | ✅ | ✅ | ✅ | ✅ | |
 | Two-step login (email → Continue → only the credentials the account needs, via `/login/precheck`) | ✅ | ❌ | ✅ | | |
 | Self-hosted server with an untrusted TLS certificate (plain-language reason and fix; trust that exact certificate; revoke in Device Settings) | — | 🟡 | ✅ | | |
-| Passkey login | ✅ | ❌ | 🟡 | | App complete; shown per platform only once proven to work (docs/passkeys.md): Windows and web now, iOS/macOS once app.invoicing.co serves `webcredentials`, Android once the server PR and that host's `get_login_creds` are live; never F-Droid/Linux |
+| Passkey login | ✅ | ❌ | 🟡 | | App complete; shown per platform only once proven to work (docs/passkeys.md): Windows and web on the RP's host, the hosted Flutter web page as a related origin once the server lists it, iOS/macOS once app.invoicing.co serves `webcredentials`, Android once the server PR and that host's `get_login_creds` are live; never F-Droid/Linux |
 | Generic OIDC sign-in (self-hosted identity provider) | ✅ | ❌ | ❌ | | Blocked: the server returns the code to React's own `/oauth-callback` only (BACKEND.md § OIDC) |
 | Disable 2FA from login (SMS reset for a lost authenticator) | ✅ | ✅ | ✅ | | |
 | Two-factor SMS verification | ✅ | ✅ | ✅ | ✅ | |
@@ -98,7 +98,7 @@ the honest default.
 | GDPR data export / account closure flow | ✅ | ❌ | ✅ | ✅ | |
 | OAuth user confirms without a password (skipped when `oauth_password_required` is off; Apple re-auth; "set a password" otherwise) | ❌ | ✅ | ✅ | | |
 
-> Google sign-in / sign-up runs on Android, iOS and macOS (v1: Android and iOS only); the Mac signs in with the iOS client ID. The client IDs are per-build dart-defines, so a build without them (a fork, F-Droid) hides the buttons — `docs/setup.md` § Google Sign-In client IDs. Microsoft sign-in was web-only in v1 (MSAL popup); v2's web build is email/password only by decision.
+> Google sign-in / sign-up runs on Android, iOS and macOS (v1: Android and iOS only); the Mac signs in with the iOS client ID. The client IDs are per-build dart-defines, so a build without them (a fork, F-Droid) hides the buttons — `docs/setup.md` § Google Sign-In client IDs. Microsoft sign-in is web-only, as in v1 (MSAL popup). On web, Google and Apple sign in on the hosted page only (Apple once its Services ID is set up), and Microsoft also on a self-hosted server with `MICROSOFT_CLIENT_ID` — docs/web-deploy.md § Web sign-in.
 
 ---
 
@@ -896,12 +896,12 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Feature | React | Flutter v1 | Flutter v2 | AI review | Live E2E |
 |---|---|---|---|---|---|
 | Connect Google (OAuth) | ✅ | ✅ | ✅ | ✅ | |
-| Connect Microsoft (OAuth) | ✅ | ✅ | ❌ | ✅ | |
+| Connect Microsoft (OAuth) | ✅ | ✅ | 🟡 | ✅ | Hosted web only (MSAL popup), as in v1 |
 | Connect Gmail (OAuth) | ✅ | ✅ | ✅ | ✅ | |
 | Connect Email (OAuth) | ✅ | ✅ | ✅ | ✅ | |
 | Disconnect | ✅ | ✅ | ✅ | ✅ | |
 
-> v2 Connect tab: **Google connect** (in-app), **Gmail / Microsoft mailer connect** (the server's browser flow at `<base>/auth/{google|microsoft}`, as v1 did — native iOS/macOS show "use the web app"), and **all disconnects**. Connecting a Microsoft *sign-in* is not implemented: v1 offered it on web only (MSAL popup), and v2's web build is email/password only by decision.
+> v2 Connect tab: **Google connect** (in-app), **Gmail / Microsoft mailer connect** (the server's browser flow at `<base>/auth/{google|microsoft}`, as v1 did — native iOS/macOS show "use the web app"), and **all disconnects**. Connecting a Microsoft *sign-in* is hosted-web only, as in v1 (MSAL popup); the native apps say to use the web app.
 
 #### User Details — Two-Factor tab
 

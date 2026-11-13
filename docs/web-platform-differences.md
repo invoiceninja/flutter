@@ -37,7 +37,7 @@ Web is a supported target (`flutter run -d chrome`, `flutter build web`). Native
 
 ## Disabled on web
 
-**Disabled on web** (already guarded): native splash/window theming, biometric, in-app purchase (upgrade routes web→Stripe portal via `upgrade_launcher`), Google + Apple OAuth login buttons (email/password only — there is no in-app OAuth callback handler).
+**Disabled on web** (already guarded): native splash/window theming, biometric, in-app purchase (upgrade routes web→Stripe portal via `upgrade_launcher`), Google, Microsoft and Apple sign-in go through the providers' own scripts in a window instead of the native SDKs, offered only where the page names a client ID (docs/web-deploy.md § Web sign-in).
 
 ## Web does not send `Idempotency-Key`
 

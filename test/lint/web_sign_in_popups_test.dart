@@ -15,7 +15,7 @@ void main() {
     final bad = <String>[];
     for (final path in [
       'tools/web_deploy/pages/_headers',
-      'tools/web_deploy/index.blade.php',
+      'tools/web_deploy/boot_page.html',
       'web/index.html',
     ]) {
       final lines = File(path).readAsLinesSync();

@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 /// CI lint: the boot page the server will serve
-/// (`tools/web_deploy/index.blade.php`, docs/web-deploy.md) carries the same
+/// (`tools/web_deploy/boot_page.html`, docs/web-deploy.md) carries the same
 /// boot glue as `web/index.html`: the loader and its CSS, `dartPdfJsBaseUrl`,
 /// and the first-frame / 30-second Reload script.
 ///
@@ -13,7 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// `<!-- glue:end -->` in both files and must match byte for byte. A fix to the
 /// 30-second card made in one page and not the other would otherwise ship a
 /// web app whose two front doors behave differently, and nothing renders the
-/// Blade page outside Deploy to Web.
+/// server page outside Deploy to Web.
 void main() {
   final start = RegExp(r'<!-- glue:start ([a-z-]+)[^>]*-->\n');
 
@@ -31,7 +31,7 @@ void main() {
 
   test('the server boot page shares web/index.html\'s boot glue', () {
     final web = blocks('web/index.html');
-    final server = blocks('tools/web_deploy/index.blade.php');
+    final server = blocks('tools/web_deploy/boot_page.html');
 
     expect(web.keys.toSet(), {
       'loader-style',
@@ -46,7 +46,7 @@ void main() {
         web[name],
         reason:
             'glue "$name" differs between web/index.html and '
-            'tools/web_deploy/index.blade.php — change both',
+            'tools/web_deploy/boot_page.html — change both',
       );
     }
   });

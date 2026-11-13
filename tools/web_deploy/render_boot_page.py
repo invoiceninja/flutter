@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
-"""Render Deploy to Web's boot page (tools/web_deploy/index.blade.php).
+"""Render Deploy to Web's boot page (tools/web_deploy/boot_page.html).
 
 Two modes (docs/web-deploy.md):
 
-  --blade   the view the backend serves: only the bootstrap version literal is
-            filled in; every Blade expression stays for the controller.
-  --static  plain HTML with no Blade left, for the workflow's smoke test and
-            the downloadable artifact. --standalone also drops data-served /
-            data-hosted, so the app keeps its normal server field (to sign in
-            to the demo server from a local copy). --api-url names the API
-            server for a page that is not served from it: the hosted page on
-            Cloudflare Pages (`--hosted --base-href / --api-url
-            https://invoicing.co`). --hosted also fills in the sign-in
-            client IDs from hosted_sign_in.json.
+  --server  the page the backend serves: the bootstrap version is filled in,
+            the hosted-only blocks are dropped (a server never serves the
+            hosted page), and every __IN_*__ token is left for the backend,
+            which fills each with an escaped value. Plain HTML: the backend
+            compiles nothing from the release, so the release can't run code
+            on a server.
+  --static  plain HTML with every token filled, for the hosted page, the
+            workflow's smoke test and the downloadable artifact. --standalone
+            also drops data-served / data-hosted, so the app keeps its normal
+            server field (to sign in to the demo server from a local copy).
+            --api-url names the API server for a page that is not served from
+            it: the hosted page on Cloudflare Pages (`--hosted --base-href /
+            --api-url https://invoicing.co`). --hosted also fills in the
+            sign-in client IDs from hosted_sign_in.json.
 
-The template keeps to a small, fixed set of Blade forms, so the static render
-is a substitution, not a PHP interpreter, and it fails if anything is left.
-Stdlib only.
+Fails if a token or a hosted marker is left where it shouldn't be. Stdlib only.
 """
 
 import argparse
@@ -25,11 +27,30 @@ import pathlib
 import re
 import sys
 
-TEMPLATE = pathlib.Path(__file__).with_name("index.blade.php")
+TEMPLATE = pathlib.Path(__file__).with_name("boot_page.html")
 VERSION_TOKEN = "__BOOTSTRAP_VERSION__"
 # The hosted page's OAuth client IDs (docs/web-deploy.md § Web sign-in).
 SIGN_IN = pathlib.Path(__file__).with_name("hosted_sign_in.json")
 CLIENT_ID = re.compile(r"[A-Za-z0-9._-]*")
+
+# Every token the backend fills (BaseController::flutterRoute via
+# Ninja::flutterWebPage). test/lint/web_boot_page_tokens_test.dart keeps the
+# template to this set.
+TOKENS = (
+    "HOSTED",
+    "SIGNUP",
+    "RC",
+    "WHITE_LABEL",
+    "API_URL",
+    "GOOGLE_CLIENT_ID",
+    "MICROSOFT_CLIENT_ID",
+    "APPLE_CLIENT_ID",
+    "BASE_HREF",
+    "TITLE",
+)
+TOKEN = re.compile(r"__IN_([A-Z_]+)__")
+HOSTED_BLOCK = re.compile(r"[ \t]*<!-- hosted:start -->\n(.*?)[ \t]*<!-- hosted:end -->\n", re.S)
+HEADER = re.compile(r"\A(<!DOCTYPE html>\n)<!--.*?-->\n", re.S)
 
 
 def hosted_client_ids():
@@ -40,50 +61,52 @@ def hosted_client_ids():
         # Written into an HTML attribute unescaped: an ID never needs more.
         if not isinstance(value, str) or not CLIENT_ID.fullmatch(value):
             sys.exit(f"render_boot_page: {SIGN_IN.name} {key} is not a client ID: {value!r}")
-        ids[key] = value
+        ids[key.removesuffix("_id").upper() + "_ID"] = value
     return ids
 
 
+def strip_hosted(text, hosted):
+    return HOSTED_BLOCK.sub(lambda m: m.group(1) if hosted else "", text)
+
+
+def render_server(text):
+    text = HEADER.sub(r"\1", text)
+    text = strip_hosted(text, hosted=False)
+    unknown = sorted(set(TOKEN.findall(text)) - set(TOKENS))
+    if unknown:
+        sys.exit(f"render_boot_page: tokens the backend doesn't fill: {unknown}")
+    return text
+
+
 def render_static(text, *, base_href, hosted, standalone, api_url=""):
-    text = re.sub(r"\{\{--.*?--\}\}\n?", "", text, flags=re.S)
-
-    def if_block(match):
-        return match.group(1) if hosted else ""
-
-    text = re.sub(
-        r"[ \t]*@if \(\$is_hosted \?\? false\)\n(.*?)[ \t]*@endif\n",
-        if_block,
-        text,
-        flags=re.S,
-    )
+    text = HEADER.sub(r"\1", text)
+    text = strip_hosted(text, hosted)
     ids = hosted_client_ids() if hosted and not standalone else {}
     values = {
-        "{{ ($is_hosted ?? false) ? '1' : '0' }}": "1" if hosted else "0",
-        "{{ $signup ?? '' }}": "",
-        "{{ $rc ?? '' }}": "",
-        "{{ $white_label ?? '' }}": "",
-        "{{ $base_href ?? '/flutter/' }}": base_href,
-        "{{ $api_url ?? '' }}": api_url,
-        "{{ $google_client_id ?? '' }}": ids.get("google_client_id", ""),
-        "{{ $microsoft_client_id ?? '' }}": ids.get("microsoft_client_id", ""),
-        "{{ $apple_client_id ?? '' }}": ids.get("apple_client_id", ""),
-        "{{ ($white_label ?? false) ? '' : 'Invoice Ninja' }}": "Invoice Ninja",
+        "HOSTED": "1" if hosted else "0",
+        "SIGNUP": "",
+        "RC": "",
+        "WHITE_LABEL": "",
+        "API_URL": api_url,
+        "GOOGLE_CLIENT_ID": ids.get("GOOGLE_CLIENT_ID", ""),
+        "MICROSOFT_CLIENT_ID": ids.get("MICROSOFT_CLIENT_ID", ""),
+        "APPLE_CLIENT_ID": ids.get("APPLE_CLIENT_ID", ""),
+        "BASE_HREF": base_href,
+        "TITLE": "Invoice Ninja",
     }
-    for blade, value in values.items():
-        text = text.replace(blade, value)
+    unknown = sorted(set(TOKEN.findall(text)) - set(values))
+    if unknown:
+        sys.exit(f"render_boot_page: tokens with no value: {unknown}")
+    text = TOKEN.sub(lambda m: values[m.group(1)], text)
     if standalone:
         text = re.sub(r' data-served="1" data-hosted="[01]"', "", text)
-    text = text.replace("@{{", "{{")
-    left = re.findall(r"\{\{|@if|@endif", text)
-    if left:
-        sys.exit(f"render_boot_page: unrendered Blade left in the static page: {left}")
     return text
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--blade", action="store_true")
+    mode.add_argument("--server", action="store_true")
     mode.add_argument("--static", action="store_true")
     parser.add_argument("--version", required=True, help="flutter_bootstrap.js content hash")
     parser.add_argument("--base-href", default="/flutter/")
@@ -99,7 +122,9 @@ def main():
     if text.count(VERSION_TOKEN) != 1:
         sys.exit(f"render_boot_page: expected one {VERSION_TOKEN} in {TEMPLATE}")
     text = text.replace(VERSION_TOKEN, args.version)
-    if args.static:
+    if args.server:
+        text = render_server(text)
+    else:
         if args.api_url and not re.fullmatch(r"https?://[^/\s\"<>]+(/[^\s\"<>]*)?", args.api_url):
             sys.exit(f"render_boot_page: --api-url must be an absolute http(s) URL, got {args.api_url!r}")
         text = render_static(
@@ -109,6 +134,8 @@ def main():
             standalone=args.standalone,
             api_url=args.api_url,
         )
+    if "hosted:start" in text or "hosted:end" in text:
+        sys.exit("render_boot_page: a hosted:start / hosted:end marker is left")
     pathlib.Path(args.output).write_text(text, encoding="utf-8")
 
 

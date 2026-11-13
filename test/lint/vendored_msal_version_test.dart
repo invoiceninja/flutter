@@ -28,7 +28,7 @@ void main() {
 
   test('the boot page loads the vendored copy at that version', () {
     expect(
-      File('tools/web_deploy/index.blade.php').readAsStringSync(),
+      File('tools/web_deploy/boot_page.html').readAsStringSync(),
       contains("'msal/msal-browser.min.js?v=$version'"),
     );
   });

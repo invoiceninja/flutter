@@ -7,8 +7,8 @@ name: Deploy to Web
 #                https://invoicing.co as the API (`data-api-url`).
 #   self-hosted  the `server/` tree, attached to this repo's GitHub Release as
 #                invoiceninja-web-<version>.tar.gz: public/flutter/ and
-#                resources/views/flutter/index.blade.php (the app), plus
-#                resources/views/landing/apps.blade.php and public/landing/
+#                resources/views/flutter/index.html (the app's boot page), plus
+#                resources/views/landing/index.html and public/landing/
 #                (the invoicing.co landing page). The backend's release
 #                workflow unpacks it into the server tarball; nothing is ever
 #                committed to invoiceninja/invoiceninja.
@@ -148,16 +148,17 @@ jobs:
                     --exclude /drift_worker.dart --exclude /.last_build_id --exclude '*.symbols')
 
           # Self-hosted: the build under public/flutter/ with the server's boot
-          # page as a Blade view. The installed PWA's start_url and scope are
-          # the site root, one level up from the folder.
+          # page, plain HTML whose __IN_*__ tokens the backend fills: nothing in
+          # the tarball is compiled or run on a server. The installed PWA's
+          # start_url and scope are the site root, one level up from the folder.
           mkdir -p server/public/flutter server/resources/views/flutter server/resources/views/landing
           rsync -a "${excludes[@]}" build/web/ server/public/flutter/
           jq '.start_url = "../" | .scope = "../"' build/web/manifest.json > server/public/flutter/manifest.json
-          python3 tools/web_deploy/render_boot_page.py --blade --version "$v" \
-            -o server/resources/views/flutter/index.blade.php
+          python3 tools/web_deploy/render_boot_page.py --server --version "$v" \
+            -o server/resources/views/flutter/index.html
           # The invoicing.co landing page, built from landing/apps.json.
-          python3 tools/web_deploy/render_landing.py --blade --assets-base /landing/ \
-            --assets-dir server/public/landing -o server/resources/views/landing/apps.blade.php
+          python3 tools/web_deploy/render_landing.py --assets-base /landing/ \
+            --assets-dir server/public/landing -o server/resources/views/landing/index.html
 
           # Hosted: the build at the root of the Pages site, its static boot page
           # naming the API, a 404 page (Pages would otherwise answer a missing

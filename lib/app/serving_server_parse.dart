@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:admin/data/repositories/auth/auth_helpers.dart';
 
 /// The Invoice Ninja server that served this web page, read from the boot page
-/// Deploy to Web stages (`tools/web_deploy/index.blade.php`,
+/// Deploy to Web stages (`tools/web_deploy/boot_page.html`,
 /// docs/web-deploy.md). Null everywhere else: native builds, the GitHub Pages
 /// demo and `flutter run -d chrome` serve `web/index.html`, which carries no
 /// `data-served`.

@@ -5,9 +5,8 @@ docs/web-deploy.md § The landing page. Fills landing/landing.html from
 landing/apps.json, the one file that holds every link and minimum-OS line, and
 copies the page's assets:
 
-  --blade   resources/views/landing/apps.blade.php for the backend, wrapped in
-            @verbatim so Blade leaves the page's CSS (@media, @font-face) alone.
-  --static  plain HTML, for a preview or a screenshot.
+The output is plain HTML wherever it goes: the backend serves its copy
+(resources/views/landing/index.html) as a file and compiles nothing.
 
 Assets go to --assets-dir and are referenced under --assets-base (default
 /landing/, the backend's public/landing/). Fails on a missing or non-https URL,
@@ -102,9 +101,8 @@ def render(data, assets_base):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--blade", action="store_true")
-    mode.add_argument("--static", action="store_true")
+    # --static is the only mode now; still accepted, so old commands work.
+    parser.add_argument("--static", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--data", default=str(LANDING / "apps.json"))
     parser.add_argument("--assets-base", default="/landing/")
     parser.add_argument("--assets-dir", help="copy the assets here")
@@ -114,8 +112,6 @@ def main():
     if not args.assets_base.endswith("/"):
         fail("--assets-base must end in /")
     text = render(load(pathlib.Path(args.data)), args.assets_base)
-    if args.blade:
-        text = "@verbatim\n" + text + "@endverbatim\n"
     out = pathlib.Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")

@@ -65,8 +65,17 @@ const String kViewport = String.fromEnvironment(
 /// `''` (real desktop pointer), `android`, or `ios`.
 const String kPlatform = String.fromEnvironment('UX_PLATFORM');
 
-/// `light` or `dark`.
+/// `light` or `dark`, optionally with a palette: `light-mist`,
+/// `dark-midnight` ([LightVariant] / [DarkVariant] names). Without one the
+/// palette is the app's default (Sand / Carbon).
 const String kTheme = String.fromEnvironment('UX_THEME', defaultValue: 'light');
+
+bool get _isDark => kTheme.split('-').first == 'dark';
+
+String? get _palette {
+  final parts = kTheme.split('-');
+  return parts.length > 1 ? parts[1] : null;
+}
 
 /// Text scale x100 — `int.fromEnvironment` can't carry a double. `140` is the
 /// app's own maximum (`kTextScaleExtraLarge`), and `composeTextScaler`
@@ -284,9 +293,14 @@ Future<void> _sweep(
   // Always pin the mode. The default is `ThemeMode.system` and headless Chrome
   // reports dark — so an unset "light" pass silently captured the dark theme,
   // making the entire light half of the matrix a duplicate of the dark half.
-  await services.theme.setThemeMode(
-    kTheme == 'dark' ? ThemeMode.dark : ThemeMode.light,
-  );
+  await services.theme.setThemeMode(_isDark ? ThemeMode.dark : ThemeMode.light);
+  if (_palette case final name?) {
+    if (_isDark) {
+      await services.theme.setDarkVariant(DarkVariant.values.byName(name));
+    } else {
+      await services.theme.setLightVariant(LightVariant.values.byName(name));
+    }
+  }
   if (kTextScaleX100 != 100) {
     await services.textScale.set(kTextScaleX100 / 100);
   }

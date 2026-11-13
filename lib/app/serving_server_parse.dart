@@ -44,21 +44,40 @@ class ServingServer {
 /// the page's own location. Null unless the page says it was served
 /// (`data-served="1"`).
 ///
-/// The API root is the page's origin plus its path, never `document.baseURI`
-/// (which ends in the build's `/flutter/` folder), with a trailing `index.php`
-/// dropped, then canonicalised: `https://Host:443/index.php?rc=a#/login` and
-/// `https://host/` are the same server.
+/// The API root is `data-api-url` when the page names one: the hosted page on
+/// Cloudflare Pages (`admin.invoicing.co`) is not on the API's host, so its
+/// own location says nothing about the server (docs/web-deploy.md § Going
+/// live). A value that is not an absolute http(s) URL with a host makes the
+/// page unserved rather than guessing, since [canonicalBaseUrl] would turn
+/// garbage into a "server" and a later sign-in would wipe the local data over
+/// it. Otherwise the API root is the page's origin plus its path, never
+/// `document.baseURI` (which ends in the build's `/flutter/` folder), with a
+/// trailing `index.php` dropped, then canonicalised:
+/// `https://Host:443/index.php?rc=a#/login` and `https://host/` are the same
+/// server.
 ServingServer? parseServingServer({
   required String? Function(String name) attribute,
   required String origin,
   required String pathname,
 }) {
   if (attribute('data-served') != '1') return null;
-  var path = pathname;
-  if (path.endsWith('index.php')) {
-    path = path.substring(0, path.length - 'index.php'.length);
+  final String apiUrl;
+  final stated = (attribute('data-api-url') ?? '').trim();
+  if (stated.isNotEmpty) {
+    final uri = Uri.tryParse(stated);
+    if (uri == null ||
+        !(uri.scheme == 'https' || uri.scheme == 'http') ||
+        uri.host.isEmpty) {
+      return null;
+    }
+    apiUrl = canonicalBaseUrl(stated);
+  } else {
+    var path = pathname;
+    if (path.endsWith('index.php')) {
+      path = path.substring(0, path.length - 'index.php'.length);
+    }
+    apiUrl = canonicalBaseUrl('$origin$path');
   }
-  final apiUrl = canonicalBaseUrl('$origin$path');
   if (apiUrl.isEmpty) return null;
   return ServingServer(
     apiUrl: apiUrl,

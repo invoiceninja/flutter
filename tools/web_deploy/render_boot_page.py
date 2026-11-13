@@ -8,7 +8,10 @@ Two modes (docs/web-deploy.md):
   --static  plain HTML with no Blade left, for the workflow's smoke test and
             the downloadable artifact. --standalone also drops data-served /
             data-hosted, so the app keeps its normal server field (to sign in
-            to the demo server from a local copy).
+            to the demo server from a local copy). --api-url names the API
+            server for a page that is not served from it: the hosted page on
+            Cloudflare Pages (`--hosted --base-href / --api-url
+            https://invoicing.co`).
 
 The template keeps to a small, fixed set of Blade forms, so the static render
 is a substitution, not a PHP interpreter, and it fails if anything is left.
@@ -24,7 +27,7 @@ TEMPLATE = pathlib.Path(__file__).with_name("index.blade.php")
 VERSION_TOKEN = "__BOOTSTRAP_VERSION__"
 
 
-def render_static(text, *, base_href, hosted, standalone):
+def render_static(text, *, base_href, hosted, standalone, api_url=""):
     text = re.sub(r"\{\{--.*?--\}\}\n?", "", text, flags=re.S)
 
     def if_block(match):
@@ -42,6 +45,7 @@ def render_static(text, *, base_href, hosted, standalone):
         "{{ $rc ?? '' }}": "",
         "{{ $white_label ?? '' }}": "",
         "{{ $base_href ?? '/flutter/' }}": base_href,
+        "{{ $api_url ?? '' }}": api_url,
         "{{ ($white_label ?? false) ? '' : 'Invoice Ninja' }}": "Invoice Ninja",
     }
     for blade, value in values.items():
@@ -64,6 +68,7 @@ def main():
     parser.add_argument("--base-href", default="/flutter/")
     parser.add_argument("--hosted", action="store_true", help="static: render the hosted page")
     parser.add_argument("--standalone", action="store_true", help="static: no data-served")
+    parser.add_argument("--api-url", default="", help="static: the API server, for a page not served from it")
     parser.add_argument("-o", "--output", required=True)
     args = parser.parse_args()
 
@@ -74,8 +79,14 @@ def main():
         sys.exit(f"render_boot_page: expected one {VERSION_TOKEN} in {TEMPLATE}")
     text = text.replace(VERSION_TOKEN, args.version)
     if args.static:
+        if args.api_url and not re.fullmatch(r"https?://[^/\s\"<>]+(/[^\s\"<>]*)?", args.api_url):
+            sys.exit(f"render_boot_page: --api-url must be an absolute http(s) URL, got {args.api_url!r}")
         text = render_static(
-            text, base_href=args.base_href, hosted=args.hosted, standalone=args.standalone
+            text,
+            base_href=args.base_href,
+            hosted=args.hosted,
+            standalone=args.standalone,
+            api_url=args.api_url,
         )
     pathlib.Path(args.output).write_text(text, encoding="utf-8")
 

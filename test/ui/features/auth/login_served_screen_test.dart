@@ -73,6 +73,44 @@ void main() {
     expect(find.byKey(const ValueKey('login_email')), findsOneWidget);
   });
 
+  // One page per test: a second pumpWidget of the same screen keeps the first
+  // one's State, and with it the first ServingServer.
+  const react = ValueKey('login_open_react');
+  const choose = ValueKey('login_choose_app');
+
+  testWidgets('the hosted page points to the other web app', (tester) async {
+    // admin.invoicing.co names invoicing.co as its server.
+    await pumpLogin(
+      tester,
+      served: const ServingServer(
+        apiUrl: 'https://invoicing.co',
+        isHosted: true,
+      ),
+    );
+    expect(find.byKey(react), findsOneWidget);
+    expect(find.byKey(choose), findsOneWidget);
+  });
+
+  testWidgets('a self-hosted server\'s page has no other web app', (
+    tester,
+  ) async {
+    await pumpLogin(
+      tester,
+      served: const ServingServer(
+        apiUrl: 'https://ninja.example.com',
+        isHosted: false,
+      ),
+    );
+    expect(find.byKey(react), findsNothing);
+    expect(find.byKey(choose), findsNothing);
+  });
+
+  testWidgets('a page nothing served has no other web app', (tester) async {
+    await pumpLogin(tester);
+    expect(find.byKey(react), findsNothing);
+    expect(find.byKey(choose), findsNothing);
+  });
+
   testWidgets('a white-labelled server shows no logo', (tester) async {
     await pumpLogin(
       tester,

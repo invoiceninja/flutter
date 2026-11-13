@@ -9,6 +9,13 @@ const String kStatusUrl = 'https://status.invoiceninja.com';
 /// `…/docs`: that base 404s.
 const String kDocsUrl = 'https://invoiceninja.github.io';
 
+/// Hosted React, "Invoice Ninja Web" on the invoicing.co landing page
+/// (docs/web-deploy.md § Going live).
+const String kHostedReactUrl = 'https://app.invoicing.co';
+
+/// The invoicing.co landing page: both web apps, then every native app.
+const String kHostedLandingUrl = 'https://invoicing.co';
+
 /// Builds the v2 design-system [ThemeData] for the given palette.
 ///
 /// All variants share radii, spacing, and Inter Tight typography; the

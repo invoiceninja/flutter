@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -36,6 +37,34 @@ Future<bool> launchExternalUri(Uri uri) async {
       // Try the next mode; failure is only reported once both are spent.
     }
   }
+  return false;
+}
+
+/// Opens [uri] in place of the current page, for a link that hands the user
+/// to the other web app (the hosted login screen's "Sign in with Invoice Ninja
+/// Web" and "Choose another app"): a new tab would leave this app open beside
+/// the one they chose. Off the web the browser is a separate app anyway, so
+/// this is [launchExternalUri].
+Future<bool> openInThisTab(Uri uri) async {
+  if (!kIsWeb) return launchExternalUri(uri);
+  try {
+    return await launchUrl(uri, webOnlyWindowName: '_self');
+  } catch (_) {
+    return false;
+  }
+}
+
+/// [openInThisTab] for a URL string, with the standard "Couldn't open the
+/// link" toast when it doesn't open (see [openExternalUrl]).
+Future<bool> openUrlInThisTab(BuildContext context, String url) async {
+  final toasts = Notify.capture(context);
+  final errorMessage =
+      Localization.of(context)?.lookup('failed_to_open_url') ??
+      'failed_to_open_url';
+  final uri = isSafeWebUrl(url) ? Uri.tryParse(url) : null;
+  if (uri != null && await openInThisTab(uri)) return true;
+
+  toasts?.error(errorMessage);
   return false;
 }
 

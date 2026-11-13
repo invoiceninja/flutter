@@ -1,8 +1,10 @@
+import 'package:admin/app/env.dart';
 import 'package:admin/app/serving_server_io.dart' as io;
 import 'package:admin/app/router.dart';
 import 'package:admin/app/serving_server_parse.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/login_response_api_model.dart';
+import 'package:admin/data/repositories/auth/auth_helpers.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/auth_service.dart';
@@ -89,6 +91,49 @@ void main() {
       expect(url('http://host:8000', '/'), 'http://host:8000');
       expect(url('https://host', '/ninja/index.php'), 'https://host/ninja');
       expect(url('https://host', '/ninja/'), 'https://host/ninja');
+    });
+
+    test('data-api-url names the server when the page is not on its host', () {
+      // The hosted page on Cloudflare Pages: admin.invoicing.co serves the
+      // app, invoicing.co is the API.
+      final served = parse({
+        'data-served': '1',
+        'data-hosted': '1',
+        'data-api-url': 'https://invoicing.co',
+      }, origin: 'https://admin.invoicing.co')!;
+      expect(served.apiUrl, 'https://invoicing.co');
+      expect(served.isHosted, isTrue);
+      // Byte-equal to the hosted URL a native sign-in stores, so signing in
+      // on the web never reads as a different server and wipes local data.
+      expect(served.apiUrl, canonicalBaseUrl(Env.hostedApiUrl));
+      expect(
+        parse({
+          'data-served': '1',
+          'data-api-url': ' https://Invoicing.co:443/ ',
+        }, origin: 'https://admin.invoicing.co')!.apiUrl,
+        'https://invoicing.co',
+      );
+    });
+
+    test('an unusable data-api-url makes the page unserved, never a guess', () {
+      for (final bad in [
+        'invoicing.co',
+        'ftp://invoicing.co',
+        'https://',
+        '/api',
+        'not a url',
+      ]) {
+        expect(
+          parse({'data-served': '1', 'data-api-url': bad}),
+          isNull,
+          reason: bad,
+        );
+      }
+      // Blank is the same as absent: the page's own origin.
+      expect(
+        parse({'data-served': '1', 'data-api-url': '  '})!.apiUrl,
+        'https://invoicing.co',
+      );
     });
 
     test('flags are exact string matches, as the server writes them', () {

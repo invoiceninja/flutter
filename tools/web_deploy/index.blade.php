@@ -5,7 +5,7 @@
      tools/web_deploy/render_boot_page.py. Every variable is optional (`??`), so
      a controller that passes fewer of them can never 500 the page. The glue
      blocks match web/index.html (test/lint/web_boot_page_glue_test.dart). --}}
-<html data-served="1" data-hosted="{{ ($is_hosted ?? false) ? '1' : '0' }}" data-signup="{{ $signup ?? '' }}" data-rc="{{ $rc ?? '' }}" data-white-label="{{ $white_label ?? '' }}">
+<html data-served="1" data-hosted="{{ ($is_hosted ?? false) ? '1' : '0' }}" data-signup="{{ $signup ?? '' }}" data-rc="{{ $rc ?? '' }}" data-white-label="{{ $white_label ?? '' }}" data-api-url="{{ $api_url ?? '' }}">
 <head>
   <base href="{{ $base_href ?? '/flutter/' }}">
   <meta charset="UTF-8">
@@ -19,6 +19,25 @@
   <meta name="theme-color" content="#15140F" media="(prefers-color-scheme: dark)">
   <title>{{ ($white_label ?? false) ? '' : 'Invoice Ninja' }}</title>
   <link rel="manifest" href="manifest.json">
+  <script>
+    (function () {
+      // The static hosted page (Cloudflare Pages, docs/web-deploy.md § Going
+      // live) can't template ?signup=true and ?rc=, so they are copied from
+      // the URL here, before the app reads them. A page the server rendered
+      // has filled them already, and that value wins.
+      var root = document.documentElement;
+      // Only the static page names its API; a server-rendered page decides
+      // these itself (it may drop a referral code on purpose).
+      if (!root.getAttribute('data-api-url')) return;
+      var query = new URLSearchParams(location.search);
+      if (!root.getAttribute('data-signup') && query.get('signup') === 'true') {
+        root.setAttribute('data-signup', 'true');
+      }
+      if (!root.getAttribute('data-rc') && query.get('rc')) {
+        root.setAttribute('data-rc', query.get('rc'));
+      }
+    })();
+  </script>
 
   <!-- glue:start loader-style -->
   <style>

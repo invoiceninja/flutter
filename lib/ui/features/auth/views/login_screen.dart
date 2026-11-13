@@ -362,6 +362,12 @@ class _LoginScreenState extends State<LoginScreen> {
             padding: const EdgeInsets.symmetric(vertical: InSpacing.xs),
             child: const _HostedLinks(),
           ),
+          // Hosted web only: a way to the other web app for anyone this one
+          // can't sign in.
+          if (_vm.served?.isHosted ?? false) ...[
+            SizedBox(height: InSpacing.md(context)),
+            const _OtherWebAppNote(),
+          ],
         ],
         SizedBox(height: InSpacing.lg(context)),
         Text(
@@ -800,6 +806,50 @@ class _HostedLinks extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [status, docs],
+    );
+  }
+}
+
+// ─── The other web app (hosted web only) ─────────────────────────────────
+
+/// The hosted web page (admin.invoicing.co, docs/web-deploy.md § Going live)
+/// signs in with email and password alone: no Google, Microsoft or Apple
+/// button on the web yet, and passkeys belong to app.invoicing.co, a host this
+/// page can't use (docs/passkeys.md). So an account that only ever signed in
+/// one of those ways is pointed at Invoice Ninja Web, the React app on the
+/// same account, before it tries a password it doesn't have. "Choose another
+/// app" goes back to the invoicing.co landing page. Both open in this tab: the
+/// user is switching apps, not looking something up. Remove the first line
+/// once the web build signs in the same ways as React.
+class _OtherWebAppNote extends StatelessWidget {
+  const _OtherWebAppNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Column(
+      children: [
+        Text(
+          context.tr('web_oauth_hint'),
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, color: tokens.ink3),
+        ),
+        Wrap(
+          alignment: WrapAlignment.center,
+          children: [
+            TextButton(
+              key: const ValueKey('login_open_react'),
+              onPressed: () => openUrlInThisTab(context, kHostedReactUrl),
+              child: Text(context.tr('web_oauth_hint_action')),
+            ),
+            TextButton(
+              key: const ValueKey('login_choose_app'),
+              onPressed: () => openUrlInThisTab(context, kHostedLandingUrl),
+              child: Text(context.tr('choose_another_app')),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

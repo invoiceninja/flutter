@@ -48,7 +48,7 @@ Six manually-triggered workflows publish the app — four to a store's testing c
 | Target | Workflow | Channel | Details |
 |---|---|---|---|
 | Linux Snap | `snapcraft.yml` | `stable` + `edge` | § Linux desktop / Snap |
-| Linux AppImage | `appimage.yml` | GitHub Release (prerelease) | § Linux desktop / AppImage |
+| Linux AppImage | `appimage.yml` | GitHub Release (Latest) | § Linux desktop / AppImage |
 | Android | `playstore.yml` | Play `beta` (Open testing) | § Android / Google Play |
 | iOS | `appstore-ios.yml` | TestFlight | § iOS / macOS — App Store & TestFlight |
 | macOS | `appstore-macos.yml` | TestFlight | § iOS / macOS — App Store & TestFlight |
@@ -72,7 +72,7 @@ The Linux desktop runner lives in `linux/` (binary `admin`, application id `com.
 
 ## Linux desktop / AppImage
 
-Alongside the Snap, the Linux app ships as an **AppImage** — a single self-contained executable that runs on any glibc-2.35+ distro with no install (issue #1). Built + published by the manually-triggered `.github/workflows/appimage.yml`, which attaches `InvoiceNinja-<version>-x86_64.AppImage` to a per-version GitHub **prerelease** (tag `v<version>` from pubspec). The same Release carries the three F-Droid APKs (`InvoiceNinja-<version>-<abi>.apk`), built with F-Droid's own tooling and checked against a second build before anything is tagged — `docs/fdroid.md`. It reuses the snap's 512px icon (`snap/gui/invoiceninja.png`); its own desktop entry + AppStream metainfo live in `appimage/`.
+Alongside the Snap, the Linux app ships as an **AppImage** — a single self-contained executable that runs on any glibc-2.35+ distro with no install (issue #1). Built + published by the manually-triggered `.github/workflows/appimage.yml`, which attaches `InvoiceNinja-<version>-x86_64.AppImage` to a per-version GitHub **Release**, marked Latest (tag `v<version>` from pubspec). The same Release carries the three F-Droid APKs (`InvoiceNinja-<version>-<abi>.apk`), built with F-Droid's own tooling and checked against a second build before anything is tagged — `docs/fdroid.md`. It reuses the snap's 512px icon (`snap/gui/invoiceninja.png`); its own desktop entry + AppStream metainfo live in `appimage/`.
 
 - **Why also an AppImage.** The snap is effectively Ubuntu-centric, and on a desktop with no Secret portal its strict confinement needs a manual `snap connect …:password-manager-service`. An AppImage is **unconfined**, so `flutter_secure_storage` → libsecret → gnome-keyring works over D-Bus with **no manual step**. (The host must still run a Secret Service daemon — gnome-keyring/KWallet — for DB-key storage, the same underlying requirement as the snap.)
 - **Build mechanism.** `tools/build_appimage.sh` (also the local builder — Linux host only) compiles `flutter build linux --release` with the DSN baked in, then packages via `linuxdeploy --plugin gtk` (bundles GTK3 + gdk-pixbuf loaders + GSettings schemas). The whole Flutter bundle goes into `AppDir/usr/bin/` so `admin`, `lib/`, and `data/` stay together — the embedder resolves `lib/libapp.so` + `data/` via `/proc/self/exe`. The tools (linuxdeploy, the gtk + appimage plugins) and the AppImage runtime are downloaded at build time; checksum pinning is wired (`appimage/tool-checksums.sha256`) but that file currently holds **no entries**, so the script prints `WARNING: … skipping verification` and runs unpinned — the build logs the observed hashes, so pin it by copying them in. CI sets `APPIMAGE_EXTRACT_AND_RUN=1` (the runners have no libfuse2). No `execstack` step (unconfined).

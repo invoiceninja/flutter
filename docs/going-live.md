@@ -17,7 +17,7 @@ Updated 2026-11-12, after 5.1.25. Update this table whenever a store moves; the 
 | Windows | ❌ | Microsoft Store, Private audience | § Microsoft Store |
 | Web | ❌ | staged by Deploy to Web, never committed | `docs/web-deploy.md` § Going live |
 
-Going live is one app release with the beta flag off, plus a store-console step on each store. Today every pipeline ships to testers: Play Open testing, TestFlight (iOS and macOS), a restricted Microsoft Store listing and a GitHub pre-release. F-Droid, Flathub and the Snap are already public.
+Going live is one app release with the beta flag off, plus a store-console step on each store. Today every pipeline ships to testers: Play Open testing, TestFlight (iOS and macOS), and a restricted Microsoft Store listing. F-Droid, Flathub, the Snap and the GitHub Releases are already public.
 
 On Play, the App Store and Microsoft the new app (`com.invoiceninja.admin`) has its own listing, so going live there leaves the v1 app (`com.invoiceninja.app`) untouched. **The Snap is the exception:** both apps are the `invoiceninja` snap, so releasing to `stable` replaces v1 for every snap user.
 
@@ -95,7 +95,7 @@ v1's snap (admin-portal's `snap/snapcraft.yaml`, 5.0.204 on `stable`) plugs only
 
 ### GitHub Releases
 
-- [ ] Decide whether releases stay marked pre-release. If not, remove `--prerelease` from `appimage.yml`.
+- [x] Releases are full releases: `--prerelease` is gone from `appimage.yml`, and every earlier release was flipped, v5.1.25 marked Latest (2026-11-13).
 
 ### F-Droid
 
@@ -105,11 +105,11 @@ Already public on f-droid.org: each tagged release reaches users once F-Droid's 
 
 ## One-click production releases
 
-Today one **Deploy to all** dispatch ships every store to its testing channel with no manual step: Play Open testing (track and rollout chosen in the dispatch form), TestFlight (built, What to Test set, added to "Beta - External" and submitted for beta review by `tools/testflight_release.py`), the restricted Microsoft Store listing (release notes set and committed by `tools/msstore_release_notes.py`), a GitHub pre-release, and to production on F-Droid, Flathub and the Snap (`stable`). The decision (2026-11-08) is to keep it that way until launch, then make the same single dispatch publish to production. That needs:
+Today one **Deploy to all** dispatch ships every store to its testing channel with no manual step: Play Open testing (track and rollout chosen in the dispatch form), TestFlight (built, What to Test set, added to "Beta - External" and submitted for beta review by `tools/testflight_release.py`), the restricted Microsoft Store listing (release notes set and committed by `tools/msstore_release_notes.py`), and to production on F-Droid, Flathub, the Snap (`stable`) and a GitHub Release marked Latest. The decision (2026-11-08) is to keep it that way until launch, then make the same single dispatch publish to production. That needs:
 
 - [ ] **Play:** grant the service account "Release to production" (Play Console → Users and permissions), add `production` to `playstore.yml`'s `track` options and to Deploy to all's `play_track`, and make it the default. The `play_rollout` input already stages it.
 - [ ] **App Store (iOS and macOS):** after the first version has been submitted and approved by hand (Apple needs its screenshots, description, privacy answers and age rating once), extend `tools/testflight_release.py` or add a sibling to: create the App Store version for the release, attach the build, set "What's New in This Version" from the same digest, and submit it for review with release-after-approval — plus a dispatch input choosing phased release (iOS, 7 days) or everyone at once.
-- [ ] **GitHub Release:** drop `--prerelease` in `appimage.yml` so the Release is marked Latest.
+- [x] **GitHub Release:** `--prerelease` dropped from `appimage.yml`, so the Release is marked Latest (2026-11-13).
 - [ ] **Microsoft Store:** switch the listing's Audience to Public in Partner Center (§ Microsoft Store); CI needs no change, since `tools/msstore_release_notes.py` already commits a `Public` submission (`ALLOWED_VISIBILITY`). Drop " - Beta" from the listing name with the app rename above.
 - [x] **Snap:** `snapcraft.yml` releases to `stable,edge` (2026-11-13, § Snap).
 - [ ] Flip each workflow's header comment and `docs/store-deployment-setup.md` from "testers" to "production".

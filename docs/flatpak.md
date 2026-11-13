@@ -198,9 +198,9 @@ collaborators. So each side does its half:
    Weekly is Flathub's ask for a custom update workflow (flathub/flathub#11108, 2026-11-12), so a
    release reaches Flathub promptly only because the release skill dispatches it once the
    GitHub Release exists (`.claude/skills/release/SKILL.md` § 3).
-   - It finds the newest `invoiceninja/flutter` release tag. Every release is still a GitHub
-     *pre-release* until the general launch (docs/going-live.md § GitHub Releases), so it must
-     not filter those out, or it never fires.
+   - It finds the newest `invoiceninja/flutter` release tag. Every release up to 5.1.25 was
+     published as a GitHub *pre-release* (docs/going-live.md § GitHub Releases), so it must not
+     filter those out, or it would never have fired.
    - It compares versions as numbers, after stripping `-flathub…` from the manifest's current
      tag, and acts only on a strictly greater one. A plain "is it different" check, Saber's,
      would have opened `update-v5.1.23` on its first run and shipped plain v5.1.23, which predates

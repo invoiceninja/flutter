@@ -12,11 +12,11 @@ Six workflows publish the app. Every one of them:
 
 - is **manual only** — GitHub → **Actions** → pick the workflow → **Run workflow** (on the default branch). There is no push, tag, or schedule trigger anywhere in this repo.
 - **runs the full test suite first** (`_test.yaml`, always on `ubuntu-latest`, ~8–12 min). A red suite stops the release before anything is built or uploaded. Under **Deploy to all** (below) it runs once, inside the release, and the stores skip their copy.
-- ships to a **testing channel**, not straight to users — with **two exceptions**. **Microsoft Store** auto-commits to certification and goes live on the listing with no manual gate (§3D). **AppImage** attaches its build to a **public GitHub Release** — this is a public repo, so it is downloadable by anyone the moment it is created; `prerelease: true` only keeps it off the "Latest" badge, it restricts nothing (§3A). The same Release carries the **F-Droid APKs**, which F-Droid picks up from it on its own schedule once the app is listed (§3A).
+- ships to a **testing channel**, not straight to users — with **two exceptions**. **Microsoft Store** auto-commits to certification and goes live on the listing with no manual gate (§3D). **AppImage** attaches its build to a **public GitHub Release** — this is a public repo, so it is downloadable by anyone the moment it is created, and is marked Latest (§3A). The same Release carries the **F-Droid APKs**, which F-Droid picks up from it on its own schedule once the app is listed (§3A).
 
 | Target | Workflow | Lands in | Store credentials |
 |---|---|---|---|
-| Linux AppImage + F-Droid APKs | `appimage.yml` | GitHub Release (prerelease) → F-Droid | a repo setting, plus the F-Droid signing key (4, in an Environment) |
+| Linux AppImage + F-Droid APKs | `appimage.yml` | GitHub Release (Latest) → F-Droid | a repo setting, plus the F-Droid signing key (4, in an Environment) |
 | Linux Snap | `snapcraft.yml` | Snap Store `stable` + `edge` | 1 |
 | Android | `playstore.yml` | Play **Open testing** (or another testing track) | 5 |
 | Windows | `microsoft-store.yml` | Store certification → live listing | 5 |
@@ -196,7 +196,7 @@ Ordered easiest → hardest. Working in this order means you validate the pipeli
 
 The only workflow that needs no store credential — it still reads the optional `IN_SENTRY_DSN`, but authenticates with the built-in `GITHUB_TOKEN`. It's also the one workflow that writes back to the repo (it creates the `v<version>` tag and GitHub Release), so what it needs is a repo *setting* rather than a secret.
 
-> **The release it creates is public.** `invoiceninja/flutter` is a public repo, so the attached AppImage is downloadable by anyone as soon as the release exists. `prerelease: true` only keeps it off the "Latest release" badge — it is not an access control. Use the dry run below for validation; a real dispatch is a real release.
+> **The release it creates is public.** `invoiceninja/flutter` is a public repo, so the attached AppImage is downloadable by anyone as soon as the release exists, and it becomes the "Latest release". Use the dry run below for validation; a real dispatch is a real release.
 
 **One-time setup**
 
@@ -439,7 +439,7 @@ Once each target is green on its own, ship whole releases with **Deploy to all**
 
 | Target | Where the build lands | How to promote |
 |---|---|---|
-| AppImage | GitHub Release `v<version>`, marked prerelease | Uncheck "pre-release" on the Release |
+| AppImage | GitHub Release `v<version>`, marked Latest | Already live |
 | Snap | `stable` and `edge` | Already live. A `channels: edge` dispatch is promoted with `snapcraft release invoiceninja <rev> stable` |
 | Play | Open testing track (or the dispatched testing track) | Play Console: promote to production |
 | iOS / macOS | TestFlight | App Store Connect: submit for review |
@@ -528,7 +528,6 @@ These are deliberate beta-posture settings, listed so they aren't mistaken for s
 | Where | Current | At GA |
 |---|---|---|
 | `pubspec.yaml` `msix_config` | `display_name: Invoice Ninja - Beta` | Drop the ` - Beta` |
-| `appimage.yml` | `prerelease: true` | Decide per release |
 | `ios/Runner/Info.plist` | `CFBundleDisplayName = Ninja Beta`, `CFBundleName = admin` | `Invoice Ninja`. The beta installs beside the v1 app, whose home-screen label is "Invoice Ninja", and iOS truncates a label at about 12 characters — "Invoice Ninja Beta" would read "Invoice Ninj…" and look like the old app. The exported `.ipa` filename derives from this value, so `appstore-ios.yml` renames it before the upload. The v1 app's beta invitation names this label (`kBetaAppNameMobile` in admin-portal), so change the two together. |
 | `android/app/src/main/AndroidManifest.xml` | `android:label="Ninja Beta"` | `Invoice Ninja` — same reason and same pairing as the iOS label. |
 

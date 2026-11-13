@@ -4,8 +4,8 @@ name: Deploy to GitHub Releases
 # action, not a per-push gate. Unlike the snap (and every other publish pipeline,
 # which push to an external store's testing channel), an AppImage has no store:
 # it's distributed as a file attached to a GitHub Release. Ships a per-version
-# `prerelease` (mirroring the snap's edge / grade: devel + the README "Beta"
-# posture); set the `publish` input to false for a build-only dry run.
+# full release, marked Latest (pre-releases ended 2026-11-13, when the Snap
+# reached stable); set the `publish` input to false for a build-only dry run.
 #
 # The same Release carries the F-Droid APKs (one per ABI), which F-Droid
 # publishes under our signature only when its own rebuild matches them byte-for-
@@ -419,14 +419,14 @@ jobs:
             # Release reads the bullets and then the Full Changelog link.
             test -n "$NOTES"
             printf '%s\n' "$NOTES" > notes.md
-            gh release create "$tag" assets/* --draft --prerelease \
+            gh release create "$tag" assets/* --draft \
               --target "$GITHUB_SHA" --title "Invoice Ninja $VERSION" \
               --notes-file notes.md --generate-notes
             # A draft has no tag yet, so it is found by listing, not by tag.
             id="$(gh api "repos/$GH_REPO/releases?per_page=100" \
               --jq "[.[] | select(.draft and .tag_name == \"$tag\")][0].id")"
             test -n "$id" && test "$id" != null
-            gh api -X PATCH "repos/$GH_REPO/releases/$id" -F draft=false >/dev/null
-            gh release view "$tag" --json url,isDraft,isPrerelease,assets \
-              --jq '{url, isDraft, isPrerelease, assets: [.assets[].name]}'
+            gh api -X PATCH "repos/$GH_REPO/releases/$id" -F draft=false -f make_latest=true >/dev/null
+            gh release view "$tag" --json url,isDraft,isPrerelease,isLatest,assets \
+              --jq '{url, isDraft, isPrerelease, isLatest, assets: [.assets[].name]}'
           fi

@@ -164,6 +164,40 @@ String? legacyIntegrationsRedirect(Uri uri) {
       .toString();
 }
 
+/// admin-portal's (v1's) entity routes: singular and id-less (`/invoice`,
+/// `/invoice/view`, `/client/edit`), plus a few plural `/<entity>s/edit` and
+/// `/main`. A v1 bookmark or a saved "where you left off" reaches this app
+/// when the hosted web app moves (docs/web-deploy.md § Going live), and v1's
+/// URLs never carried the record, so each lands on its list rather than on
+/// the route-error view, keeping its query (`?company=`). [listRoutes] are the
+/// registry's list paths: v1 named each entity by its v2 path without the
+/// plural `s` (`/invoices` was `/invoice`), so a new top-level entity is
+/// covered with no edit here, and a settings-hosted one never matches. Null
+/// for anything that isn't a v1 route.
+String? legacyV1Redirect(Uri uri, Iterable<String> listRoutes) {
+  final v1 = <String, String>{
+    for (final route in listRoutes)
+      if (RegExp(r'^/[a-z_]+s$').hasMatch(route))
+        route.substring(1, route.length - 1): route,
+  };
+  final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+  if (segments.isEmpty) return null;
+  final first = segments.first;
+  String? target;
+  if (first == 'main' && segments.length == 1) {
+    target = '/dashboard';
+  } else if (v1.containsKey(first)) {
+    target = v1[first];
+  } else if (segments.length == 2 &&
+      segments[1] == 'edit' &&
+      v1.containsValue('/$first')) {
+    // v1's plural edit routes: v2 would read `edit` as a record id.
+    target = '/$first';
+  }
+  if (target == null) return null;
+  return uri.replace(path: target).toString();
+}
+
 /// Redirect target for the `/settings` index.
 ///
 /// On viewports wide enough for the two-pane settings layout — shell width
@@ -790,6 +824,11 @@ GoRouter buildRouter({
       // `uri` carrying the requested location.
       final legacy = legacyIntegrationsRedirect(state.uri);
       if (legacy != null) return legacy;
+      final v1 = legacyV1Redirect(
+        state.uri,
+        registry.all.map((h) => h.routePath),
+      );
+      if (v1 != null) return v1;
       return null;
     },
     errorBuilder: (context, state) => _RouteErrorView(error: state.error),

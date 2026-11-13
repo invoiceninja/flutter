@@ -358,6 +358,61 @@ void main() {
     });
   });
 
+  // admin-portal's (v1's) bookmarks: singular, id-less entity routes that
+  // reach this app when the hosted web app moves.
+  group('legacyV1Redirect', () {
+    // The registry's list paths, as buildRouter passes them.
+    const routes = [
+      '/clients', '/credits', '/documents', '/expenses', '/invoices', //
+      '/payments', '/products', '/projects', '/purchase_orders', '/quotes',
+      '/recurring_expenses', '/recurring_invoices', '/tasks', '/transactions',
+      '/vendors', '/settings/tax_rates',
+    ];
+    String? v1(Uri uri) => legacyV1Redirect(uri, routes);
+
+    test('keeps the query, so a forwarded ?company= still applies', () {
+      expect(v1(Uri.parse('/invoice/view?company=X')), '/invoices?company=X');
+    });
+
+    test('a settings-hosted entity never matches', () {
+      expect(v1(Uri.parse('/settings/tax_rate')), isNull);
+      expect(v1(Uri.parse('/tax_rate')), isNull);
+    });
+
+    test('sends each v1 entity route to its list', () {
+      expect(v1(Uri.parse('/invoice')), '/invoices');
+      expect(v1(Uri.parse('/invoice/view')), '/invoices');
+      expect(v1(Uri.parse('/client/edit')), '/clients');
+      expect(v1(Uri.parse('/purchase_order/pdf')), '/purchase_orders');
+      expect(v1(Uri.parse('/recurring_invoice')), '/recurring_invoices');
+      expect(v1(Uri.parse('/payment/refund')), '/payments');
+      expect(v1(Uri.parse('/quote/email')), '/quotes');
+    });
+
+    test("maps v1's plural edit routes and /main", () {
+      expect(v1(Uri.parse('/invoices/edit')), '/invoices');
+      expect(v1(Uri.parse('/purchase_orders/edit')), '/purchase_orders');
+      expect(v1(Uri.parse('/main')), '/dashboard');
+    });
+
+    test('leaves every v2 route alone', () {
+      for (final path in [
+        '/',
+        '/dashboard',
+        '/invoices',
+        '/invoices/abc123',
+        '/invoices/abc123/edit',
+        '/invoices/new',
+        '/settings',
+        '/reports',
+        '/login',
+        '/main/other',
+      ]) {
+        expect(v1(Uri.parse(path)), isNull, reason: path);
+      }
+    });
+  });
+
   group('isCompanySetupRequired', () {
     test('false when there is no session', () {
       expect(isCompanySetupRequired(null), isFalse);

@@ -131,6 +131,8 @@ jobs:
     uses: ./.github/workflows/web.yml
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     secrets: inherit
     with:
       skip_tests: true

@@ -362,10 +362,23 @@ jobs:
     # The one job with write access; Deploy to all grants it on the web leg.
     permissions:
       contents: write
+      # The provenance attestation below.
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: web-tarball
+
+      # The server's release (react_release.yml in invoiceninja/invoiceninja)
+      # takes the tarball only with this: `gh attestation verify --repo
+      # invoiceninja/app --signer-workflow .../web.yml`. Its two views are
+      # compiled as PHP on every server, so a file merely uploaded to the
+      # release under the right name must not be enough (docs/web-deploy.md).
+      - name: Attest the tarball's provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: ${{ needs.deploy-web.outputs.tarball }}
 
       - name: Upload to v${{ needs.deploy-web.outputs.version }}
         env:

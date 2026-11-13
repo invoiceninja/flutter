@@ -74,10 +74,15 @@ void main() {
     final call = callOf('web.yml');
     expect(
       call.value,
-      contains('    permissions:\n      contents: write\n'),
+      contains(
+        '    permissions:\n      contents: write\n'
+        '      id-token: write\n      attestations: write\n',
+      ),
       reason:
           'web.yml uploads invoiceninja-web-<version>.tar.gz with gh release '
-          'upload; without write the whole run is rejected at startup.',
+          'upload and attests it (the server takes no tarball without the '
+          'attestation); a reusable workflow gets no permission its caller '
+          'lacks, and the whole run is rejected at startup.',
     );
     expect(call.value, contains('      mode: production\n'));
   });

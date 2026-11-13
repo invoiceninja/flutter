@@ -1,27 +1,40 @@
 name: Deploy to Web
 
-# Manual only. Builds the web app and lays it into the server repo's
-# public/flutter/, where the backend's boot page (tools/web_deploy/
-# index.blade.php, staged as resources/views/flutter/index.blade.php) serves it
-# in place of admin-portal's build — the replacement for `build_client`.
-# docs/web-deploy.md.
+# Builds the web app once and ships it two ways (docs/web-deploy.md):
 #
-# TEST MODE ONLY for now: it clones invoiceninja/invoiceninja anonymously,
-# stages the build into that throwaway clone, proves the staged tree is
-# complete and boots, and reports exactly what a commit would change. Nothing
-# is committed or pushed — there is no token and no push step. The commit step
-# arrives with Phase 2 (docs/web-deploy.md § Going live), as `mode: commit`.
+#   hosted       the `pages/` tree, published to Cloudflare Pages (Direct
+#                Upload) and served at admin.invoicing.co. Its boot page names
+#                https://invoicing.co as the API (`data-api-url`).
+#   self-hosted  the `server/` tree, attached to this repo's GitHub Release as
+#                invoiceninja-web-<version>.tar.gz: public/flutter/ and
+#                resources/views/flutter/index.blade.php (the app), plus
+#                resources/views/landing/apps.blade.php and public/landing/
+#                (the invoicing.co landing page). The backend's release
+#                workflow unpacks it into the server tarball; nothing is ever
+#                committed to invoiceninja/invoiceninja.
 #
-# Shaped like the store workflows (test/lint/deploy_all_workflow_test.dart) so
-# Deploy to all can call it later: skip_tests on workflow_call only, a `test`
-# job, and one job that needs it.
+# Modes: `test` builds both trees and runs every gate, publishing nothing.
+# `preview` also deploys `pages/` to the Pages preview branch. `production`
+# (Deploy to all only, on the release's tagged commit) deploys to the preview
+# branch, checks what Pages serves there, then promotes to the production
+# branch, and uploads the tarball. Until the Pages project exists (repo
+# variable CLOUDFLARE_PAGES_PROJECT, secrets CLOUDFLARE_API_TOKEN and
+# CLOUDFLARE_ACCOUNT_ID), the Pages deploy is skipped with a notice.
+#
+# Three jobs, so neither shipment can hold up the other: `deploy-web` builds
+# and checks the self-hosted side and hands both trees on as artifacts;
+# `pages` checks and publishes the hosted tree; `attach` uploads the tarball
+# (production only, and the only job with write access).
+#
+# Shaped like the store workflows (test/lint/deploy_all_workflow_test.dart):
+# skip_tests on workflow_call only, a `test` job, and one job that needs it.
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: What to do. Test mode builds, stages and reports; it never commits.
+        description: test builds and checks only; preview also deploys to the Pages preview branch.
         type: choice
-        options: [test]
+        options: [test, preview]
         default: test
   workflow_call:
     inputs:
@@ -30,7 +43,7 @@ on:
         type: boolean
         default: false
       mode:
-        description: test (build, stage and report; nothing is committed).
+        description: test, preview or production (production uploads the release tarball).
         type: string
         default: test
 
@@ -52,26 +65,27 @@ jobs:
   deploy-web:
     needs: test
     if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
-    name: Build, stage and check (test mode)
+    name: Build, check and publish
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    outputs:
+      version: ${{ steps.prep.outputs.version }}
+      tarball: ${{ steps.tarball.outputs.name }}
     env:
       MODE: ${{ inputs.mode || 'test' }}
-      BACKEND_REPO: https://github.com/invoiceninja/invoiceninja.git
-      BACKEND_BRANCH: v5-develop
+      API_URL: https://invoicing.co
+      PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
     steps:
-      # Default credentials: the token is read-only (contents: read) and no step
-      # pushes. `persist-credentials: false` would make checkout walk the
-      # submodules to strip them, and the repo's two stray .dart_skills gitlinks
-      # (no .gitmodules entry) fail that walk.
+      # Default credentials (see the store workflows): the repo's stray
+      # .dart_skills gitlinks fail checkout's submodule walk otherwise.
       - uses: actions/checkout@v5
 
-      - name: Refuse anything but test mode
+      - name: Check the mode
         run: |
-          if [ "$MODE" != "test" ]; then
-            echo "::error::Only test mode exists so far; '$MODE' is Phase 2 (docs/web-deploy.md)."
-            exit 1
-          fi
+          case "$MODE" in
+            test|preview|production) ;;
+            *) echo "::error::Unknown mode '$MODE' (test, preview or production)."; exit 1 ;;
+          esac
 
       - uses: subosito/flutter-action@v2
         with:
@@ -93,18 +107,17 @@ jobs:
       - name: Build web
         run: flutter build web --wasm --release --no-web-resources-cdn --pwa-strategy=none
 
-      - name: Cache-bust, manifest, build.json
+      - name: Cache-bust, build.json, version
         id: prep
         run: |
           set -euo pipefail
           tools/stamp_web_cache_bust.sh build/web >/dev/null
-          # An installed PWA must open the boot page at the site root, not the
-          # folder (which has no index and answers 403). The build copy only;
-          # web/manifest.json also serves the GitHub Pages demo.
-          jq '.start_url = "../" | .scope = "../"' build/web/manifest.json > manifest.tmp
-          mv manifest.tmp build/web/manifest.json
-          version="$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml)"
-          jq -n --arg version "$version" --arg sha "$GITHUB_SHA" \
+          # As appimage.yml makes the tag: 5.1.4+7 -> 5.1.4, quotes, spaces and
+          # a trailing CR dropped.
+          raw="$(grep -m1 '^version:' pubspec.yaml)"
+          full="${raw#*version:}"; full="${full//[\"\' ]/}"; full="${full%$'\r'}"
+          version="${full%%+*}"
+          jq -n --arg version "$full" --arg sha "$GITHUB_SHA" \
             --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
             --arg built_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{version: $version, sha: $sha, run_url: $run_url, built_at: $built_at}' \
@@ -112,67 +125,59 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "bootstrap_hash=$(sha256sum build/web/flutter_bootstrap.js | cut -c1-12)" >> "$GITHUB_OUTPUT"
 
-      # Anonymous and sparse: the backend's history is about 4 GiB, and
-      # --no-cone keeps the checkout to the two folders this writes (cone mode
-      # would also pull every file directly under public/).
-      - name: Stage into a throwaway clone of the backend
-        id: stage
+      # The tarball names the release, so production only ships the commit the
+      # release tagged (appimage.yml creates v<version> from pubspec).
+      - name: Production ships the tagged commit only
+        if: env.MODE == 'production'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git clone --depth 1 --filter=blob:none --no-checkout -b "$BACKEND_BRANCH" "$BACKEND_REPO" backend
-          git -C backend sparse-checkout set --no-cone '/public/flutter/' '/resources/views/flutter/'
-          git -C backend checkout -q
-          mkdir -p backend/public/flutter backend/resources/views/flutter
-          rsync -a --delete \
-            --exclude /index.html --exclude /flutter_service_worker.js \
-            --exclude /drift_worker.dart --exclude /.last_build_id \
-            --exclude '*.symbols' \
-            build/web/ backend/public/flutter/
-          python3 tools/web_deploy/render_boot_page.py --blade \
-            --version "${{ steps.prep.outputs.bootstrap_hash }}" \
-            -o backend/resources/views/flutter/index.blade.php
-          echo "backend_sha=$(git -C backend rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          tag="v${{ steps.prep.outputs.version }}"
+          tagged="$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha 2>/dev/null || true)"
+          if [ "$tagged" != "$GITHUB_SHA" ]; then
+            echo "::error::$tag is ${tagged:-missing}, not this commit ($GITHUB_SHA). Production runs only from Deploy to all after the release."
+            exit 1
+          fi
 
-      # Only the two folders may change, nothing may be dropped by the backend's
-      # .gitignore, and every staged file must be tracked.
-      - name: Change gate
-        id: changes
-        working-directory: backend
-        run: |
-          set -euo pipefail
-          git add -A
-          status="$(git status --porcelain --ignored --untracked-files=all)"
-          if grep -q '^!!' <<<"$status"; then
-            echo "::error::The backend's .gitignore drops staged files:"; grep '^!!' <<<"$status"; exit 1
-          fi
-          outside="$(cut -c4- <<<"$status" | grep -vE '^(public/flutter/|resources/views/flutter/)' || true)"
-          if [ -n "$outside" ]; then
-            echo "::error::Changes outside public/flutter/ and resources/views/flutter/:"; echo "$outside"; exit 1
-          fi
-          tracked="$(git ls-files public/flutter | wc -l)"
-          files="$(find public/flutter -type f | wc -l)"
-          if [ "$tracked" != "$files" ]; then
-            echo "::error::$files files staged but $tracked tracked."; exit 1
-          fi
-          echo "files=$files" >> "$GITHUB_OUTPUT"
-          echo "size=$(du -sh public/flutter | cut -f1)" >> "$GITHUB_OUTPUT"
-          git diff --cached --stat | tail -1 > ../diffstat.txt
-
-      - name: Assemble the served roots
+      - name: Assemble the two trees
         run: |
           set -euo pipefail
           v="${{ steps.prep.outputs.bootstrap_hash }}"
-          # site/index.html is the page as the server would render it (served:
-          # logs in to its own origin); site/standalone.html is the same page
-          # without data-served, so a local copy can sign in to any server.
-          mkdir -p site
-          cp -a backend/public/flutter site/flutter
+          excludes=(--exclude /index.html --exclude /flutter_service_worker.js
+                    --exclude /drift_worker.dart --exclude /.last_build_id --exclude '*.symbols')
+
+          # Self-hosted: the build under public/flutter/ with the server's boot
+          # page as a Blade view. The installed PWA's start_url and scope are
+          # the site root, one level up from the folder.
+          mkdir -p server/public/flutter server/resources/views/flutter server/resources/views/landing
+          rsync -a "${excludes[@]}" build/web/ server/public/flutter/
+          jq '.start_url = "../" | .scope = "../"' build/web/manifest.json > server/public/flutter/manifest.json
+          python3 tools/web_deploy/render_boot_page.py --blade --version "$v" \
+            -o server/resources/views/flutter/index.blade.php
+          # The invoicing.co landing page, built from landing/apps.json.
+          python3 tools/web_deploy/render_landing.py --blade --assets-base /landing/ \
+            --assets-dir server/public/landing -o server/resources/views/landing/apps.blade.php
+
+          # Hosted: the build at the root of the Pages site, its static boot page
+          # naming the API, a 404 page (Pages would otherwise answer a missing
+          # file with index.html and a 200) and _headers.
+          mkdir -p pages
+          rsync -a "${excludes[@]}" build/web/ pages/
+          jq '.start_url = "./" | .scope = "./"' build/web/manifest.json > pages/manifest.json
+          python3 tools/web_deploy/render_boot_page.py --static --hosted --base-href / \
+            --api-url "$API_URL" --version "$v" -o pages/index.html
+          cp tools/web_deploy/pages/404.html tools/web_deploy/pages/_headers pages/
+
+          # Local roots for the gates: site/ is the self-hosted page as a server
+          # renders it, standalone.html the same page without data-served (so a
+          # local copy keeps the server field), and smoke-js/ the same tree with
+          # the bootstrap forced to dart2js (canvaskit), which rules out skwasm.
+          mkdir -p site smoke-js
+          cp -a server/public/flutter site/flutter
           python3 tools/web_deploy/render_boot_page.py --static --version "$v" -o site/index.html
           python3 tools/web_deploy/render_boot_page.py --static --standalone --version "$v" -o site/standalone.html
           cp tools/web_deploy/serve.py site/serve.py
-          # dart2js smoke: the same tree (hard links) with the bootstrap asking
-          # for the canvaskit renderer, which rules out the skwasm (WASM) build.
-          mkdir -p smoke-js
           cp -al site/flutter smoke-js/flutter
           cp site/index.html smoke-js/index.html
           rm smoke-js/flutter/flutter_bootstrap.js
@@ -180,7 +185,7 @@ jobs:
             site/flutter/flutter_bootstrap.js > smoke-js/flutter/flutter_bootstrap.js
           grep -q 'renderer:"canvaskit"' smoke-js/flutter/flutter_bootstrap.js
 
-      - name: Served-files gate
+      - name: Served-files gate (self-hosted)
         run: |
           set -euo pipefail
           python3 tools/web_deploy/serve.py site 8000 &
@@ -191,8 +196,7 @@ jobs:
 
       # A hard gate. If headless WebGL proves flaky on the runner, add
       # `continue-on-error: true` here and the summary says so.
-      - name: Boot smoke (WASM and dart2js)
-        id: smoke
+      - name: Boot smoke (self-hosted, WASM and dart2js)
         run: |
           set -euo pipefail
           python3 tools/web_deploy/serve.py site 8001 &
@@ -204,7 +208,31 @@ jobs:
           tools/web_deploy/smoke_webdriver.sh http://127.0.0.1:8001/ 120 | tee smoke-wasm.txt
           CHROMEDRIVER_PORT=9516 tools/web_deploy/smoke_webdriver.sh http://127.0.0.1:8002/ 120 | tee smoke-js.txt
 
-      - name: Upload the staged site
+      - name: Package the self-hosted tarball
+        id: tarball
+        run: |
+          set -euo pipefail
+          name="invoiceninja-web-${{ steps.prep.outputs.version }}.tar.gz"
+          tar -czf "$name" -C server public resources
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "size=$(du -h "$name" | cut -f1)" >> "$GITHUB_OUTPUT"
+
+      # Handed to the `pages` and `attach` jobs, and kept for a look.
+      - name: Upload the hosted tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-pages
+          path: pages/
+          retention-days: 7
+
+      - name: Upload the self-hosted tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-tarball
+          path: ${{ steps.tarball.outputs.name }}
+          retention-days: 7
+
+      - name: Upload the self-hosted site
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
@@ -217,27 +245,130 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           gz() { [ -f "$1" ] && gzip -9c "$1" | wc -c | awk '{printf "%.1f MB", $1/1048576}' || echo "n/a"; }
-          old="$(git -C backend show HEAD:public/main.dart.js 2>/dev/null | gzip -9c | wc -c | awk '{printf "%.1f MB", $1/1048576}')"
           {
-            echo "## TEST MODE: nothing committed or pushed; servers still run admin-portal."
+            echo "## Deploy to Web: $MODE (build and self-hosted)"
             echo
             echo "| | |"
             echo "|---|---|"
             echo "| App | ${{ steps.prep.outputs.version }} at \`${GITHUB_SHA:0:8}\` |"
-            echo "| Staged on backend \`$BACKEND_BRANCH\` | \`${{ steps.stage.outputs.backend_sha }}\` |"
-            echo "| Would commit | ${{ steps.changes.outputs.files }} files, ${{ steps.changes.outputs.size }} under public/flutter/, plus resources/views/flutter/index.blade.php |"
-            echo "| Diff | $(cat diffstat.txt 2>/dev/null) |"
-            echo "| Download (gzip) | main.dart.wasm $(gz build/web/main.dart.wasm), main.dart.js $(gz build/web/main.dart.js); old app's main.dart.js $old |"
+            echo "| Self-hosted tarball | ${{ steps.tarball.outputs.name }} (${{ steps.tarball.outputs.size }}) |"
+            echo "| Download (gzip) | main.dart.wasm $(gz build/web/main.dart.wasm), main.dart.js $(gz build/web/main.dart.js) |"
             echo "| Served-files gate | $(tail -1 files-gate.txt 2>/dev/null || echo 'did not run') |"
-            echo "| Boot smoke, WASM | $(head -1 smoke-wasm.txt 2>/dev/null || echo 'did not run') |"
-            echo "| Boot smoke, dart2js | $(head -1 smoke-js.txt 2>/dev/null || echo 'did not run') |"
-            echo "| Phase 2 commit message | \`Admin Portal v2 - ${{ steps.prep.outputs.version }} [skip ci]\` |"
+            echo "| Boot smoke | WASM: $(head -1 smoke-wasm.txt 2>/dev/null || echo 'did not run'); dart2js: $(head -1 smoke-js.txt 2>/dev/null || echo 'did not run') |"
             echo
             echo "Try it locally (standalone.html has the usual server field, so it can sign in to the demo server):"
             echo
             echo '```'
             echo "gh run download $GITHUB_RUN_ID -R $GITHUB_REPOSITORY -n web-staged -D web-staged"
-            echo "cd web-staged && python3 serve.py ."
+            echo "cd web-staged/site && python3 serve.py ."
             echo '# open http://127.0.0.1:8000/standalone.html'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # The hosted app: checked locally, then deployed and checked again where
+  # Pages serves it. In production the check runs on a preview deployment,
+  # before production is touched.
+  pages:
+    needs: [test, deploy-web]
+    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') && needs.deploy-web.result == 'success' }}
+    name: Hosted (Cloudflare Pages)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MODE: ${{ inputs.mode || 'test' }}
+      PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-pages
+          path: pages
+
+      # Pages refuses any file over 25 MiB; main.dart.js was 23.6 MiB on 5.1.24.
+      - name: Size gate (25 MiB a file)
+        id: size
+        run: |
+          set -euo pipefail
+          largest="$(find pages -type f -printf '%s %p\n' | sort -nr | head -1)"
+          echo "largest=$(awk '{printf "%.1f MiB %s", $1/1048576, $2}' <<<"$largest")" >> "$GITHUB_OUTPUT"
+          over="$(find pages -type f -size +25M)"
+          if [ -n "$over" ]; then
+            echo "::error::Over Cloudflare Pages' 25 MiB per-file limit:"; echo "$over"; exit 1
+          fi
+
+      - name: Served-files gate and boot smoke (local)
+        run: |
+          set -euo pipefail
+          python3 tools/web_deploy/serve.py pages 8003 &
+          server=$!
+          trap 'kill $server' EXIT
+          sleep 1
+          python3 tools/web_deploy/check_served_files.py pages http://127.0.0.1:8003 --build . | tee files-gate.txt
+          tools/web_deploy/smoke_webdriver.sh http://127.0.0.1:8003/ 120 | tee smoke.txt
+
+      - name: Deploy to the preview branch
+        id: preview
+        if: env.MODE != 'test' && env.PAGES_PROJECT != ''
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy pages --project-name=${{ env.PAGES_PROJECT }} --branch=preview --commit-hash=${{ github.sha }}
+
+      # What Pages actually serves: its types, and that a file that exists is
+      # not answered by a fallback.
+      - name: Served-files gate on the preview deployment
+        if: steps.preview.outcome == 'success'
+        run: python3 tools/web_deploy/check_served_files.py pages "${{ steps.preview.outputs.deployment-url }}" --build . | tee files-gate-deployed.txt
+
+      # Every file is already uploaded, so this second deploy only points the
+      # production branch at them.
+      - name: Promote to production
+        id: production
+        if: env.MODE == 'production' && steps.preview.outcome == 'success'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy pages --project-name=${{ env.PAGES_PROJECT }} --branch=main --commit-hash=${{ github.sha }}
+
+      - name: No Pages project yet
+        if: env.MODE != 'test' && env.PAGES_PROJECT == ''
+        run: echo "::notice::Pages deploy skipped. Set the CLOUDFLARE_PAGES_PROJECT variable and the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets (docs/store-deployment-setup.md)."
+
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "## Deploy to Web: $MODE (hosted)"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Largest file (25 MiB limit) | ${{ steps.size.outputs.largest }} |"
+            echo "| Served-files gate | local: $(tail -1 files-gate.txt 2>/dev/null || echo 'did not run'); preview deployment: $(tail -1 files-gate-deployed.txt 2>/dev/null || echo 'not deployed') |"
+            echo "| Boot smoke | $(head -1 smoke.txt 2>/dev/null || echo 'did not run') |"
+            echo "| Preview | ${{ steps.preview.outputs.deployment-url || 'not deployed' }} |"
+            echo "| Production | ${{ steps.production.outputs.deployment-url || 'not deployed' }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The self-hosted tarball onto the release, whatever happens to Pages.
+  attach:
+    needs: [test, deploy-web]
+    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') && needs.deploy-web.result == 'success' && inputs.mode == 'production' }}
+    name: Attach the tarball to the release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The one job with write access; Deploy to all grants it on the web leg.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-tarball
+
+      - name: Upload to v${{ needs.deploy-web.outputs.version }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "v${{ needs.deploy-web.outputs.version }}" "${{ needs.deploy-web.outputs.tarball }}" --clobber

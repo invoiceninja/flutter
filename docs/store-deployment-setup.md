@@ -22,6 +22,7 @@ Six workflows publish the app. Every one of them:
 | Windows | `microsoft-store.yml` | Store certification → live listing | 5 |
 | iOS | `appstore-ios.yml` | TestFlight | 8 |
 | macOS | `appstore-macos.yml` | TestFlight | 7 (3 shared with iOS) |
+| Web | `web.yml` | Hosted: Cloudflare Pages (`admin.invoicing.co` at launch). Self-hosted: `invoiceninja-web-<version>.tar.gz` on the GitHub Release (`docs/web-deploy.md`) | 2 secrets + 1 variable (§2 Web) |
 | Linux Flatpak | `flathub.yml` (follows only) | Flathub, built by Flathub from the tag (once accepted; `docs/flatpak.md`) | none |
 | **All of the above** | `deploy-all.yml` | Every row above, release first | the union |
 
@@ -185,6 +186,18 @@ Environment secrets, not repository secrets: only the `fdroid-sign` job can read
 | `MAC_INSTALLER_CERT_BASE64` | The **Mac Installer Distribution** certificate alone (`.cer`, no key) — the app itself signs with the iOS job's `APPLE_DISTRIBUTION_CERT_P12_BASE64` | `base64 -i mac_installer.cer` — see §3E for why it isn't in a `.p12` |
 | `MACOS_APPSTORE_PROVISIONING_PROFILE_BASE64` | Mac App Store profile (distinct from the iOS one) | `base64 -i profile.provisionprofile` |
 | `MACOS_HOME_WIDGETS_APPSTORE_PROVISIONING_PROFILE_BASE64` | Mac App Store profile for the macOS home-screen widgets (`com.invoiceninja.admin.HomeWidgets`) | `base64 -i home-widgets.provisionprofile` |
+
+### Web — `web.yml`
+
+Without these the Pages deploy is skipped with a notice and only the self-hosted tarball ships (`docs/web-deploy.md` § Going live).
+
+| Name | Kind | What it is |
+|---|---|---|
+| `CLOUDFLARE_API_TOKEN` | secret | A Cloudflare API token with **Cloudflare Pages: Edit** on the account. |
+| `CLOUDFLARE_ACCOUNT_ID` | secret | The account that owns the Pages project (Cloudflare dashboard → the account's overview). |
+| `CLOUDFLARE_PAGES_PROJECT` | repository **variable** | The Pages project's name. It must be a **Direct Upload** project with production branch `main`: a Git-integrated project can't take uploads. |
+
+**Verify:** dispatch **Deploy to Web** with `mode: preview`; the summary links the preview deployment, and its served-files gate runs against it.
 
 ---
 

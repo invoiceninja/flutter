@@ -4,8 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// CI lint: `.github/workflows/deploy-all.yml` ships a release everywhere from
 /// one dispatch — the readiness check, then appimage.yml (whose test gate is
-/// the one test run), then the five store workflows with their own test gate
-/// skipped, and the Flathub leg that follows the release onto Flathub
+/// the one test run), then the five store workflows and the web build with
+/// their own test gate skipped, and the Flathub leg that follows the release onto Flathub
 /// (docs/store-deployment-setup.md § 0 Start here, docs/flatpak.md).
 ///
 /// GitHub validates none of this until a real release is dispatched, and the
@@ -21,6 +21,7 @@ void main() {
     'microsoft-store.yml',
     'appstore-ios.yml',
     'appstore-macos.yml',
+    'web.yml',
   ];
   final deployAll = File('$dir/deploy-all.yml').readAsStringSync();
   final jobs = _jobs(deployAll);
@@ -69,6 +70,18 @@ void main() {
     }
   });
 
+  test('the web leg can attach its tarball to the Release', () {
+    final call = callOf('web.yml');
+    expect(
+      call.value,
+      contains('    permissions:\n      contents: write\n'),
+      reason:
+          'web.yml uploads invoiceninja-web-<version>.tar.gz with gh release '
+          'upload; without write the whole run is rejected at startup.',
+    );
+    expect(call.value, contains('      mode: production\n'));
+  });
+
   test('the readiness check runs before anything is built', () {
     final ready = jobs['ready'];
     expect(ready, isNotNull);
@@ -109,13 +122,22 @@ void main() {
       final deploys = storeJobs.entries.where((j) => j.key != 'test').toList();
       expect(deploys, isNotEmpty, reason: workflow);
       for (final job in deploys) {
-        expect(job.value, contains('    needs: test\n'), reason: job.key);
+        // `needs: test`, or a job chained after one that does (web.yml's
+        // `pages` and `attach` need `[test, deploy-web]`).
+        expect(
+          job.value,
+          matches(
+            RegExp(r'^    needs: (test|\[test, [a-z-]+\])$', multiLine: true),
+          ),
+          reason: job.key,
+        );
         // A skipped `needs` skips the job unless it states its own condition.
+        // A chained job adds its own clauses after it.
         expect(
           job.value,
           contains(
             "    if: \${{ !cancelled() && (needs.test.result == 'success' "
-            "|| needs.test.result == 'skipped') }}\n",
+            "|| needs.test.result == 'skipped')",
           ),
           reason: '$workflow ${job.key}',
         );

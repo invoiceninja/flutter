@@ -128,7 +128,7 @@ yet: run the list again in a separate call.
   another track or a staged rollout: `-f play_track=<beta|alpha|internal> -f play_rollout=<percent>`.
 - If the push is rejected (origin moved), stop and report - don't force-push.
 - The run takes a while (one test gate, then the GitHub Release, then five stores
-  in parallel). Don't poll it; give Hillel the run URL. Watch it only if asked.
+  and the web build in parallel). Don't poll it; give Hillel the run URL. Watch it only if asked.
 
 ### Start Flathub's update once the GitHub Release exists
 

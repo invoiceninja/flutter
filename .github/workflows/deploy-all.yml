@@ -10,8 +10,10 @@ name: Deploy to all
 #   2. release  — appimage.yml: its own test gate is the ONE test run of this
 #                 deploy, beside its preflight and F-Droid builds; then the
 #                 AppImage + F-Droid APKs + v<version> tag on a GitHub Release.
-#   3. the five stores, in parallel, once the Release exists — each called
-#      with skip_tests, so its nested `test` job shows as skipped. Expected.
+#   3. the five stores and the web build, in parallel, once the Release
+#      exists — each called with skip_tests, so its nested `test` job shows as
+#      skipped. Expected. The web leg (web.yml) publishes the hosted app to
+#      Cloudflare Pages and attaches the self-hosted tarball to the Release.
 #   4. flathub — beside them, once FLATHUB_ENABLED is set: it only follows the
 #      release onto Flathub, which builds the app itself from the new tag
 #      (flathub.yml, docs/flatpak.md). No test gate and no secrets: it reads.
@@ -119,6 +121,20 @@ jobs:
     secrets: inherit
     with:
       skip_tests: true
+
+  # The web build (docs/web-deploy.md): hosted to Cloudflare Pages, self-hosted
+  # as invoiceninja-web-<version>.tar.gz on the Release. A called workflow can
+  # only narrow the caller's grant, and attaching the tarball needs write.
+  web:
+    needs: release
+    name: Web
+    uses: ./.github/workflows/web.yml
+    permissions:
+      contents: write
+    secrets: inherit
+    with:
+      skip_tests: true
+      mode: production
 
   # Flathub builds the release itself from the new tag (its own repo's update
   # workflow); this leg follows it to published and reports. Skipped until the

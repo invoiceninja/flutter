@@ -1,0 +1,54 @@
+{
+  "_comment": "Every link and requirement on the invoicing.co landing page (docs/web-deploy.md § The landing page). render_landing.py builds the page from this file; test/lint/landing_apps_test.dart pins each min_os to the app's build files, so a deployment-target bump that forgets this file fails CI. Store links name each store's live listing: switch a store to the new app's listing when that store goes live (docs/going-live.md).",
+  "web": {
+    "react": { "url": "https://app.invoicing.co", "source": "https://github.com/invoiceninja/ui" },
+    "app": { "url": "https://admin.invoicing.co", "source": "https://github.com/invoiceninja/flutter" }
+  },
+  "client_portal": "https://invoicing.co/client/",
+  "platforms": [
+    {
+      "id": "mac", "group": "desktop", "name": "Mac", "icon": "apple", "color": "ink",
+      "min_os": "macOS 12 or later",
+      "store": ["Mac App Store", "https://apps.apple.com/us/app/invoice-ninja/id1503970375?platform=mac"]
+    },
+    {
+      "id": "windows", "group": "desktop", "name": "Windows", "icon": "windows", "color": "#0078D4",
+      "min_os": "Windows 10 or later",
+      "store": ["Microsoft Store", "https://apps.microsoft.com/detail/9n3f2bbcfdr6"]
+    },
+    {
+      "id": "linux", "group": "desktop", "name": "Linux", "icon": "linux", "color": "ink",
+      "min_os": "Most distributions",
+      "store": ["Snap Store", "https://snapcraft.io/invoiceninja"],
+      "alt": [
+        ["Flathub", "https://flathub.org/apps/com.invoiceninja.InvoiceNinja"],
+        ["AppImage", "https://github.com/invoiceninja/flutter/releases/latest"]
+      ]
+    },
+    {
+      "id": "ios", "group": "mobile", "name": "iPhone & iPad", "icon": "apple", "color": "ink",
+      "min_os": "iOS 15 or later",
+      "store": ["App Store", "https://apps.apple.com/us/app/invoice-ninja/id1503970375"]
+    },
+    {
+      "id": "android", "group": "mobile", "name": "Android", "icon": "android", "color": "#3DDC84",
+      "min_os": "Android 8.0 or later",
+      "store": ["Google Play", "https://play.google.com/store/apps/details?id=com.invoiceninja.app"],
+      "alt": [["F-Droid", "https://f-droid.org/packages/com.invoiceninja.admin/"]]
+    }
+  ],
+  "addons": {
+    "chrome": "https://chromewebstore.google.com/detail/invoice-ninja-tasks/dlfcbfdpemfnjbjlladogijcchfmmaaf",
+    "wordpress": "https://wordpress.org/plugins/invoiceninja/"
+  },
+  "team": {
+    "docuninja": "https://docuninja.co",
+    "eventschedule": "https://eventschedule.com"
+  },
+  "footer": {
+    "home": "https://invoiceninja.com",
+    "docs": "https://invoiceninja.github.io",
+    "privacy": "https://invoiceninja.com/privacy-policy/",
+    "terms": "https://invoiceninja.com/terms/"
+  }
+}

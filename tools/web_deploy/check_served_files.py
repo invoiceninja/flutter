@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Deploy to Web's served-files gate: python3 check_served_files.py <root> <origin>
+"""Deploy to Web's served-files gate:
+python3 check_served_files.py <root> <origin> [--build <dir>]
 
-<root> is what tools/web_deploy/serve.py serves at <origin> (e.g.
-http://127.0.0.1:8000): the rendered boot page as index.html plus the staged
-build under flutter/. Fetches every staged file and every URL the page, the
-bootstrap, the manifest and the font manifest name, and fails unless each
-answers 200 with the type the browser needs (.wasm application/wasm, .mjs/.js
-text/javascript). Proves the would-be commit is complete; the real servers'
-MIME setup is a Phase 2 check (docs/web-deploy.md). Stdlib only.
+<root> is what is served at <origin>: the rendered boot page as index.html plus
+the build in <dir> under it, `flutter` (the self-hosted layout, served locally
+by tools/web_deploy/serve.py) or `.` (the Cloudflare Pages tree, whose build
+sits at the root; <origin> can then be the deployed Pages URL). Fetches every
+built file and every URL the page, the bootstrap, the manifest and the font
+manifest name, and fails unless each answers 200 with a type the browser
+accepts (.wasm application/wasm, .mjs/.js a JavaScript type). Pages' own
+config files (_headers, _redirects) are never served, so they are skipped.
+docs/web-deploy.md. Stdlib only.
 """
 
 import json
@@ -30,19 +33,29 @@ REQUIRED = [
     "assets/FontManifest.json",
     "assets/NOTICES",
 ]
+JS = {"text/javascript", "application/javascript"}
 TYPES = {
-    ".wasm": "application/wasm",
-    ".mjs": "text/javascript",
-    ".js": "text/javascript",
+    ".wasm": {"application/wasm"},
+    ".mjs": JS,
+    ".js": JS,
 }
+# Pages' config files are never served, and its 404.html is served for missing
+# paths (it may redirect /404.html itself); nothing loads any of them by name.
+PAGES_CONFIG = {"_headers", "_redirects", "404.html"}
 
 
 def main():
-    if len(sys.argv) != 3:
-        sys.exit(__doc__.splitlines()[0])
-    root = pathlib.Path(sys.argv[1])
-    origin = sys.argv[2].rstrip("/")
-    build = root / "flutter"
+    args = sys.argv[1:]
+    build_dir = "flutter"
+    if "--build" in args:
+        i = args.index("--build")
+        build_dir = args[i + 1]
+        del args[i : i + 2]
+    if len(args) != 2:
+        sys.exit(__doc__.splitlines()[1])
+    root = pathlib.Path(args[0])
+    origin = args[1].rstrip("/")
+    build = (root / build_dir).resolve()
     page = (root / "index.html").read_text(encoding="utf-8")
 
     base = re.search(r'<base href="([^"]+)"', page)
@@ -56,7 +69,7 @@ def main():
     urls = set()
     # 1. Everything that would be committed.
     for f in sorted(build.rglob("*")):
-        if f.is_file():
+        if f.is_file() and f.name not in PAGES_CONFIG:
             urls.add(under_base(f.relative_to(build).as_posix()))
     # 2. The page's own references, including the injected bootstrap.
     for ref in re.findall(r'(?:src|href)="([^"]+)"', page):
@@ -94,8 +107,8 @@ def main():
         try:
             with urllib.request.urlopen(url, timeout=30) as resp:
                 ctype = (resp.headers.get("Content-Type") or "").split(";")[0].strip()
-                if want and ctype != want:
-                    failures.append(f"{url}: Content-Type {ctype!r}, want {want!r}")
+                if want and ctype not in want:
+                    failures.append(f"{url}: Content-Type {ctype!r}, want one of {sorted(want)}")
         except urllib.error.HTTPError as e:
             failures.append(f"{url}: HTTP {e.code}")
         except urllib.error.URLError as e:

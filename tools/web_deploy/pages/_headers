@@ -1,0 +1,12 @@
+# Response headers for the hosted app on Cloudflare Pages (admin.invoicing.co),
+# copied into the site by .github/workflows/web.yml (docs/web-deploy.md).
+# Everything revalidates: only flutter_bootstrap.js's entrypoints carry a ?v=
+# hash, and a stale engine or asset beside a new bootstrap breaks the boot.
+# When Flutter 3.50's --web-content-hash names every file by its hash, give the
+# hashed paths their own rule with `! Cache-Control` first (Pages adds the
+# values of every matching rule) and `public, max-age=31536000, immutable`.
+/*
+  Cache-Control: no-cache
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin

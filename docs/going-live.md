@@ -15,7 +15,7 @@ Updated 2026-11-12, after 5.1.25. Update this table whenever a store moves; the 
 | iOS | ❌ | TestFlight, external beta | § App Store (iOS and macOS) |
 | macOS | ❌ | TestFlight | § App Store (iOS and macOS) |
 | Windows | ❌ | Microsoft Store, Private audience | § Microsoft Store |
-| Web | ❌ | staged by Deploy to Web, never committed | `docs/web-deploy.md` § Going live |
+| Web | ❌ | built and checked by Deploy to Web; Pages and the release tarball wait on the Cloudflare project and the backend PR | `docs/web-deploy.md` § Going live |
 
 Going live is one app release with the beta flag off, plus a store-console step on each store. Today every pipeline ships to testers: Play Open testing, TestFlight (iOS and macOS), and a restricted Microsoft Store listing. F-Droid, Flathub, the Snap and the GitHub Releases are already public.
 

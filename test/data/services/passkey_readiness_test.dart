@@ -410,6 +410,13 @@ void main() {
       },
     );
 
+    test('a browser refusal hides the button the same way', () async {
+      final r = page();
+      expect(await r.isReady(apiBaseUrl: hostedApi, isHosted: true), isTrue);
+      r.noteNotAssociated(apiBaseUrl: hostedApi);
+      expect(await r.isReady(apiBaseUrl: hostedApi, isHosted: true), isFalse);
+    });
+
     test('a page on the relying party itself needs no list', () async {
       final r = readiness(
         PasskeyPlatform.web,

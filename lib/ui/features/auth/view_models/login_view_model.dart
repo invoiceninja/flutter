@@ -765,6 +765,9 @@ class LoginViewModel extends ChangeNotifier {
         case PasskeyFailure.cancelled:
           break;
         case PasskeyFailure.notAssociated:
+          readiness.noteNotAssociated(apiBaseUrl: baseUrl);
+          _passkeyReady = false;
+          _setError(key: 'passkey_unavailable');
         case PasskeyFailure.noCredentials:
         case PasskeyFailure.unsupported:
         case PasskeyFailure.alreadyRegistered:

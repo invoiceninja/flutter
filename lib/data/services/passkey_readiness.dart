@@ -216,6 +216,17 @@ class PasskeyReadiness {
     );
   }
 
+  /// The browser refused a ceremony against [apiBaseUrl] as not associated
+  /// (a `SecurityError`). On a related page that means the relying party's
+  /// `/.well-known/webauthn` doesn't list it yet, so the button is hidden for
+  /// [cacheFor], as for a server that doesn't list it ([allowsCeremony]).
+  void noteNotAssociated({required String apiBaseUrl}) {
+    if (_platform == PasskeyPlatform.web &&
+        kHostedPasskeyRelatedOrigins.contains(_pageOrigin)) {
+      _relatedRefused[apiBaseUrl] = _now();
+    }
+  }
+
   /// [url]'s verdict, from the cache while it is fresh. Only a definitive
   /// answer is cached; a transient failure (offline at launch, a timeout, a
   /// 5xx) is asked again next time rather than hiding passkeys for

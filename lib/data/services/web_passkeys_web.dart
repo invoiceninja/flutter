@@ -27,10 +27,9 @@ Future<bool> webPasskeysAvailable() async {
 /// Whether the browser says it supports WebAuthn Related Origin Requests
 /// (`PublicKeyCredential.getClientCapabilities().relatedOrigins`): a page on
 /// one host running a ceremony for a relying party on another that lists it
-/// in its `/.well-known/webauthn`. Chrome and Edge report it from 133; Safari
-/// supports it without (yet) saying so, and Firefox has neither — both read as
-/// false, so the passkey button stays hidden there (docs/passkeys.md §
-/// Related origins). Never throws.
+/// in its `/.well-known/webauthn`. Chrome and Edge report it from 133; a
+/// browser that doesn't report it reads as false, so the passkey button stays
+/// hidden there (docs/passkeys.md § Related origins). Never throws.
 Future<bool> webPasskeysRelatedOrigins() async {
   try {
     final pkc = globalContext.getProperty<JSAny?>('PublicKeyCredential'.toJS);
